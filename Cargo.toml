@@ -1,0 +1,15 @@
+[package]
+name = "abstract-calculus"
+version = "0.1.0"
+description = "Abstract Calculus"
+license = "MIT"
+
+[lib]
+name = "absal"
+path = "src/lib.rs"
+
+[[bin]]
+name = "main"
+path = "src/main.rs"
+
+[dependencies]
