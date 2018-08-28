@@ -4,15 +4,27 @@ use std::collections::*;
 use net::*;
 use std;
 
-// λ-Terms are either lambdas, variables or applications.
+// Terms of the Abstract-Calculus.
 #[derive(Clone, Debug)]
 pub enum Term {
-    Lam {nam: Vec<u8>, bod: Box<Term>},
+
+    // Abstractions (affine functions).
+    Lam {nam: Vec<u8>, bod: Box<Term>},                               
+
+    // Applications.
     App {fun: Box<Term>, arg: Box<Term>},
+
+    // Superposition (pairs).
     Sup {fst: Box<Term>, snd: Box<Term>},
+
+    // Definitions (let).
     Dup {fst: Vec<u8>, snd: Vec<u8>, val: Box<Term>, nxt: Box<Term>},
-    Era {val: Box<Term>},
-    Var {nam: Vec<u8>},
+
+    // Erasure (garbage collection).
+    Era {val: Box<Term>, nxt: Box<Term>},
+
+    // Variable.
+    Var {nam: Vec<u8>}, 
 }
 use self::Term::{*};
 
@@ -87,8 +99,10 @@ pub fn parse_term<'a>(code : &'a Str) -> (&'a Str, Term) {
         // Erase
         b'-' => {
             let (code, val) = parse_term(&code[1..]);
+            let (code, nxt) = parse_term(code);
             let val = Box::new(val);
-            (code, Era{val})
+            let nxt = Box::new(nxt);
+            (code, Era{val,nxt})
         },
         // Variable
         _ => {
@@ -111,27 +125,35 @@ pub fn to_string(term : &Term) -> Vec<Chr> {
             &Lam{ref nam, ref bod} => {
                 code.extend_from_slice(b"#");
                 code.append(&mut nam.clone());
-                code.extend_from_slice(b" ");
+                code.extend_from_slice(b". ");
                 stringify_term(code, &bod);
             },
             &App{ref fun, ref arg} => {
-                code.extend_from_slice(b":");
+                code.extend_from_slice(b"(");
                 stringify_term(code, &fun);
                 code.extend_from_slice(b" ");
                 stringify_term(code, &arg);
+                code.extend_from_slice(b")");
             },
             &Sup{ref fst, ref snd} => {
-                code.extend_from_slice(b"&");
+                code.extend_from_slice(b"(");
                 stringify_term(code, &fst);
-                code.extend_from_slice(b" ");
+                code.extend_from_slice(b",");
                 stringify_term(code, &snd);
+                code.extend_from_slice(b")");
             },
             &Dup{ref fst, ref snd, ref val, ref nxt} => {
-                code.extend_from_slice(b"@");
+                code.extend_from_slice(b"let (");
                 code.append(&mut fst.clone());
-                code.extend_from_slice(b" ");
+                code.extend_from_slice(b",");
                 code.append(&mut snd.clone());
-                code.extend_from_slice(b" ");
+                code.extend_from_slice(b") = ");
+                stringify_term(code, &val);
+                code.extend_from_slice(b" in\n");
+                stringify_term(code, &nxt);
+            },
+            &Era{ref val, ref nxt} => {
+                code.extend_from_slice(b"-");
                 stringify_term(code, &val);
                 code.extend_from_slice(b"\n");
                 stringify_term(code, &nxt);
@@ -146,20 +168,20 @@ pub fn to_string(term : &Term) -> Vec<Chr> {
     return code;
 }
 
+// Display macro.
 impl std::fmt::Display for Term {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{}", String::from_utf8_lossy(&to_string(&self)))
     }
 }
 
+// Converts a term to an Interaction-Combinator net. Both systems are directly isomorphic, so,
+// each node of the Abstract-Calculus correspond to a single Interaction-Combinator node.
 pub fn to_net(term : &Term) -> Net {
     fn encode_term(net : &mut Net, term : &Term, up : Port, scope : &mut HashMap<Vec<u8>,u32>, vars : &mut Vec<(Vec<u8>,u32)>) -> Port {
         match term {
             &Lam{ref nam, ref bod} => {
                 let fun = new_node(net, 0);
-                let era = new_node(net, 2);
-                link(net, port(era, 1), port(era, 2));
-                link(net, port(fun, 1), port(era, 0));
                 scope.insert(nam.to_vec(), port(fun, 1));
                 let bod = encode_term(net, bod, port(fun, 2), scope, vars);
                 link(net, port(fun, 2), bod);
@@ -183,16 +205,17 @@ pub fn to_net(term : &Term) -> Net {
             },
             &Dup{ref fst, ref snd, ref val, ref nxt} => {
                 let dup = new_node(net, 1);
-                let era = new_node(net, 2);
-                link(net, port(era, 1), port(era, 2));
-                link(net, port(era, 0), port(dup, 1));
-                let era = new_node(net, 2);
-                link(net, port(era, 1), port(era, 2));
-                link(net, port(era, 0), port(dup, 2));
                 scope.insert(fst.to_vec(), port(dup, 1));
                 scope.insert(snd.to_vec(), port(dup, 2));
                 let val = encode_term(net, &val, port(dup, 0), scope, vars);
                 link(net, val, port(dup, 0));
+                encode_term(net, &nxt, up, scope, vars)
+            },
+            &Era{ref val, ref nxt} => {
+                let era = new_node(net, 2);
+                link(net, port(era, 1), port(era, 2));
+                let val = encode_term(net, &val, port(era, 0), scope, vars);
+                link(net, val, port(era, 0));
                 encode_term(net, &nxt, up, scope, vars)
             },
             Var{ref nam} => {
@@ -201,16 +224,19 @@ pub fn to_net(term : &Term) -> Net {
             }
         }
     }
+    // Initializes net with a root node
     let mut net = Net { nodes: vec![0,2,1,4], reuse: vec![] };
     let mut vars = Vec::new();
     let mut scope = HashMap::new();
-    let root = encode_term(&mut net, &term, 0, &mut scope, &mut vars);
+    // Encodes the main term
+    let main = encode_term(&mut net, &term, 0, &mut scope, &mut vars);
+    // Links bound variables
     for i in 0..vars.len() {
         let (ref nam, var) = vars[i];
         match scope.get(nam) {
             Some(next) => {
                 let next = *next;
-                if kind(&net, node(enter(&net, next))) == 2 {
+                if enter(&net, next) == next {
                     link(&mut net, var, next);
                 } else {
                     panic!("Variable used more than once: {}.", std::str::from_utf8(nam).unwrap());
@@ -219,12 +245,14 @@ pub fn to_net(term : &Term) -> Net {
             None => panic!("Unbound variable: {}.", std::str::from_utf8(nam).unwrap())
         }
     }
-    link(&mut net, 0, root);
+    // Links the term to the net's root
+    link(&mut net, 0, main);
     net
 }
 
+// Converts an Interaction-Net node to an Abstract-Calculus term.
 pub fn from_net(net : &Net) -> Term {
-    fn name_of(net : &Net, next : Port, node_name : &mut HashMap<u32, Vec<u8>>) -> Vec<u8> {
+    fn name_of(next : Port, node_name : &mut HashMap<u32, Vec<u8>>) -> Vec<u8> {
         if !node_name.contains_key(&node(next)) {
             let nam = new_name(node_name.len() as u32);
             node_name.insert(node(next), nam.clone());
@@ -243,7 +271,7 @@ pub fn from_net(net : &Net) -> Term {
                     lam
                 },
                 1 => {
-                    Var{nam: name_of(net, next, node_name)}
+                    Var{nam: name_of(next, node_name)}
                 },
                 _ => {
                     let dir = enter(net, port(node(next), 0));
@@ -264,18 +292,20 @@ pub fn from_net(net : &Net) -> Term {
                 },
                 _ => {
                     if !node_name.contains_key(&node(next)) {
-                        new_dups.push((name_of(net, next, node_name), node(next)))
+                        new_dups.push((name_of(next, node_name), node(next)))
                     }
-                    let mut nam = name_of(net, next, node_name).clone();
+                    let mut nam = name_of(next, node_name).clone();
                     nam.extend_from_slice(if slot(next) == 1 { b"0" } else { b"1" });
                     Var{nam}
                 }
             }
         }
     }
+    // Reads the main term from the net
     let mut node_name = HashMap::new();
     let mut new_dups = Vec::new();
     let mut main = read_term(net, enter(net, 0), &mut node_name, &mut new_dups);
+    // Reads top-level let..in definitions found
     while new_dups.len() > 0 {
         let (nam, dup) = new_dups.pop().unwrap();
         let val = read_term(net, enter(net,port(dup,0)), &mut node_name, &mut new_dups);
@@ -290,6 +320,7 @@ pub fn from_net(net : &Net) -> Term {
     main
 }
 
+// Reduces an Abstract-Calculus term through Interaction-Combinators.
 pub fn reduce(term : &Term) -> Term {
     let mut net : Net = to_net(&term);
     ::net::reduce(&mut net);

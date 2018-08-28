@@ -1,3 +1,6 @@
+// Implements Interaction-Combinators. The Abstract-Calculus is directly isomorphic to them, so, to
+// reduce a term, we simply translate to interaction combinators, reduce, then translate back.
+
 #![allow(dead_code)]
 
 #[derive(Clone, Debug)]
@@ -113,5 +116,5 @@ pub fn rewrite(net : &mut Net, x : Port, y : Port) {
         link(net, port(x, 1), port(b, 2));
         link(net, port(x, 2), port(y, 2));
     }
-    println!("----------------\n{}", ::term::from_net(&net));
+    println!("----------------\n{}", ::term::from_net(&net)); // TODO: remove this
 }
