@@ -132,3 +132,7 @@ main = add (S (S (S Z))) (S (S Z))
 ### Example 4: applying not 8 times to True. 
 
 [Full reduction.](https://gist.github.com/MaiaVictor/d565bee7d9083e98ae1470067ce12dbb)
+
+---
+
+[Here is a handwritten reduction of 2^(2^2).](drawing.jpeg)
