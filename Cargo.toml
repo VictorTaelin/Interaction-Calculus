@@ -1,8 +1,10 @@
 [package]
 name = "abstract-calculus"
 version = "0.1.0"
-description = "Abstract Calculus"
+description = "A programming language and model of computation that matches the abstract algorithm perfectly."
 license = "MIT"
+authors = ["Victor Maia <srvictormaia@gmail.com>"]
+repository = "https://github.com/maiavictor/abstract-calculus"
 
 [lib]
 name = "absal"
