@@ -43,6 +43,22 @@ pub fn new_name(idx : u32) -> Vec<Chr> {
     return name;
 }
 
+// A context is a vector of (name, value) assignments.
+type Context<'a> = Vec<(&'a Str, Option<Term>)>;
+
+// Extends a context with a (name, value) assignments.
+fn extend<'a,'b>(nam : &'a Str, val : Option<Term>, ctx : &'b mut Context<'a>) -> &'b mut Context<'a> {
+    ctx.push((nam,val));
+    ctx
+}
+
+// Removes an assignment from a context.
+fn narrow<'a,'b>(ctx : &'b mut Context<'a>) -> &'b mut Context<'a> {
+    ctx.pop();
+    ctx
+}
+
+
 // Parses a name, returns the remaining code and the name.
 fn parse_name(code : &Str) -> (&Str, &Str) {
     let mut i : usize = 0;
@@ -52,65 +68,152 @@ fn parse_name(code : &Str) -> (&Str, &Str) {
     (&code[i..], &code[0..i])
 }
 
+pub fn namespace(space : &Vec<u8>, idx : u32, var : &Vec<u8>) -> Vec<u8> {
+    if var != b"-" {
+        let mut nam = space.clone();
+        nam.extend_from_slice(b"/");
+        nam.append(&mut idx.to_string().as_bytes().to_vec());
+        nam.extend_from_slice(b"/");
+        nam.append(&mut var.clone());
+        nam
+    } else {
+        var.clone()
+    }
+}
+
+// Makes a namespaced copy of a term
+pub fn copy(space : &Vec<u8>, idx : u32, term : &Term) -> Term {
+    match term {
+        Lam{nam, bod} => {
+            let nam = namespace(space, idx, nam);
+            let bod = Box::new(copy(space, idx, bod));
+            Lam{nam, bod}
+        },
+        App{fun, arg} => {
+            let fun = Box::new(copy(space, idx, fun));
+            let arg = Box::new(copy(space, idx, arg));
+            App{fun, arg}
+        },
+        Par{fst, snd} => {
+            let fst = Box::new(copy(space, idx, fst));
+            let snd = Box::new(copy(space, idx, snd));
+            Par{fst, snd}
+        },
+        Let{fst, snd, val, nxt} => {
+            let fst = namespace(space, idx, fst);
+            let snd = namespace(space, idx, snd);
+            let val = Box::new(copy(space, idx, val));
+            let nxt = Box::new(copy(space, idx, nxt));
+            Let{fst, snd, val, nxt}
+        },
+        Var{nam} => {
+            let nam = namespace(space, idx, nam);
+            Var{nam}
+        },
+        Set => Set
+    }
+}
+
 // Parses a term, returns the remaining code and the term.
-pub fn parse_term<'a>(code : &'a Str) -> (&'a Str, Term) {
-    match code[0] {
-        // Whitespace
-        b' ' => parse_term(&code[1..]),
-        // Newline
-        b'\n' => parse_term(&code[1..]),
-        // Abstraction
-        b'#' => {
-            let (code, nam) = parse_name(&code[1..]);
-            let (code, bod) = parse_term(code);
-            let nam = nam.to_vec();
-            let bod = Box::new(bod);
-            (code, Lam{nam,bod})
-        },
-        // Application
-        b'@' => {
-            let (code, fun) = parse_term(&code[1..]);
-            let (code, arg) = parse_term(code);
-            let fun = Box::new(fun);
-            let arg = Box::new(arg);
-            (code, App{fun,arg})
-        },
-        // Pair
-        b'&' => {
-            let (code, fst) = parse_term(&code[1..]);
-            let (code, snd) = parse_term(code);
-            let fst = Box::new(fst);
-            let snd = Box::new(snd);
-            (code, Par{fst,snd})
-        },
-        // Let
-        b'=' => {
-            let (code, fst) = parse_name(&code[1..]);
-            let (code, snd) = parse_name(&code[1..]);
-            let (code, val) = parse_term(code);
-            let (code, nxt) = parse_term(code);
-            let fst = fst.to_vec();
-            let snd = snd.to_vec();
-            let val = Box::new(val);
-            let nxt = Box::new(nxt);
-            (code, Let{fst, snd, val, nxt})
-        },
-        // Set
-        b'*' => {
-            (code, Set)
-        },
-        // Variable
-        _ => {
-            let (code, nam) = parse_name(code);
-            let nam = nam.to_vec();
-            (code, Var{nam})
+pub fn parse_term<'a>(code : &'a Str, ctx : &mut Context<'a>, idx : &mut u32, comment : u32) -> (&'a Str, Term) {
+    if comment > 0 {
+        match code[0] {
+            b'(' => parse_term(&code[1..], ctx, idx, comment + 1),
+            b')' => parse_term(&code[1..], ctx, idx, comment - if comment == 0 { 0 } else { 1 }),
+            _    => parse_term(&code[1..], ctx, idx, comment)
+        }
+    } else {
+        match code[0] {
+            // Whitespace
+            b' ' => parse_term(&code[1..], ctx, idx, comment),
+            // Newline
+            b'\n' => parse_term(&code[1..], ctx, idx, comment),
+            // Comment
+            b'(' => parse_term(&code[1..], ctx, idx, comment + 1),
+            // Abstraction
+            b'#' => {
+                let (code, nam) = parse_name(&code[1..]);
+                extend(nam, None, ctx);
+                let (code, bod) = parse_term(code, ctx, idx, comment);
+                narrow(ctx);
+                let nam = nam.to_vec();
+                let bod = Box::new(bod);
+                (code, Lam{nam,bod})
+            },
+            // Application
+            b'@' => {
+                let (code, fun) = parse_term(&code[1..], ctx, idx, comment);
+                let (code, arg) = parse_term(code, ctx, idx, comment);
+                let fun = Box::new(fun);
+                let arg = Box::new(arg);
+                (code, App{fun,arg})
+            },
+            // Pair
+            b'&' => {
+                let (code, fst) = parse_term(&code[1..], ctx, idx, comment);
+                let (code, snd) = parse_term(code, ctx, idx, comment);
+                let fst = Box::new(fst);
+                let snd = Box::new(snd);
+                (code, Par{fst,snd})
+            },
+            // Let
+            b'=' => {
+                let (code, fst) = parse_name(&code[1..]);
+                let (code, snd) = parse_name(&code[1..]);
+                extend(fst, None, extend(snd, None, ctx));
+                let (code, val) = parse_term(code, ctx, idx, comment);
+                let (code, nxt) = parse_term(code, ctx, idx, comment);
+                narrow(ctx);
+                let fst = fst.to_vec();
+                let snd = snd.to_vec();
+                let val = Box::new(val);
+                let nxt = Box::new(nxt);
+                (code, Let{fst, snd, val, nxt})
+            },
+            // Definition
+            b'/' => {
+                let (code, nam) = parse_name(&code[1..]);
+                let (code, val) = parse_term(code, ctx, idx, comment);
+                extend(nam, Some(val), ctx);
+                let (code, bod) = parse_term(code, ctx, idx, comment);
+                narrow(ctx);
+                (code, bod)
+            },
+            // Set
+            b'*' => {
+                (code, Set)
+            },
+            // Variable
+            _ => {
+                let (code, nam) = parse_name(code);
+                let mut val : Option<Term> = None;
+                for i in (0..ctx.len()).rev() {
+                    if ctx[i].0 == nam {
+                        match ctx[i].1 {
+                            Some(ref term) => {
+                                let mut name = nam.clone().to_vec();
+                                val = Some(copy(&name, *idx, term));
+                                *idx += 1;
+                                break;
+                            },
+                            None => {
+                                break;
+                            }
+                        }
+                    }
+                }
+                let nam = nam.to_vec();
+                (code, match val { Some(term) => term, None => Var{nam} })
+            }
         }
     }
 }
 
 // Converts a source-code to a λ-term.
 pub fn from_string<'a>(code : &'a Str) -> Term {
-    parse_term(code).1
+    let mut ctx = Vec::new();
+    let mut idx = 0;
+    parse_term(code, &mut ctx, &mut idx, 0).1
 }
 
 // Converts a λ-term back to a source-code.
@@ -235,7 +338,7 @@ pub fn to_net(term : &Term) -> Net {
                 if snd == b"-" {
                     let era = new_node(net, ERA);
                     link(net, port(era, 1), port(era, 2));
-                    link(net, port(dup, 1), port(era, 0));
+                    link(net, port(dup, 2), port(era, 0));
                 }
                 let val = encode_term(net, &val, port(dup, 0), scope, vars);
                 link(net, val, port(dup, 0));
@@ -307,6 +410,9 @@ pub fn from_net(net : &Net) -> Term {
         , lets_vec : &mut Vec<u32>
         , lets_set : &mut HashSet<(u32)>
         ) -> Term {
+        if kind(net, addr(next)) == 4 {
+            return Set;
+        }
         match kind(net, addr(next)) {
             // If we're visiting a con node...
             CON => match slot(next) {
@@ -352,7 +458,7 @@ pub fn from_net(net : &Net) -> Term {
                     Var{nam}
                 }
             },
-            _ => panic!("The universe crashed.")
+            _ => panic!("The universe crashed. {}", kind(net, addr(next)))
         }
     }
 
