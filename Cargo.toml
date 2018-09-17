@@ -1,6 +1,6 @@
 [package]
 name = "abstract-calculus"
-version = "0.1.1"
+version = "0.1.2"
 description = "A programming language and model of computation that matches the abstract algorithm perfectly."
 license = "MIT"
 authors = ["Victor Maia <srvictormaia@gmail.com>"]

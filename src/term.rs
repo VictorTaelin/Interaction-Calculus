@@ -141,7 +141,7 @@ pub fn parse_term<'a>(code : &'a Str, ctx : &mut Context<'a>, idx : &mut u32, co
                 (code, Lam{nam,bod})
             },
             // Application
-            b'@' => {
+            b':' => {
                 let (code, fun) = parse_term(&code[1..], ctx, idx, comment);
                 let (code, arg) = parse_term(code, ctx, idx, comment);
                 let fun = Box::new(fun);
@@ -227,7 +227,7 @@ pub fn to_string(term : &Term) -> Vec<Chr> {
                 stringify_term(code, &bod);
             },
             &App{ref fun, ref arg} => {
-                code.extend_from_slice(b"@");
+                code.extend_from_slice(b":");
                 stringify_term(code, &fun);
                 code.extend_from_slice(b" ");
                 stringify_term(code, &arg);
