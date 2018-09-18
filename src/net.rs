@@ -84,7 +84,6 @@ pub fn reduce(net : &mut Net) -> Stats {
     let mut next : Port = net.nodes[0];
     let mut prev : Port;
     let mut back : Port;
-    let mut count : u32 = 0;
     while next > 0 || warp.len() > 0 {
         next = if next == 0 { enter(net, warp.pop().unwrap()) } else { next };
         prev = enter(net, next);
@@ -101,8 +100,6 @@ pub fn reduce(net : &mut Net) -> Stats {
             next = enter(net, port(addr(next), 0));
         }
         stats.loops += 1;
-        count += 1;
-        if count > 10000 { break; }
     }
     stats
 }
