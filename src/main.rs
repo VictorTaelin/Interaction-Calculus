@@ -12,13 +12,6 @@ mod net;
 
 fn main() {
     let example = term::from_string(b"
-        #f1
-            =f1a f1b f1
-            =f2a f2b #a :f1a :f1b a
-            =f4a f4b #b :f2a :f2b b
-            =f8a f8b #c :f4a :f4b c
-            #x :f8a :f8b x
-
         (repetitor 1)
         /c1 #f #x
             :f x
@@ -84,33 +77,6 @@ fn main() {
                 :suc :suc :suc zer
                 :suc :suc :suc zer
     ");
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
     println!("-- Input (with original names):\n\n{}\n", &example);
     println!("-- Input:\n\n{}\n", term::from_net(&term::to_net(&example)));
