@@ -14,10 +14,10 @@ pub enum Term {
     App {fun: Box<Term>, arg: Box<Term>},
 
     // Pairs.
-    Par {fst: Box<Term>, snd: Box<Term>},
+    Par {tag: u32, fst: Box<Term>, snd: Box<Term>},
 
     // Definitions (let).
-    Let {fst: Vec<u8>, snd: Vec<u8>, val: Box<Term>, nxt: Box<Term>},
+    Let {tag: u32, fst: Vec<u8>, snd: Vec<u8>, val: Box<Term>, nxt: Box<Term>},
 
     // Variable.
     Var {nam: Vec<u8>}, 
@@ -34,13 +34,21 @@ pub type Chr = u8;
 // Builds a var name from an index (0="a", 1="b", 26="aa"...).
 pub fn new_name(idx : u32) -> Vec<Chr> {
     let mut name = Vec::new();
-    let mut idx = idx + 1;
+    let mut idx = idx;
     while idx > 0 {
         idx = idx - 1;
         name.push((97 + idx % 26) as u8);
         idx = idx / 26;
     }
     return name;
+}
+
+pub fn name_idx(name : &Vec<Chr>) -> u32 {
+    let mut idx : u32 = 0;
+    for byte in name.iter().rev() {
+        idx = (idx * 26) + (*byte as u32 - 97) + 1;
+    }
+    return idx;
 }
 
 // A context is a vector of (name, value) assignments.
@@ -94,17 +102,19 @@ pub fn copy(space : &Vec<u8>, idx : u32, term : &Term) -> Term {
             let arg = Box::new(copy(space, idx, arg));
             App{fun, arg}
         },
-        Par{fst, snd} => {
+        Par{tag, fst, snd} => {
+            let tag = *tag;
             let fst = Box::new(copy(space, idx, fst));
             let snd = Box::new(copy(space, idx, snd));
-            Par{fst, snd}
+            Par{tag, fst, snd}
         },
-        Let{fst, snd, val, nxt} => {
+        Let{tag, fst, snd, val, nxt} => {
+            let tag = *tag;
             let fst = namespace(space, idx, fst);
             let snd = namespace(space, idx, snd);
             let val = Box::new(copy(space, idx, val));
             let nxt = Box::new(copy(space, idx, nxt));
-            Let{fst, snd, val, nxt}
+            Let{tag, fst, snd, val, nxt}
         },
         Var{nam} => {
             let nam = namespace(space, idx, nam);
@@ -150,25 +160,29 @@ pub fn parse_term<'a>(code : &'a Str, ctx : &mut Context<'a>, idx : &mut u32, co
             },
             // Pair
             b'&' => {
-                let (code, fst) = parse_term(&code[1..], ctx, idx, comment);
+                let (code, tag) = parse_name(&code[1..]);
+                let (code, fst) = parse_term(code, ctx, idx, comment);
                 let (code, snd) = parse_term(code, ctx, idx, comment);
+                let tag = name_idx(&tag.to_vec());
                 let fst = Box::new(fst);
                 let snd = Box::new(snd);
-                (code, Par{fst,snd})
+                (code, Par{tag,fst,snd})
             },
             // Let
             b'=' => {
+                let (code, tag) = parse_name(&code[1..]);
                 let (code, fst) = parse_name(&code[1..]);
                 let (code, snd) = parse_name(&code[1..]);
                 extend(fst, None, extend(snd, None, ctx));
                 let (code, val) = parse_term(code, ctx, idx, comment);
                 let (code, nxt) = parse_term(code, ctx, idx, comment);
                 narrow(ctx);
+                let tag = name_idx(&tag.to_vec());
                 let fst = fst.to_vec();
                 let snd = snd.to_vec();
                 let val = Box::new(val);
                 let nxt = Box::new(nxt);
-                (code, Let{fst, snd, val, nxt})
+                (code, Let{tag, fst, snd, val, nxt})
             },
             // Definition
             b'/' => {
@@ -232,14 +246,18 @@ pub fn to_string(term : &Term) -> Vec<Chr> {
                 code.extend_from_slice(b" ");
                 stringify_term(code, &arg);
             },
-            &Par{ref fst, ref snd} => {
+            &Par{tag, ref fst, ref snd} => {
                 code.extend_from_slice(b"&");
+                code.append(&mut new_name(tag));
+                code.extend_from_slice(b" ");
                 stringify_term(code, &fst);
                 code.extend_from_slice(b" ");
                 stringify_term(code, &snd);
             },
-            &Let{ref fst, ref snd, ref val, ref nxt} => {
+            &Let{tag, ref fst, ref snd, ref val, ref nxt} => {
                 code.extend_from_slice(b"=");
+                code.append(&mut new_name(tag));
+                code.extend_from_slice(b" ");
                 code.append(&mut fst.clone());
                 code.extend_from_slice(b" ");
                 code.append(&mut snd.clone());
@@ -312,8 +330,8 @@ pub fn to_net(term : &Term) -> Net {
             // - 0: points to where the pair occurs.
             // - 1: points to the first value.
             // - 2: points to the second value.
-            &Par{ref fst, ref snd} => {
-                let dup = new_node(net, FAN);
+            &Par{tag, ref fst, ref snd} => {
+                let dup = new_node(net, FAN + tag);
                 let fst = encode_term(net, fst, port(dup, 1), scope, vars);
                 link(net, port(dup, 1), fst);
                 let snd = encode_term(net, snd, port(dup, 2), scope, vars);
@@ -324,8 +342,8 @@ pub fn to_net(term : &Term) -> Net {
             // - 0: points to the value projected.
             // - 1: points to the occurrence of the first variable.
             // - 2: points to the occurrence of the second variable.
-            &Let{ref fst, ref snd, ref val, ref nxt} => {
-                let dup = new_node(net, FAN);
+            &Let{tag, ref fst, ref snd, ref val, ref nxt} => {
+                let dup = new_node(net, FAN + tag);
                 scope.insert(fst.to_vec(), port(dup, 1));
                 scope.insert(snd.to_vec(), port(dup, 2));
                 // If the first variable is unused, create an erase node.
@@ -396,7 +414,7 @@ pub fn from_net(net : &Net) -> Term {
             return b"-".to_vec();
         }
         if !var_name.contains_key(&var_port) {
-            let nam = new_name(var_name.len() as u32);
+            let nam = new_name(var_name.len() as u32 + 1);
             var_name.insert(var_port, nam.clone());
         }
         var_name.get(&var_port).unwrap().to_vec()
@@ -410,10 +428,9 @@ pub fn from_net(net : &Net) -> Term {
         , lets_vec : &mut Vec<u32>
         , lets_set : &mut HashSet<(u32)>
         ) -> Term {
-        if kind(net, addr(next)) == 4 {
-            return Set;
-        }
         match kind(net, addr(next)) {
+            // If we're visiting a set...
+            ERA => Set,
             // If we're visiting a con node...
             CON => match slot(next) {
                 // If we're visiting a port 0, then it is a lambda.
@@ -438,14 +455,15 @@ pub fn from_net(net : &Net) -> Term {
                 }
             },
             // If we're visiting a fan node...
-            FAN => match slot(next) {
+            tag => match slot(next) {
                 // If we're visiting a port 0, then it is a pair.
                 0 => {
+                    let tag = tag - FAN;
                     let prt = enter(net, port(addr(next), 1));
                     let fst = read_term(net, prt, var_name, lets_vec, lets_set);
                     let prt = enter(net, port(addr(next), 2));
                     let snd = read_term(net, prt, var_name, lets_vec, lets_set);
-                    Par{fst: Box::new(fst), snd: Box::new(snd)}
+                    Par{tag, fst: Box::new(fst), snd: Box::new(snd)}
                 },
                 // If we're visiting a port 1 or 2, then it is a variable.
                 // Also, that means we found a let, so we store it to read later.
@@ -457,8 +475,7 @@ pub fn from_net(net : &Net) -> Term {
                     let nam = name_of(net, next, var_name);
                     Var{nam}
                 }
-            },
-            _ => panic!("The universe crashed. {}", kind(net, addr(next)))
+            }
         }
     }
 
@@ -479,11 +496,12 @@ pub fn from_net(net : &Net) -> Term {
     while lets_vec.len() > 0 {
         let dup = lets_vec.pop().unwrap();
         let val = read_term(net, enter(net,port(dup,0)), &mut binder_name, &mut lets_vec, &mut lets_set);
+        let tag = kind(net, dup) - FAN;
         let fst = name_of(net, port(dup,1), &mut binder_name);
         let snd = name_of(net, port(dup,2), &mut binder_name);
         let val = Box::new(val);
         let nxt = Box::new(main);
-        main = Let{fst, snd, val, nxt};
+        main = Let{tag, fst, snd, val, nxt};
     }
     main
 }
