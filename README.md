@@ -1,6 +1,6 @@
-# Abstract Calculus
+# Symmetric Interaction Calculus
 
-The [Abstract Calculus](https://medium.com/@maiavictor/the-abstract-calculus-fe8c46bcf39c) is a minimal programming language and model of computation obtained by slightly modifying the Lambda Calculus so that it matches perfectly the abstract part of [Lamping's optimal reduction algorithm](http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.90.2386&rep=rep1&type=pdf). Characteristics:
+The [Symmetric Interaction Calculus](https://medium.com/@maiavictor/the-abstract-calculus-fe8c46bcf39c) is a minimal programming language and model of computation obtained by slightly modifying the Lambda Calculus so that it matches perfectly the abstract part of [Lamping's optimal reduction algorithm](http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.90.2386&rep=rep1&type=pdf). Characteristics:
 
 1. Like the Lambda Calculus, it can easily express algebraic datatypes and arbitrary recursive algorithms.
 
@@ -14,7 +14,7 @@ The [Abstract Calculus](https://medium.com/@maiavictor/the-abstract-calculus-fe8
 
 6. Unlike both, it is intrinsically parallel.
 
-7. It is isomorphic to [interaction combinators](https://pdfs.semanticscholar.org/6cfe/09aa6e5da6ce98077b7a048cb1badd78cc76.pdf), a beautiful model of computation.
+7. It is isomorphic to [symmetric interaction combinators](https://pdfs.semanticscholar.org/1731/a6e49c6c2afda3e72256ba0afb34957377d3.pdf), a beautiful model of computation.
 
 ## Syntax
 
@@ -23,10 +23,10 @@ The syntax is obtained by simply extending the Lambda Calculus with `pairs` and 
 
 ```haskell
 term ::=
-  | λx. term                 -- abstraction (affine function)
+  | λx. term                 -- abstraction
   | (term term)              -- application
-  | (term,term)              -- superposition (pair)
-  | let (p,q) = term in term -- definition (let)
+  | (term,term)              -- pair
+  | let (p,q) = term in term -- definition
   | x                        -- variable
 ```
 
