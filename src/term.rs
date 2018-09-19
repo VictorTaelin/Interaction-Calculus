@@ -399,6 +399,13 @@ pub fn to_net(term : &Term) -> Net {
         }
     }
 
+    // Checks if all variables are bound
+    for (nam,addr) in scope {
+        if enter(&net, addr) == addr {
+            println!("Variable never used: {}. Explicitly erase by renaming it to a hyphen (-).", std::str::from_utf8(&nam).unwrap()); 
+        }
+    }
+
     // Links the term to the net's root.
     link(&mut net, 0, main);
 
