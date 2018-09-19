@@ -195,7 +195,7 @@ pub fn parse_term<'a>(code : &'a Str, ctx : &mut Context<'a>, idx : &mut u32, co
             },
             // Set
             b'*' => {
-                (code, Set)
+                (&code[1..], Set)
             },
             // Variable
             _ => {
