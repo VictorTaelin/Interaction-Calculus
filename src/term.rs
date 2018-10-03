@@ -173,9 +173,11 @@ pub fn parse_term<'a>(code : &'a Str, ctx : &mut Context<'a>, idx : &mut u32, co
                 let (code, tag) = parse_name(&code[1..]);
                 let (code, fst) = parse_name(&code[1..]);
                 let (code, snd) = parse_name(&code[1..]);
-                extend(fst, None, extend(snd, None, ctx));
+                extend(snd, None, ctx);
+                extend(fst, None, ctx);
                 let (code, val) = parse_term(code, ctx, idx, comment);
                 let (code, nxt) = parse_term(code, ctx, idx, comment);
+                narrow(ctx);
                 narrow(ctx);
                 let tag = name_idx(&tag.to_vec());
                 let fst = fst.to_vec();
