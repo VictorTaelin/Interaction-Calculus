@@ -401,10 +401,12 @@ pub fn to_net(term : &Term) -> Net {
         }
     }
 
-    // Checks if all variables are bound
-    for (nam,addr) in scope {
+    // Connects unbound variables to erase nodes
+    for (_, addr) in scope {
         if enter(&net, addr) == addr {
-            println!("Variable never used: {}. Explicitly erase by renaming it to a hyphen (-).", std::str::from_utf8(&nam).unwrap()); 
+            let era = new_node(&mut net, ERA);
+            link(&mut net, port(era, 1), port(era, 2));
+            link(&mut net, addr, port(era, 0));
         }
     }
 
