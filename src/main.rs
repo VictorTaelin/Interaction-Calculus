@@ -1,84 +1,106 @@
-// I'm using a different syntax here, because the parser is dumb.
-// - [=<tag> a b c d] stands for [let <tag>(a,b) = c in d]
-// - [&<tag> a b] stands for [<tag>(a,b)]
-// - [@a b] stands for [(a b)]
-// - [#a b] stands for [λa. b]
-// - [*] stands for [()]
-// - [-] stands for an erased (unused) lambda or let variable
-// - [/a b c] inlines all occurrences of [a] by the closed term [b]
+extern crate clap;
+use clap::{Arg, App};
 
 mod term;
 mod net;
+mod extra;
 
-fn main() {
-    let example = term::from_string(b"
-        (repetitor 1)
-        /c1 #f #x
-            :f x
+use term::*;
+use extra::*;
 
-        (repetitor 2)
-        /c2 #f #x
-            = f1_a f1_b f
-            :f1_a :f1_b x
+use std::io;
+use std::io::prelude::*;
+use std::fs::File;
 
-        (repetitor 3)
-        /c3 #f #x
-            = f1_a f1_b f
-            = f1_c f1_d f1_b
-            = f2_a -    #x2 :f1_c :f1_d x2
-            :f1_a :f2_a x
+fn main() -> io::Result<()> {
+    let matches = App::new("Symmetric Interaction Calculus")
+        .version("0.1.0")
+        .author("Victor Maia <srvictormaia@gmail.com>")
+        .about("Evaluates SIC programs")
+        .arg(Arg::with_name("INPUT")
+            .short("i")
+            .long("input")
+            .value_name("INPUT")
+            .help("Input term")
+            .takes_value(true))
+        .arg(Arg::with_name("AINPUT")
+            .short("a")
+            .long("ainput")
+            .value_name("AINPUT")
+            .help("Input term, encoded as ascii")
+            .takes_value(true))
+        .arg(Arg::with_name("BINPUT")
+            .short("b")
+            .long("binput")
+            .value_name("BINPUT")
+            .help("Input term, encoded as a binary string")
+            .takes_value(true))
+        .arg(Arg::with_name("BOUTPUT")
+            .short("B")
+            .long("boutput")
+            .value_name("BOUTPUT")
+            .help("Decodes output as a binary string")
+            .takes_value(false))
+        .arg(Arg::with_name("AOUTPUT")
+            .short("A")
+            .long("aoutput")
+            .value_name("AOUTPUT")
+            .help("Decodes output as ascii")
+            .takes_value(false))
+        .arg(Arg::with_name("STATS")
+            .short("s")
+            .long("stats")
+            .value_name("STATS")
+            .help("Show stats")
+            .takes_value(false))
+        .arg(Arg::with_name("FILE")
+            .help("Sets the input file to use")
+            .required(true)
+            .index(1))
+        .get_matches();
 
-        (repetitor 4)
-        /c4 #f #x
-            = f1_a f1_b f
-            = f2_a f2_b #x2 :f1_a :f1_b x2
-            :f2_a :f2_b x
+    let file_name = matches.value_of("FILE").unwrap();
+    let mut file = File::open(file_name)?;
+    let mut code = Vec::new();
+    file.read_to_end(&mut code)?;
 
-        (boolean true)
-        /true #true #-
-            true
+    let input : Option<Vec<u8>> = match matches.value_of("AINPUT") {
+        Some(ascii) => Some(to_string(&bitstring_to_term(&ascii_to_bits(ascii.as_bytes()), 0))),
+        None => match matches.value_of("BINPUT") {
+            Some(bits) => Some(to_string(&bitstring_to_term(bits.as_bytes(), 0))),
+            None => match matches.value_of("INPUT") {
+                Some(term) => Some(term.as_bytes().to_vec()),
+                None => None
+            }
+        }
+    };
 
-        (boolean false)
-        /false #- #false
-            false
+    match input {
+        Some(mut input) => {
+            code.extend_from_slice(b"\n:main ");
+            code.append(&mut input);
+        },
+        None => {}
+    }
 
-        (boolean negation)
-        /not #bool #true #false
-            ::bool false true
+    let term = from_string(&code);
+    let mut net = to_net(&term);
+    let stats = net::reduce(&mut net);
+    let norm = from_net(&net);
 
-        (pair)
-        /pair #a #b #t
-            ::t a b
+    let output = if matches.is_present("BOUTPUT") {
+        term_to_bitstring(&norm)
+    } else if matches.is_present("AOUTPUT") {
+        bits_to_ascii(&term_to_bitstring(&norm))
+    } else {
+        to_string(&norm)
+    };
 
-        (nat zero)
-        /zer #- #Z
-            Z
+    println!("{}", String::from_utf8_lossy(&output));
 
-        (nat successor)
-        /suc #n #S #-
-            :S n
+    if matches.is_present("STATS") {
+        println!("{:?}", stats);
+    }
 
-        (nat addition)
-        /add = add_a add_b #n ::n
-            #n_pred #m_a #S #- :S ::add_a n_pred m_a
-            #m_b m_b
-            add_b
-
-        (nat multiplication)
-        /mul #n = mul_a mul_b #m ::m
-            #m_pred ::add n :mul_a m_pred
-            zer
-            mul_b
-
-        (test program)
-        ::pair
-            ::c3 not true
-            ::mul
-                :suc :suc :suc zer
-                :suc :suc :suc zer
-    ");
-
-    println!("-- Input (with original names):\n\n{}\n", &example);
-    println!("-- Input:\n\n{}\n", term::from_net(&term::to_net(&example)));
-    println!("-- Output:\n\n{}\n", term::reduce(&example));
+    Ok(())
 }
