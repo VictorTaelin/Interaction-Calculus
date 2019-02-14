@@ -14,9 +14,9 @@ use std::fs::File;
 
 fn main() -> io::Result<()> {
     let matches = App::new("Symmetric Interaction Calculus")
-        .version("0.1.0")
-        .author("Victor Maia <srvictormaia@gmail.com>")
-        .about("Evaluates SIC programs")
+        .version(env!("CARGO_PKG_VERSION"))
+        .author(env!("CARGO_PKG_AUTHORS"))
+        .about(env!("CARGO_PKG_DESCRIPTION"))
         .arg(Arg::with_name("INPUT")
             .short("i")
             .long("input")
