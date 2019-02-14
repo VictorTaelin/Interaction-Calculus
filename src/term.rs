@@ -8,7 +8,7 @@ use std;
 #[derive(Clone, Debug)]
 pub enum Term {
     // Abstractions (affine functions).
-    Lam {nam: Vec<u8>, bod: Box<Term>},                               
+    Lam {nam: Vec<u8>, bod: Box<Term>},
 
     // Applications.
     App {fun: Box<Term>, arg: Box<Term>},
@@ -20,7 +20,7 @@ pub enum Term {
     Let {tag: u32, fst: Vec<u8>, snd: Vec<u8>, val: Box<Term>, nxt: Box<Term>},
 
     // Variable.
-    Var {nam: Vec<u8>}, 
+    Var {nam: Vec<u8>},
 
     // Set.
     Set

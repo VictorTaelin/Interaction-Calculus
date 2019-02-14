@@ -11,7 +11,7 @@ name = "sic"
 path = "src/lib.rs"
 
 [dependencies]
-clap = "2.26.0"
+clap = "2.32.0"
 
 [[bin]]
 name = "sic"

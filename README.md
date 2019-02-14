@@ -53,7 +53,7 @@ t [p / u] [q / v]
 
 ((u,v) a)
 ----------------
-let (x0,x1) = a 
+let (x0,x1) = a
 in ((u x0),(v x1))
 
 -- Rule 3: lambda-projection
@@ -94,12 +94,12 @@ let (a,b) = λz. (y0,y1) in (λx0.λy0.a, λx1.λy1.b)
 let (a,b) = (y0,y1) in (λx0.λy0.λz0.a, λx1.λy1.λz1.b)
 ----------------------------------------------------- pair-projection
 (λx0.λy0.λz0.y0, λx1.λy1.λz1.y1)
-``` 
+```
 
 ### Example 2: demonstrating pair-application.
 
 ```haskell
-((λx.x, λy.y) λt.t) 
+((λx.x, λy.y) λt.t)
 ------------------- pair-application
 let (a0,a1) = λt. t in ((λx.x) a0, (λy.y) a1)
 --------------------------------------------- lambda-projection
@@ -129,7 +129,7 @@ main = add (S (S (S Z))) (S (S Z))
 
 [Full reduction.](https://gist.github.com/MaiaVictor/659e047c267a801c7d9cf1970541cb54)
 
-### Example 4: applying not 8 times to True. 
+### Example 4: applying not 8 times to True.
 
 [Full reduction.](https://gist.github.com/MaiaVictor/d565bee7d9083e98ae1470067ce12dbb)
 
