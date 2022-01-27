@@ -127,11 +127,11 @@ main : Nat
 main = add (S (S (S Z))) (S (S Z))
 ```
 
-[Full reduction.](https://gist.github.com/MaiaVictor/659e047c267a801c7d9cf1970541cb54)
+[Full reduction.](https://gist.github.com/VictorTaelin/659e047c267a801c7d9cf1970541cb54)
 
 ### Example 4: applying not 8 times to True. 
 
-[Full reduction.](https://gist.github.com/MaiaVictor/d565bee7d9083e98ae1470067ce12dbb)
+[Full reduction.](https://gist.github.com/VictorTaelin/d565bee7d9083e98ae1470067ce12dbb)
 
 ---
 
