@@ -85,10 +85,9 @@ fn main() -> io::Result<()> {
         ))),
         None => match matches.value_of("BINPUT") {
             Some(bits) => Some(to_string(&bitstring_to_term(bits.as_bytes(), 0))),
-            None => match matches.value_of("INPUT") {
-                Some(term) => Some(term.as_bytes().to_vec()),
-                None => None,
-            },
+            None => matches
+                .value_of("INPUT")
+                .map(|term| term.as_bytes().to_vec()),
         },
     };
 

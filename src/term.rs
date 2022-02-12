@@ -54,11 +54,11 @@ pub fn new_name(idx: u32) -> Vec<Chr> {
     let mut name = Vec::new();
     let mut idx = idx;
     while idx > 0 {
-        idx = idx - 1;
+        idx -= 1;
         name.push((97 + idx % 26) as u8);
-        idx = idx / 26;
+        idx /= 26;
     }
-    return name;
+    name
 }
 
 pub fn name_idx(name: &Vec<Chr>) -> u32 {
@@ -66,7 +66,7 @@ pub fn name_idx(name: &Vec<Chr>) -> u32 {
     for byte in name.iter().rev() {
         idx = (idx * 26) + (*byte as u32 - 97) + 1;
     }
-    return idx;
+    idx
 }
 
 // A context is a vector of (name, value) assignments.
@@ -257,7 +257,7 @@ pub fn parse_term<'a>(
                     if ctx[i].0 == nam {
                         match ctx[i].1 {
                             Some(ref term) => {
-                                let mut name = nam.clone().to_vec();
+                                let name = nam.clone().to_vec();
                                 val = Some(copy(&name, *idx, term));
                                 *idx += 1;
                                 break;
@@ -296,13 +296,13 @@ pub fn to_string(term: &Term) -> Vec<Chr> {
                 code.extend_from_slice(b"#");
                 code.append(&mut nam.clone());
                 code.extend_from_slice(b" ");
-                stringify_term(code, &bod);
+                stringify_term(code, bod);
             }
             &App { ref fun, ref arg } => {
                 code.extend_from_slice(b":");
-                stringify_term(code, &fun);
+                stringify_term(code, fun);
                 code.extend_from_slice(b" ");
-                stringify_term(code, &arg);
+                stringify_term(code, arg);
             }
             &Par {
                 tag,
@@ -312,9 +312,9 @@ pub fn to_string(term: &Term) -> Vec<Chr> {
                 code.extend_from_slice(b"&");
                 code.append(&mut new_name(tag));
                 code.extend_from_slice(b" ");
-                stringify_term(code, &fst);
+                stringify_term(code, fst);
                 code.extend_from_slice(b" ");
-                stringify_term(code, &snd);
+                stringify_term(code, snd);
             }
             &Let {
                 tag,
@@ -330,9 +330,9 @@ pub fn to_string(term: &Term) -> Vec<Chr> {
                 code.extend_from_slice(b" ");
                 code.append(&mut snd.clone());
                 code.extend_from_slice(b" ");
-                stringify_term(code, &val);
+                stringify_term(code, val);
                 code.extend_from_slice(b"\n");
-                stringify_term(code, &nxt);
+                stringify_term(code, nxt);
             }
             &Set => {
                 code.extend_from_slice(b"*");
@@ -343,14 +343,14 @@ pub fn to_string(term: &Term) -> Vec<Chr> {
         }
     }
     let mut code = Vec::new();
-    stringify_term(&mut code, &term);
-    return code;
+    stringify_term(&mut code, term);
+    code
 }
 
 // Display macro.
 impl std::fmt::Display for Term {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}", String::from_utf8_lossy(&to_string(&self)))
+        write!(f, "{}", String::from_utf8_lossy(&to_string(self)))
     }
 }
 
@@ -436,9 +436,9 @@ pub fn to_net(term: &Term) -> Net {
                     link(net, port(era, 1), port(era, 2));
                     link(net, port(dup, 2), port(era, 0));
                 }
-                let val = encode_term(net, &val, port(dup, 0), scope, vars);
+                let val = encode_term(net, val, port(dup, 0), scope, vars);
                 link(net, val, port(dup, 0));
-                encode_term(net, &nxt, up, scope, vars)
+                encode_term(net, nxt, up, scope, vars)
             }
             // A set is just an erase node stored in a place.
             &Set => {
@@ -462,7 +462,7 @@ pub fn to_net(term: &Term) -> Net {
     let mut scope = HashMap::new();
 
     // Encodes the main term.
-    let main = encode_term(&mut net, &term, 0, &mut scope, &mut vars);
+    let main = encode_term(&mut net, term, 0, &mut scope, &mut vars);
 
     // Links bound variables.
     for i in 0..vars.len() {
@@ -508,7 +508,7 @@ pub fn from_net(net: &Net) -> Term {
         }
         if !var_name.contains_key(&var_port) {
             let nam = new_name(var_name.len() as u32 + 1);
-            var_name.insert(var_port, nam.clone());
+            var_name.insert(var_port, nam);
         }
         var_name.get(&var_port).unwrap().to_vec()
     }
@@ -519,7 +519,7 @@ pub fn from_net(net: &Net) -> Term {
         next: Port,
         var_name: &mut HashMap<u32, Vec<u8>>,
         lets_vec: &mut Vec<u32>,
-        lets_set: &mut HashSet<(u32)>,
+        lets_set: &mut HashSet<u32>,
     ) -> Term {
         match kind(net, addr(next)) {
             // If we're visiting a set...
@@ -531,11 +531,11 @@ pub fn from_net(net: &Net) -> Term {
                     let nam = name_of(net, port(addr(next), 1), var_name);
                     let prt = enter(net, port(addr(next), 2));
                     let bod = read_term(net, prt, var_name, lets_vec, lets_set);
-                    let mut lam = Lam {
-                        nam: nam,
+
+                    Lam {
+                        nam,
                         bod: Box::new(bod),
-                    };
-                    lam
+                    }
                 }
                 // If we're visiting a port 1, then it is a variable.
                 1 => Var {
@@ -602,7 +602,7 @@ pub fn from_net(net: &Net) -> Term {
     );
 
     // Reads let founds by starting the read_term function from their 0 ports.
-    while lets_vec.len() > 0 {
+    while !lets_vec.is_empty() {
         let dup = lets_vec.pop().unwrap();
         let val = read_term(
             net,
@@ -629,7 +629,7 @@ pub fn from_net(net: &Net) -> Term {
 
 // Reduces an Abstract Calculus term through Interaction Combinators.
 pub fn reduce(term: &Term) -> Term {
-    let mut net: Net = to_net(&term);
+    let mut net: Net = to_net(term);
     ::net::reduce(&mut net);
     from_net(&net)
 }

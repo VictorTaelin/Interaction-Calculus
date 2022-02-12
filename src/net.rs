@@ -39,7 +39,7 @@ pub fn new_node(net: &mut Net, kind: u32) -> u32 {
     net.nodes[port(node, 1) as usize] = port(node, 1);
     net.nodes[port(node, 2) as usize] = port(node, 2);
     net.nodes[port(node, 3) as usize] = kind;
-    return node;
+    node
 }
 
 // Builds a port (an address / slot pair).
@@ -90,7 +90,7 @@ pub fn reduce(net: &mut Net) -> Stats {
     let mut next: Port = net.nodes[0];
     let mut prev: Port;
     let mut back: Port;
-    while next > 0 || warp.len() > 0 {
+    while next > 0 || !warp.is_empty() {
         next = if next == 0 {
             enter(net, warp.pop().unwrap())
         } else {

@@ -124,7 +124,7 @@ pub fn lambda_term_from_net(net: &Net) -> Term {
 // Converts a binary input such as b"1001" into a λ-encoded bitstring
 // such as λa.λb.λc.(a λa.λb.λc.(b λa.λb.λc.(b λa.λb.λc.(a λa.λb.λc.c))))
 pub fn bitstring_to_term(s: &[u8], i: u32) -> Term {
-    match if s.len() > 0 { s[0] } else { b' ' } {
+    match if !s.is_empty() { s[0] } else { b' ' } {
         b'0' => {
             let nam = new_name(i + 1);
             let app = Term::App {
@@ -139,11 +139,11 @@ pub fn bitstring_to_term(s: &[u8], i: u32) -> Term {
                 nam: b"-".to_vec(),
                 bod: Box::new(e_lam),
             };
-            let o_lam = Term::Lam {
-                nam: nam,
+
+            Term::Lam {
+                nam,
                 bod: Box::new(i_lam),
-            };
-            o_lam
+            }
         }
         b'1' => {
             let nam = new_name(i + 1);
@@ -156,31 +156,31 @@ pub fn bitstring_to_term(s: &[u8], i: u32) -> Term {
                 bod: Box::new(app),
             };
             let i_lam = Term::Lam {
-                nam: nam,
+                nam,
                 bod: Box::new(e_lam),
             };
-            let o_lam = Term::Lam {
+
+            Term::Lam {
                 nam: b"-".to_vec(),
                 bod: Box::new(i_lam),
-            };
-            o_lam
+            }
         }
         _ => {
             let nam = new_name(i + 1);
             let var = Var { nam: nam.clone() };
             let e_lam = Term::Lam {
-                nam: nam,
+                nam,
                 bod: Box::new(var),
             };
             let i_lam = Term::Lam {
                 nam: b"-".to_vec(),
                 bod: Box::new(e_lam),
             };
-            let o_lam = Term::Lam {
+
+            Term::Lam {
                 nam: b"-".to_vec(),
                 bod: Box::new(i_lam),
-            };
-            o_lam
+            }
         }
     }
 }
@@ -245,7 +245,7 @@ pub fn char_to_bits(c: u8) -> Vec<u8> {
     let mut c = c;
     for _i in 0..8 {
         v.extend_from_slice(if c % 2 == 0 { b"0" } else { b"1" });
-        c = c / 2;
+        c /= 2;
     }
     v.reverse();
     v
