@@ -9,25 +9,25 @@ pub struct Stats {
     pub rules: u32,
     pub betas: u32,
     pub dupls: u32,
-    pub annis: u32
+    pub annis: u32,
 }
 
 #[derive(Clone, Debug)]
 pub struct Net {
     pub nodes: Vec<u32>,
-    pub reuse: Vec<u32>
+    pub reuse: Vec<u32>,
 }
 
 // Node types are consts because those are used in a Vec<u32>.
-pub const ERA : u32 = 0;
-pub const CON : u32 = 1;
-pub const FAN : u32 = 2;
+pub const ERA: u32 = 0;
+pub const CON: u32 = 1;
+pub const FAN: u32 = 2;
 
 pub type Port = u32;
 
 // Allocates a new node, reclaiming a freed space if possible.
-pub fn new_node(net : &mut Net, kind : u32) -> u32 {
-    let node : u32 = match net.reuse.pop() {
+pub fn new_node(net: &mut Net, kind: u32) -> u32 {
+    let node: u32 = match net.reuse.pop() {
         Some(index) => index,
         None => {
             let len = net.nodes.len();
@@ -43,22 +43,22 @@ pub fn new_node(net : &mut Net, kind : u32) -> u32 {
 }
 
 // Builds a port (an address / slot pair).
-pub fn port(node : u32, slot : u32) -> Port {
+pub fn port(node: u32, slot: u32) -> Port {
     (node << 2) | slot
 }
 
 // Returns the address of a port (TODO: rename).
-pub fn addr(port : Port) -> u32 {
+pub fn addr(port: Port) -> u32 {
     port >> 2
 }
 
 // Returns the slot of a port.
-pub fn slot(port : Port) -> u32 {
+pub fn slot(port: Port) -> u32 {
     port & 3
 }
 
 // Enters a port, returning the port on the other side.
-pub fn enter(net : &Net, port : Port) -> Port {
+pub fn enter(net: &Net, port: Port) -> Port {
     net.nodes[port as usize]
 }
 
@@ -66,26 +66,36 @@ pub fn enter(net : &Net, port : Port) -> Port {
 // 0 = era (i.e., a set or a garbage collector)
 // 1 = con (i.e., a lambda or an application)
 // 2 = fan (i.e., a pair or a let)
-pub fn kind(net : &Net, node : u32) -> u32 {
+pub fn kind(net: &Net, node: u32) -> u32 {
     net.nodes[port(node, 3) as usize]
 }
 
 // Links two ports.
-pub fn link(net : &mut Net, ptr_a : u32, ptr_b : u32) {
+pub fn link(net: &mut Net, ptr_a: u32, ptr_b: u32) {
     net.nodes[ptr_a as usize] = ptr_b;
     net.nodes[ptr_b as usize] = ptr_a;
 }
 
 // Reduces a net to normal form lazily and sequentially.
-pub fn reduce(net : &mut Net) -> Stats {
-    let mut stats = Stats { loops: 0, rules: 0, betas: 0, dupls: 0, annis: 0 };
-    let mut warp : Vec<u32> = Vec::new();
-    let mut exit : Vec<u32> = Vec::new();
-    let mut next : Port = net.nodes[0];
-    let mut prev : Port;
-    let mut back : Port;
+pub fn reduce(net: &mut Net) -> Stats {
+    let mut stats = Stats {
+        loops: 0,
+        rules: 0,
+        betas: 0,
+        dupls: 0,
+        annis: 0,
+    };
+    let mut warp: Vec<u32> = Vec::new();
+    let mut exit: Vec<u32> = Vec::new();
+    let mut next: Port = net.nodes[0];
+    let mut prev: Port;
+    let mut back: Port;
     while next > 0 || warp.len() > 0 {
-        next = if next == 0 { enter(net, warp.pop().unwrap()) } else { next };
+        next = if next == 0 {
+            enter(net, warp.pop().unwrap())
+        } else {
+            next
+        };
         prev = enter(net, next);
         if slot(next) == 0 && slot(prev) == 0 && addr(prev) != 0 {
             stats.rules += 1;
@@ -105,7 +115,7 @@ pub fn reduce(net : &mut Net) -> Stats {
 }
 
 // Rewrites an active pair.
-pub fn rewrite(net : &mut Net, x : Port, y : Port) {
+pub fn rewrite(net: &mut Net, x: Port, y: Port) {
     if kind(net, x) == kind(net, y) {
         let p0 = enter(net, port(x, 1));
         let p1 = enter(net, port(y, 1));
