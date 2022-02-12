@@ -16,7 +16,7 @@ pub fn lambda_term_to_net(term: &Term) -> Net {
         term: &Term,
     ) -> Port {
         match term {
-            &App { ref fun, ref arg } => {
+            App { ref fun, ref arg } => {
                 let app = new_node(net, CON);
                 let fun = encode(net, label, scope, fun);
                 link(net, port(app, 0), fun);
@@ -24,7 +24,7 @@ pub fn lambda_term_to_net(term: &Term) -> Net {
                 link(net, port(app, 1), arg);
                 port(app, 2)
             }
-            &Lam { ref nam, ref bod } => {
+            Lam { ref nam, ref bod } => {
                 let fun = new_node(net, CON);
                 let era = new_node(net, ERA);
                 link(net, port(fun, 1), port(era, 0));
@@ -35,11 +35,11 @@ pub fn lambda_term_to_net(term: &Term) -> Net {
                 link(net, port(fun, 2), bod);
                 port(fun, 0)
             }
-            &Var { ref nam } => {
+            Var { ref nam } => {
                 let mut lam = 0;
-                for i in 0..scope.len() {
-                    if *nam == scope[i].0 {
-                        lam = scope[i].1
+                for &(ref name, idx) in scope.iter() {
+                    if nam == name {
+                        lam = idx;
                     }
                 }
                 if lam == 0 {
@@ -188,41 +188,38 @@ pub fn bitstring_to_term(s: &[u8], i: u32) -> Term {
 // Can this highly-idented style be improved?
 pub fn term_to_bitstring(t: &Term) -> Vec<u8> {
     fn format_binary_output(t: &Term, v: &mut Vec<u8>) {
-        match t {
-            Term::Lam {
-                nam: ref o_nam,
-                bod: ref o_bod,
-            } => match **o_bod {
-                Term::Lam {
-                    nam: ref i_nam,
-                    bod: ref i_bod,
-                } => match **i_bod {
-                    Term::Lam {
-                        nam: _,
-                        bod: ref e_bod,
-                    } => match **e_bod {
-                        Term::App {
-                            fun: ref app_fun,
-                            arg: ref app_arg,
-                        } => match **app_fun {
-                            Term::Var { nam: ref var_nam } => {
-                                if var_nam == o_nam {
-                                    v.extend_from_slice(b"0");
-                                    format_binary_output(app_arg, v);
-                                } else if var_nam == i_nam {
-                                    v.extend_from_slice(b"1");
-                                    format_binary_output(app_arg, v);
-                                }
+        if let Term::Lam {
+            nam: ref o_nam,
+            bod: ref o_bod,
+        } = t
+        {
+            if let Term::Lam {
+                nam: ref i_nam,
+                bod: ref i_bod,
+            } = **o_bod
+            {
+                if let Term::Lam {
+                    nam: _,
+                    bod: ref e_bod,
+                } = **i_bod
+                {
+                    if let Term::App {
+                        fun: ref app_fun,
+                        arg: ref app_arg,
+                    } = **e_bod
+                    {
+                        if let Term::Var { nam: ref var_nam } = **app_fun {
+                            if var_nam == o_nam {
+                                v.extend_from_slice(b"0");
+                                format_binary_output(app_arg, v);
+                            } else if var_nam == i_nam {
+                                v.extend_from_slice(b"1");
+                                format_binary_output(app_arg, v);
                             }
-                            _ => {}
-                        },
-                        _ => {}
-                    },
-                    _ => {}
-                },
-                _ => {}
-            },
-            _ => {}
+                        }
+                    }
+                }
+            }
         }
     }
     let mut v: Vec<u8> = Vec::new();
@@ -233,8 +230,8 @@ pub fn term_to_bitstring(t: &Term) -> Vec<u8> {
 // Converts a bitstring (up to 8 bits) to a character.
 pub fn bits_to_char(s: &[u8]) -> u8 {
     let mut c = 0;
-    for i in 0..8 {
-        c = c * 2 + (if s[i] == b'0' { 0 } else { 1 });
+    for &si in s.iter().take(8) {
+        c = c * 2 + u8::from(si == b'0');
     }
     c
 }
@@ -263,8 +260,8 @@ pub fn bits_to_ascii(s: &[u8]) -> Vec<u8> {
 // Converts an ascii string to a bitstring.
 pub fn ascii_to_bits(a: &[u8]) -> Vec<u8> {
     let mut v: Vec<u8> = Vec::new();
-    for i in 0..a.len() {
-        v.append(&mut char_to_bits(a[i]))
+    for &ai in a.iter() {
+        v.append(&mut char_to_bits(ai));
     }
     v
 }

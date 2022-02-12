@@ -1,6 +1,3 @@
-extern crate clap;
-use clap::{App, Arg};
-
 mod extra;
 mod net;
 mod term;
@@ -8,6 +5,7 @@ mod term;
 use extra::*;
 use term::*;
 
+use clap::{App, Arg};
 use std::fs::File;
 use std::io;
 use std::io::prelude::*;
@@ -91,12 +89,9 @@ fn main() -> io::Result<()> {
         },
     };
 
-    match input {
-        Some(mut input) => {
-            code.extend_from_slice(b"\n:main ");
-            code.append(&mut input);
-        }
-        None => {}
+    if let Some(mut input) = input {
+        code.extend_from_slice(b"\n:main ");
+        code.append(&mut input);
     }
 
     let term = from_string(&code);

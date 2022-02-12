@@ -1,7 +1,4 @@
-#![allow(dead_code)]
-
 use crate::net::*;
-use std;
 use std::collections::*;
 
 // Terms of the Abstract Calculus.
@@ -61,7 +58,7 @@ pub fn new_name(idx: u32) -> Vec<Chr> {
     name
 }
 
-pub fn name_idx(name: &Vec<Chr>) -> u32 {
+pub fn name_idx(name: &[Chr]) -> u32 {
     let mut idx: u32 = 0;
     for byte in name.iter().rev() {
         idx = (idx * 26) + (*byte as u32 - 97) + 1;
@@ -97,21 +94,21 @@ fn parse_name(code: &Str) -> (&Str, &Str) {
     (&code[i..], &code[0..i])
 }
 
-pub fn namespace(space: &Vec<u8>, idx: u32, var: &Vec<u8>) -> Vec<u8> {
-    if var != b"-" {
-        let mut nam = space.clone();
-        nam.extend_from_slice(b"/");
-        nam.append(&mut idx.to_string().as_bytes().to_vec());
-        nam.extend_from_slice(b"/");
-        nam.append(&mut var.clone());
-        nam
+pub fn namespace(space: &[u8], idx: u32, var: &[u8]) -> Vec<u8> {
+    if var == b"-" {
+        var.to_vec()
     } else {
-        var.clone()
+        let mut nam = space.to_vec();
+        nam.extend_from_slice(b"/");
+        nam.extend_from_slice(idx.to_string().as_bytes());
+        nam.extend_from_slice(b"/");
+        nam.extend_from_slice(var);
+        nam
     }
 }
 
 // Makes a namespaced copy of a term
-pub fn copy(space: &Vec<u8>, idx: u32, term: &Term) -> Term {
+pub fn copy(space: &[u8], idx: u32, term: &Term) -> Term {
     match term {
         Lam { nam, bod } => {
             let nam = namespace(space, idx, nam);
@@ -257,7 +254,7 @@ pub fn parse_term<'a>(
                     if ctx[i].0 == nam {
                         match ctx[i].1 {
                             Some(ref term) => {
-                                let name = nam.clone().to_vec();
+                                let name = nam.to_vec();
                                 val = Some(copy(&name, *idx, term));
                                 *idx += 1;
                                 break;
@@ -282,7 +279,7 @@ pub fn parse_term<'a>(
 }
 
 // Converts a source-code to a λ-term.
-pub fn from_string<'a>(code: &'a Str) -> Term {
+pub fn from_string(code: &Str) -> Term {
     let mut ctx = Vec::new();
     let mut idx = 0;
     parse_term(code, &mut ctx, &mut idx, 0).1
@@ -291,20 +288,20 @@ pub fn from_string<'a>(code: &'a Str) -> Term {
 // Converts a λ-term back to a source-code.
 pub fn to_string(term: &Term) -> Vec<Chr> {
     fn stringify_term(code: &mut Vec<u8>, term: &Term) {
-        match term {
-            &Lam { ref nam, ref bod } => {
+        match *term {
+            Lam { ref nam, ref bod } => {
                 code.extend_from_slice(b"#");
                 code.append(&mut nam.clone());
                 code.extend_from_slice(b" ");
                 stringify_term(code, bod);
             }
-            &App { ref fun, ref arg } => {
+            App { ref fun, ref arg } => {
                 code.extend_from_slice(b":");
                 stringify_term(code, fun);
                 code.extend_from_slice(b" ");
                 stringify_term(code, arg);
             }
-            &Par {
+            Par {
                 tag,
                 ref fst,
                 ref snd,
@@ -316,7 +313,7 @@ pub fn to_string(term: &Term) -> Vec<Chr> {
                 code.extend_from_slice(b" ");
                 stringify_term(code, snd);
             }
-            &Let {
+            Let {
                 tag,
                 ref fst,
                 ref snd,
@@ -334,10 +331,10 @@ pub fn to_string(term: &Term) -> Vec<Chr> {
                 code.extend_from_slice(b"\n");
                 stringify_term(code, nxt);
             }
-            &Set => {
+            Set => {
                 code.extend_from_slice(b"*");
             }
-            &Var { ref nam } => {
+            Var { ref nam } => {
                 code.append(&mut nam.clone());
             }
         }
@@ -465,8 +462,7 @@ pub fn to_net(term: &Term) -> Net {
     let main = encode_term(&mut net, term, 0, &mut scope, &mut vars);
 
     // Links bound variables.
-    for i in 0..vars.len() {
-        let (ref nam, var) = vars[i];
+    for &(ref nam, var) in vars.iter() {
         match scope.get(nam) {
             Some(next) => {
                 let next = *next;
@@ -628,6 +624,7 @@ pub fn from_net(net: &Net) -> Term {
 }
 
 // Reduces an Abstract Calculus term through Interaction Combinators.
+#[allow(dead_code)]
 pub fn reduce(term: &Term) -> Term {
     let mut net: Net = to_net(term);
     crate::net::reduce(&mut net);
