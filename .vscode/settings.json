@@ -1,5 +1,6 @@
 {
   "files.exclude": {
     "target": true
-  }
+  },
+  "rust-analyzer.checkOnSave.command": "clippy"
 }
