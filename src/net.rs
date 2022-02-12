@@ -1,8 +1,6 @@
 // Implements Interaction Combinators. The Abstract Calculus is directly isomorphic to them, so, to
 // reduce a term, we simply translate to interaction combinators, reduce, then translate back.
 
-#![allow(dead_code)]
-
 #[derive(Clone, Debug)]
 pub struct Stats {
     pub loops: u32,
