@@ -231,7 +231,7 @@ pub fn term_to_bitstring(t: &Term) -> Vec<u8> {
 pub fn bits_to_char(s: &[u8]) -> u8 {
     let mut c = 0;
     for &si in s.iter().take(8) {
-        c = c * 2 + u8::from(si == b'0');
+        c = c * 2 + (if si == b'0' { 0 } else { 1 });
     }
     c
 }
