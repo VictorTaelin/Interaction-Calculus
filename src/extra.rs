@@ -1,9 +1,9 @@
 // Extra functions. Those are not used by the core algorithm and are just conveniences for libs
 // interacting with it.
 
-use net::*;
-use term::Term::*;
-use term::*;
+use crate::net::*;
+use crate::term::Term::*;
+use crate::term::*;
 
 // Converts a lambda term (with non-affine functions) to a net. Reduction of the resulting net is
 // *not* guaranteed to return the normal form of the original lambda term.

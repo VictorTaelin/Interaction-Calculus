@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use net::*;
+use crate::net::*;
 use std;
 use std::collections::*;
 
@@ -630,6 +630,6 @@ pub fn from_net(net: &Net) -> Term {
 // Reduces an Abstract Calculus term through Interaction Combinators.
 pub fn reduce(term: &Term) -> Term {
     let mut net: Net = to_net(term);
-    ::net::reduce(&mut net);
+    crate::net::reduce(&mut net);
     from_net(&net)
 }

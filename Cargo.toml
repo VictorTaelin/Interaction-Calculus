@@ -5,6 +5,7 @@ description = "A programming language and model of computation that matches the 
 license = "MIT"
 authors = ["Victor Maia <srvictormaia@gmail.com>"]
 repository = "https://github.com/maiavictor/symmetric-interaction-calculus"
+edition = "2021"
 
 [lib]
 name = "sic"
