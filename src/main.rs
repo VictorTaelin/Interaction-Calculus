@@ -16,55 +16,55 @@ fn main() -> io::Result<()> {
         .author("Victor Maia <srvictormaia@gmail.com>")
         .about("Evaluates SIC programs")
         .arg(
-            Arg::with_name("INPUT")
-                .short("i")
+            Arg::new("INPUT")
+                .short('i')
                 .long("input")
                 .value_name("INPUT")
                 .help("Input term")
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("AINPUT")
-                .short("a")
+            Arg::new("AINPUT")
+                .short('a')
                 .long("ainput")
                 .value_name("AINPUT")
                 .help("Input term, encoded as ascii")
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("BINPUT")
-                .short("b")
+            Arg::new("BINPUT")
+                .short('b')
                 .long("binput")
                 .value_name("BINPUT")
                 .help("Input term, encoded as a binary string")
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("BOUTPUT")
-                .short("B")
+            Arg::new("BOUTPUT")
+                .short('B')
                 .long("boutput")
                 .value_name("BOUTPUT")
                 .help("Decodes output as a binary string")
                 .takes_value(false),
         )
         .arg(
-            Arg::with_name("AOUTPUT")
-                .short("A")
+            Arg::new("AOUTPUT")
+                .short('A')
                 .long("aoutput")
                 .value_name("AOUTPUT")
                 .help("Decodes output as ascii")
                 .takes_value(false),
         )
         .arg(
-            Arg::with_name("STATS")
-                .short("s")
+            Arg::new("STATS")
+                .short('s')
                 .long("stats")
                 .value_name("STATS")
                 .help("Show stats")
                 .takes_value(false),
         )
         .arg(
-            Arg::with_name("FILE")
+            Arg::new("FILE")
                 .help("Sets the input file to use")
                 .required(true)
                 .index(1),
