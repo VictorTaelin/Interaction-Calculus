@@ -137,6 +137,6 @@ main = add (S (S (S Z))) (S (S Z))
 
 [Here is a handwritten reduction of 2^(2^2).](drawing.jpeg)
 
-# High-order Virtual Machine
+## High-order Virtual Machine (HVM)
 
 The [High-order Virtual Machine (HVM)](https://github.com/kindelia/hvm) is a high-performance practical implementation of SIC. It is a lazy, parallel runtime capable of evaluating functional programming languages optimally.
