@@ -16,6 +16,11 @@ The [Symmetric Interaction Calculus](https://medium.com/@maiavictor/the-abstract
 
 7. It is isomorphic to [symmetric interaction combinators](https://pdfs.semanticscholar.org/1731/a6e49c6c2afda3e72256ba0afb34957377d3.pdf), a beautiful model of computation.
 
+**Note:** this is an old repository. A new version is being developed on
+[Kind](https://github.com/kindelia/kind). Check the code
+[here](https://github.com/Kindelia/Wikind/blob/master/IC/_.kind2).
+
+
 ## Syntax
 
 The syntax is obtained by simply extending the Lambda Calculus with `pairs` and `let`:
