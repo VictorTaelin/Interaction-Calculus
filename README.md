@@ -18,7 +18,7 @@ The [Symmetric Interaction Calculus](https://medium.com/@maiavictor/the-abstract
 
 **Note:** this is an old repository. A new version is being developed on
 [Kind](https://github.com/kindelia/kind). Check the code
-[here](https://github.com/Kindelia/Wikind/blob/master/IC/_.kind2).
+[here](https://github.com/HigherOrderCO/Kindex/blob/master/Apps/IntCalc/_.kind2).
 
 
 ## Syntax
