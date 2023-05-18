@@ -1,6 +1,6 @@
 [package]
 name = "interaction-calculus"
-version = "0.2.0"
+version = "0.2.1"
 description = "A parallel model of computation."
 license = "MIT"
 authors = ["Victor Maia <victor.taelin@gmail.com>"]

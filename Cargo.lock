@@ -44,6 +44,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "interaction-calculus"
+version = "0.2.0"
+dependencies = [
+ "clap",
+]
+
+[[package]]
 name = "libc"
 version = "0.2.43"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -69,13 +76,6 @@ name = "strsim"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bb4f380125926a99e52bc279241539c018323fab05ad6368b56f93d9369ff550"
-
-[[package]]
-name = "symmetric-interaction-calculus"
-version = "0.1.8"
-dependencies = [
- "clap",
-]
 
 [[package]]
 name = "termion"
