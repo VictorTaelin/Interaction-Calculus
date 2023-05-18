@@ -1,18 +1,18 @@
 [package]
-name = "symmetric-interaction-calculus"
-version = "0.1.8"
-description = "A programming language and model of computation that matches the abstract algorithm perfectly."
+name = "interaction-calculus"
+version = "0.2.0"
+description = "A parallel model of computation."
 license = "MIT"
-authors = ["Victor Maia <srvictormaia@gmail.com>"]
-repository = "https://github.com/maiavictor/symmetric-interaction-calculus"
+authors = ["Victor Maia <victor.taelin@gmail.com>"]
+repository = "https://github.com/victortaelin/interaction-calculus"
 
 [lib]
-name = "sic"
+name = "ic"
 path = "src/lib.rs"
 
 [dependencies]
 clap = "2.26.0"
 
 [[bin]]
-name = "sic"
+name = "ic"
 path = "src/main.rs"
