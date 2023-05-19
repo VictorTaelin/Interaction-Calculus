@@ -1,10 +1,11 @@
 #![allow(dead_code)]
 
+mod as_net;
 mod syntax;
-pub use self::syntax::*;
+mod views;
 
-mod convert;
-pub use self::convert::*;
+pub use self::as_net::*;
+pub use self::syntax::*;
 
 use std::collections::*;
 use inet::*;
@@ -14,7 +15,7 @@ use std;
 #[derive(Clone, Debug)]
 pub enum Term {
   // Abstractions
-  Lam {nam: Vec<u8>, bod: Box<Term>},                
+  Lam {nam: Vec<u8>, typ: Option<Box<Term>>, bod: Box<Term>},                
 
   // Applications
   App {fun: Box<Term>, arg: Box<Term>},
@@ -24,6 +25,9 @@ pub enum Term {
 
   // Duplications
   Dup {tag: u32, fst: Vec<u8>, snd: Vec<u8>, val: Box<Term>, nxt: Box<Term>},
+
+  // Annotations
+  Ann {val: Box<Term>, typ: Box<Term>},
 
   // Variables
   Var {nam: Vec<u8>}, 
@@ -90,10 +94,11 @@ pub fn namespace(space : &Vec<u8>, idx : u32, var : &Vec<u8>) -> Vec<u8> {
 // Makes a namespaced copy of a term
 pub fn copy(space : &Vec<u8>, idx : u32, term : &Term) -> Term {
   match term {
-    Lam{nam, bod} => {
+    Lam{nam, typ, bod} => {
       let nam = namespace(space, idx, nam);
+      let typ = typ.as_ref().map(|typ| Box::new(copy(space, idx, typ)));
       let bod = Box::new(copy(space, idx, bod));
-      Lam{nam, bod}
+      Lam{nam, typ, bod}
     },
     App{fun, arg} => {
       let fun = Box::new(copy(space, idx, fun));
@@ -114,6 +119,11 @@ pub fn copy(space : &Vec<u8>, idx : u32, term : &Term) -> Term {
       let nxt = Box::new(copy(space, idx, nxt));
       Dup{tag, fst, snd, val, nxt}
     },
+    Ann{val, typ} => {
+      let val = Box::new(copy(space, idx, val));
+      let typ = Box::new(copy(space, idx, typ));
+      Ann{val, typ}
+    },
     Var{nam} => {
       let nam = namespace(space, idx, nam);
       Var{nam}
@@ -130,14 +140,15 @@ impl std::fmt::Display for Term {
 }
 
 // Reduces an Interaction Calculus term through Interaction Combinators.
-pub fn reduce(term : &Term) -> Term {
+pub fn normal(term : &Term) -> Term {
   let mut net : INet = to_net(&term);
-  ::inet::reduce(&mut net);
+  ::inet::normal(&mut net);
   from_net(&net)
 }
 
-pub fn reduce_with_stats(term : &Term) -> (Term, Stats) {
-  let mut net : INet = to_net(&term);
-  let stats = ::inet::reduce(&mut net);
-  (from_net(&net), stats)
+pub fn normal_with_stats(term : &Term) -> (Term, u32) {
+  let mut net = to_net(&term);
+  ::inet::normal(&mut net);
+  let trm = from_net(&net);
+  (trm, net.rules)
 }

@@ -1,9 +1,4 @@
-// Extra functions. Those are not used by the core algorithm and are just conveniences for libs
-// interacting with it.
-
-use inet::*;
-use term::*;
-use term::Term::*;
+use super::*;
 
 // Converts a lambda term (with non-affine functions) to a net. Reduction of the resulting net is
 // *not* guaranteed to return the normal form of the original lambda term.
@@ -19,7 +14,8 @@ pub fn lambda_term_to_inet(term : &Term) -> INet {
         link(inet, port(app, 1), arg);
         port(app, 2)
       },
-      &Lam{ref nam, ref bod} => {
+      &Lam{ref nam, ref typ, ref bod} => {
+        // TODO: handle typ
         let fun = new_node(inet, CON);
         let era = new_node(inet, ERA);
         link(inet, port(fun, 1), port(era, 0));
@@ -29,6 +25,9 @@ pub fn lambda_term_to_inet(term : &Term) -> INet {
         scope.pop();
         link(inet, port(fun, 2), bod);
         port(fun, 0)
+      },
+      &Ann{..} => {
+        todo!();
       },
       &Var{ref nam} => {
         let mut lam = 0;
@@ -55,7 +54,7 @@ pub fn lambda_term_to_inet(term : &Term) -> INet {
       _ => panic!("Invalid λ-term.")
     }
   }
-  let mut inet : INet = INet { nodes: vec![0,2,1,4], reuse: vec![] };
+  let mut inet : INet = new_inet();
   let mut label : u32 = 1;
   let mut scope : Vec<(Vec<u8>, u32)> = Vec::new();
   let ptr : Port = encode(&mut inet, &mut label, &mut scope, term);
@@ -76,8 +75,9 @@ pub fn lambda_term_from_inet(inet : &INet) -> Term {
         0 => {
           node_depth[prev_node as usize] = depth;
           let nam = index_to_name(depth + 1);
+          let typ = None; // TODO: handle
           let bod = Box::new(go(inet, node_depth, port(prev_node, 2), exit, depth + 1));
-          Lam {nam, bod}
+          Lam {nam, typ, bod}
         },
         1 => {
           let nam = index_to_name(node_depth[prev_node as usize] + 1);
@@ -107,7 +107,6 @@ pub fn lambda_term_from_inet(inet : &INet) -> Term {
   go(inet, &mut node_depth, 0, &mut exit, 0)
 }
 
-
 // Converts a binary input such as b"1001" into a λ-encoded bitstring
 // such as λa.λb.λc.(a λa.λb.λc.(b λa.λb.λc.(b λa.λb.λc.(a λa.λb.λc.c))))
 pub fn bitstring_to_term(s : &[u8], i : u32) -> Term {
@@ -120,14 +119,17 @@ pub fn bitstring_to_term(s : &[u8], i : u32) -> Term {
       };
       let e_lam = Term::Lam{
         nam: b"-".to_vec(),
+        typ: None, // TODO
         bod: Box::new(app)
       };
       let i_lam = Term::Lam{
         nam: b"-".to_vec(),
+        typ: None, // TODO
         bod: Box::new(e_lam)
       };
       let o_lam = Term::Lam{
         nam: nam,
+        typ: None, // TODO
         bod: Box::new(i_lam)
       };
       o_lam
@@ -140,14 +142,17 @@ pub fn bitstring_to_term(s : &[u8], i : u32) -> Term {
       };
       let e_lam = Term::Lam{
         nam: b"-".to_vec(),
+        typ: None, // TODO
         bod: Box::new(app)
       };
       let i_lam = Term::Lam{
         nam: nam,
+        typ: None, // TODO
         bod: Box::new(e_lam)
       };
       let o_lam = Term::Lam{
         nam: b"-".to_vec(),
+        typ: None, // TODO
         bod: Box::new(i_lam)
       };
       o_lam
@@ -157,14 +162,17 @@ pub fn bitstring_to_term(s : &[u8], i : u32) -> Term {
       let var = Var{nam: nam.clone()};
       let e_lam = Term::Lam{
         nam: nam,
+        typ: None, // TODO
         bod: Box::new(var)
       };
       let i_lam = Term::Lam{
         nam: b"-".to_vec(),
+        typ: None, // TODO
         bod: Box::new(e_lam)
       };
       let o_lam = Term::Lam{
         nam: b"-".to_vec(),
+        typ: None, // TODO
         bod: Box::new(i_lam)
       };
       o_lam
@@ -176,11 +184,11 @@ pub fn bitstring_to_term(s : &[u8], i : u32) -> Term {
 pub fn term_to_bitstring(t : &Term) -> Vec<u8> {
   fn format_binary_output(t : &Term, v : &mut Vec<u8>) {
     match t {
-      Term::Lam{nam: ref o_nam, bod: ref o_bod} => {
+      Term::Lam{nam: ref o_nam, typ: _, bod: ref o_bod} => { // TODO: handle typ
         match **o_bod {
-          Term::Lam{nam: ref i_nam, bod: ref i_bod} => {
+          Term::Lam{nam: ref i_nam, typ: _, bod: ref i_bod} => { // TODO: handle typ
             match **i_bod {
-              Term::Lam{nam: _, bod: ref e_bod} => {
+              Term::Lam{nam: _, typ: _, bod: ref e_bod} => { // TODO: handle typ
                 match **e_bod {
                   Term::App{fun: ref app_fun, arg: ref app_arg} => {
                     match **app_fun {
