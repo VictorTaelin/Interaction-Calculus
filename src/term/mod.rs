@@ -1,10 +1,11 @@
 #![allow(dead_code)]
 
+mod as_net;
 mod syntax;
-pub use self::syntax::*;
+mod views;
 
-mod convert;
-pub use self::convert::*;
+pub use self::as_net::*;
+pub use self::syntax::*;
 
 use std::collections::*;
 use inet::*;
@@ -130,14 +131,15 @@ impl std::fmt::Display for Term {
 }
 
 // Reduces an Interaction Calculus term through Interaction Combinators.
-pub fn reduce(term : &Term) -> Term {
+pub fn normal(term : &Term) -> Term {
   let mut net : INet = to_net(&term);
-  ::inet::reduce(&mut net);
+  ::inet::normal(&mut net);
   from_net(&net)
 }
 
-pub fn reduce_with_stats(term : &Term) -> (Term, Stats) {
-  let mut net : INet = to_net(&term);
-  let stats = ::inet::reduce(&mut net);
-  (from_net(&net), stats)
+pub fn normal_with_stats(term : &Term) -> (Term, u32) {
+  let mut net = to_net(&term);
+  ::inet::normal(&mut net);
+  let trm = from_net(&net);
+  (trm, net.rules)
 }

@@ -1,9 +1,4 @@
-// Extra functions. Those are not used by the core algorithm and are just conveniences for libs
-// interacting with it.
-
-use inet::*;
-use term::*;
-use term::Term::*;
+use super::*;
 
 // Converts a lambda term (with non-affine functions) to a net. Reduction of the resulting net is
 // *not* guaranteed to return the normal form of the original lambda term.
@@ -55,7 +50,7 @@ pub fn lambda_term_to_inet(term : &Term) -> INet {
       _ => panic!("Invalid λ-term.")
     }
   }
-  let mut inet : INet = INet { nodes: vec![0,2,1,4], reuse: vec![] };
+  let mut inet : INet = new_inet();
   let mut label : u32 = 1;
   let mut scope : Vec<(Vec<u8>, u32)> = Vec::new();
   let ptr : Port = encode(&mut inet, &mut label, &mut scope, term);
@@ -106,7 +101,6 @@ pub fn lambda_term_from_inet(inet : &INet) -> Term {
   node_depth.resize(inet.nodes.len() / 4, 0);
   go(inet, &mut node_depth, 0, &mut exit, 0)
 }
-
 
 // Converts a binary input such as b"1001" into a λ-encoded bitstring
 // such as λa.λb.λc.(a λa.λb.λc.(b λa.λb.λc.(b λa.λb.λc.(a λa.λb.λc.c))))

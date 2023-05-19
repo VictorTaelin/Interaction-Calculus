@@ -1,8 +1,9 @@
 // Term parser and stringifier. Grammar:
 // <Term> ::= <Lam> | <App> | <Sup> | <Dup> | <Var> | <Set>
 // <Lam>  ::= "λ" <name> <Term>
-// <App>  ::= "(" <Term> <Term>+ ")"
-// <Sup>  ::= "[" <Term> <Term> "]" ["#" <tag>]
+// <App>  ::= "(" <Term> <Term> ")"
+// <Ann>  ::= "<" <Term> ":" <Term> ")"
+// <Sup>  ::= "{" <Term> <Term> "}" ["#" <tag>]
 // <Dup>  ::= "dup" ["#" <tag>] <name> <name> "=" <Term> [";"] <Term>
 // <Var>  ::= <name>
 // <Set>  ::= "*"
@@ -78,7 +79,7 @@ pub fn parse_term<'a>(code: &'a Str, ctx: &mut Context<'a>, idx: &mut u32) -> (&
       let code = parse_text(code, b")").unwrap();
       (code, fun)
     }
-    // Pair: `[val0 val1]#tag` (note: '#tag' is optional)
+    // Pair: `{val0 val1}#tag` (note: '#tag' is optional)
     b'{' => {
       let (code, fst) = parse_term(&code[1..], ctx, idx);
       let (code, snd) = parse_term(code, ctx, idx);
@@ -122,7 +123,9 @@ pub fn parse_term<'a>(code: &'a Str, ctx: &mut Context<'a>, idx: &mut u32) -> (&
       (code, bod)
     }
     // Set: `*`
-    b'*' => (&code[1..], Set),
+    b'*' => {
+      (&code[1..], Set)
+    },
     // Variable: `<alphanumeric_name>`
     _ => {
       let (code, nam) = parse_name(code);
@@ -166,20 +169,11 @@ pub fn to_string(term : &Term) -> Vec<Chr> {
         stringify_term(code, &bod);
       },
       &App{ref fun, ref arg} => {
-        match &**fun {
-          &App{..} => {
-            stringify_term(code, &fun);
-            code.extend_from_slice(b" ");
-            stringify_term(code, &arg);
-          },
-          _ => {
-            code.extend_from_slice(b"(");
-            stringify_term(code, &fun);
-            code.extend_from_slice(b" ");
-            stringify_term(code, &arg);
-            code.extend_from_slice(b")");
-          }
-        }
+        code.extend_from_slice(b"(");
+        stringify_term(code, &fun);
+        code.extend_from_slice(b" ");
+        stringify_term(code, &arg);
+        code.extend_from_slice(b")");
       },
       &Sup{tag, ref fst, ref snd} => {
         code.extend_from_slice(b"[");

@@ -17,10 +17,9 @@ pub fn to_net(term : &Term) -> INet {
       // - 0: points to where the lambda occurs.
       // - 1: points to the lambda variable.
       // - 2: points to the lambda body.
-      &Lam{ref nam, ref bod} => {
+      &Lam { ref nam, ref bod } => {
         let fun = new_node(net, CON);
         scope.insert(nam.to_vec(), port(fun, 1));
-        // Also, if the variable is unused, crease an erase node.
         if nam == b"*" {
           let era = new_node(net, ERA);
           link(net, port(era, 1), port(era, 2));
@@ -47,7 +46,7 @@ pub fn to_net(term : &Term) -> INet {
       // - 1: points to the first value.
       // - 2: points to the second value.
       &Sup{tag, ref fst, ref snd} => {
-        let dup = new_node(net, FAN + tag);
+        let dup = new_node(net, DUP + tag);
         let fst = encode_term(net, fst, port(dup, 1), scope, vars);
         link(net, port(dup, 1), fst);
         let snd = encode_term(net, snd, port(dup, 2), scope, vars);
@@ -59,7 +58,7 @@ pub fn to_net(term : &Term) -> INet {
       // - 1: points to the occurrence of the first variable.
       // - 2: points to the occurrence of the second variable.
       &Dup{tag, ref fst, ref snd, ref val, ref nxt} => {
-        let dup = new_node(net, FAN + tag);
+        let dup = new_node(net, DUP + tag);
         scope.insert(fst.to_vec(), port(dup, 1));
         scope.insert(snd.to_vec(), port(dup, 2));
         // If the first variable is unused, create an erase node.
@@ -91,13 +90,12 @@ pub fn to_net(term : &Term) -> INet {
     }
   }
 
-  // Initializes net with a root node.
-  let mut net = INet { nodes: vec![0,2,1,4], reuse: vec![] };
+  let mut net = new_inet();
   let mut vars = Vec::new();
   let mut scope = HashMap::new();
 
   // Encodes the main term.
-  let main = encode_term(&mut net, &term, 0, &mut scope, &mut vars);
+  let main = encode_term(&mut net, &term, ROOT, &mut scope, &mut vars);
 
   // Links bound variables.
   for i in 0..vars.len() {
@@ -125,7 +123,7 @@ pub fn to_net(term : &Term) -> INet {
   }
 
   // Links the term to the net's root.
-  link(&mut net, 0, main);
+  link(&mut net, 1, main);
 
   net
 }
@@ -160,11 +158,11 @@ pub fn from_net(net : &INet) -> Term {
       CON => match slot(next) {
         // If we're visiting a port 0, then it is a lambda.
         0 => {
-          let nam = name_of(net, port(addr(next),1), var_name);
+          let nam = name_of(net, port(addr(next), 1), var_name);
           let prt = enter(net, port(addr(next), 2));
           let bod = read_term(net, prt, var_name, dups_vec, dups_set);
-          let mut lam = Lam{nam: nam, bod: Box::new(bod)};
-          lam
+          let ann = enter(net, port(addr(next), 1));
+          Lam { nam: nam, bod: Box::new(bod) }
         },
         // If we're visiting a port 1, then it is a variable.
         1 => {
@@ -183,7 +181,7 @@ pub fn from_net(net : &INet) -> Term {
       tag => match slot(next) {
         // If we're visiting a port 0, then it is a pair.
         0 => {
-          let tag = tag - FAN;
+          let tag = tag - DUP;
           let prt = enter(net, port(addr(next), 1));
           let fst = read_term(net, prt, var_name, dups_vec, dups_set);
           let prt = enter(net, port(addr(next), 2));
@@ -215,13 +213,13 @@ pub fn from_net(net : &INet) -> Term {
   let mut dups_set = HashSet::new();
 
   // Reads the main term from the net
-  let mut main = read_term(net, enter(net, 0), &mut binder_name, &mut dups_vec, &mut dups_set);
+  let mut main = read_term(net, enter(net, ROOT), &mut binder_name, &mut dups_vec, &mut dups_set);
 
   // Reads let founds by starting the read_term function from their 0 ports.
   while dups_vec.len() > 0 {
     let dup = dups_vec.pop().unwrap();
     let val = read_term(net, enter(net,port(dup,0)), &mut binder_name, &mut dups_vec, &mut dups_set);
-    let tag = kind(net, dup) - FAN;
+    let tag = kind(net, dup) - DUP;
     let fst = name_of(net, port(dup,1), &mut binder_name);
     let snd = name_of(net, port(dup,2), &mut binder_name);
     let val = Box::new(val);
@@ -230,4 +228,3 @@ pub fn from_net(net : &INet) -> Term {
   }
   main
 }
-

@@ -4,29 +4,34 @@
 #![allow(dead_code)]
 
 #[derive(Clone, Debug)]
-pub struct Stats {
-  pub loops: u32,
-  pub rules: u32,
-  pub betas: u32,
-  pub dupls: u32,
-  pub annis: u32
-}
-
-#[derive(Clone, Debug)]
 pub struct INet {
   pub nodes: Vec<u32>,
-  pub reuse: Vec<u32>
+  pub reuse: Vec<u32>,
+  pub rules: u32,
 }
 
 // Node types are consts because those are used in a Vec<u32>.
 pub const ERA : u32 = 0;
 pub const CON : u32 = 1;
-pub const FAN : u32 = 2;
+pub const DUP : u32 = 2;
 
+// The ROOT port is on the deadlocked root node at address 0.
+pub const ROOT : u32 = 1;
+
+// A port is just a u32 combining address (30 bits) and slot (2 bits).
 pub type Port = u32;
 
+// Create a new net, with a deadlocked root node.
+pub fn new_inet() -> INet {
+  INet {
+    nodes: vec![2,1,0,0], // p2 points to p0, p1 points to net
+    reuse: vec![],
+    rules: 0
+  }
+}
+
 // Allocates a new node, reclaiming a freed space if possible.
-pub fn new_node(inet : &mut INet, kind : u32) -> u32 {
+pub fn new_node(inet: &mut INet, kind: u32) -> u32 {
   let node : u32 = match inet.reuse.pop() {
     Some(index) => index,
     None => {
@@ -43,69 +48,82 @@ pub fn new_node(inet : &mut INet, kind : u32) -> u32 {
 }
 
 // Builds a port (an address / slot pair).
-pub fn port(node : u32, slot : u32) -> Port {
+pub fn port(node: u32, slot: u32) -> Port {
   (node << 2) | slot
 }
 
 // Returns the address of a port (TODO: rename).
-pub fn addr(port : Port) -> u32 {
+pub fn addr(port: Port) -> u32 {
   port >> 2
 }
 
 // Returns the slot of a port.
-pub fn slot(port : Port) -> u32 {
+pub fn slot(port: Port) -> u32 {
   port & 3
 }
 
 // Enters a port, returning the port on the other side.
-pub fn enter(inet : &INet, port : Port) -> Port {
+pub fn enter(inet: &INet, port: Port) -> Port {
   inet.nodes[port as usize]
 }
 
 // Type of the node.
-// 0 = era (i.e., a set or a garbage collector)
-// 1 = con (i.e., a lambda or an application)
-// 2 = fan (i.e., a pair or a let)
-pub fn kind(inet : &INet, node : u32) -> u32 {
+// 0 = era (erasure node)
+// 1 = con (abstraction or application)
+// 2 = dup (superposition or duplication)
+pub fn kind(inet: &INet, node: u32) -> u32 {
   inet.nodes[port(node, 3) as usize]
 }
 
 // Links two ports.
-pub fn link(inet : &mut INet, ptr_a : u32, ptr_b : u32) {
+pub fn link(inet: &mut INet, ptr_a: u32, ptr_b: u32) {
   inet.nodes[ptr_a as usize] = ptr_b;
   inet.nodes[ptr_b as usize] = ptr_a;
 }
 
-// Reduces a net to normal form lazily and sequentially.
-pub fn reduce(inet : &mut INet) -> Stats {
-  let mut stats = Stats { loops: 0, rules: 0, betas: 0, dupls: 0, annis: 0 };
-  let mut warp : Vec<u32> = Vec::new();
-  let mut exit : Vec<u32> = Vec::new();
-  let mut next : Port = inet.nodes[0];
-  let mut prev : Port;
-  let mut back : Port;
-  while next > 0 || warp.len() > 0 {
-    next = if next == 0 { enter(inet, warp.pop().unwrap()) } else { next };
-    prev = enter(inet, next);
-    if slot(next) == 0 && slot(prev) == 0 && addr(prev) != 0 {
-      stats.rules += 1;
-      back = enter(inet, port(addr(prev), exit.pop().unwrap()));
-      rewrite(inet, addr(prev), addr(next));
-      next = enter(inet, back);
-    } else if slot(next) == 0 {
-      warp.push(port(addr(next), 2));
-      next = enter(inet, port(addr(next), 1));
-    } else {
-      exit.push(slot(next));
-      next = enter(inet, port(addr(next), 0));
+// Reduces a wire to weak normal form.
+pub fn reduce(inet: &mut INet, prev: Port) -> Port {
+  let mut path = vec![];
+  let mut prev = prev;
+  loop {
+    let next = enter(inet, prev);
+    // If next is ROOT, stop.
+    if next == ROOT {
+      return path.get(0).cloned().unwrap_or(ROOT); // path[0] ?
     }
-    stats.loops += 1;
+    // If next is a main port...
+    if slot(next) == 0 {
+      // If prev is a main port, reduce the active pair.
+      if slot(prev) == 0 {
+        inet.rules += 1;
+        rewrite(inet, addr(prev), addr(next));
+        prev = path.pop().unwrap();
+        continue;
+      // Otherwise, return the axiom.
+      } else {
+        return next;
+      }
+    }
+    // If next is an aux port, pass through.
+    path.push(prev);
+    prev = port(addr(next), 0);
   }
-  stats
+}
+
+// Reduces the net to normal form.
+pub fn normal(inet: &mut INet) {
+  let mut warp = vec![ROOT];
+  while let Some(prev) = warp.pop() {
+    let next = reduce(inet, prev);
+    if slot(next) == 0 {
+      warp.push(port(addr(next), 1));
+      warp.push(port(addr(next), 2));
+    }
+  }
 }
 
 // Rewrites an active pair.
-pub fn rewrite(inet : &mut INet, x : Port, y : Port) {
+pub fn rewrite(inet: &mut INet, x: Port, y: Port) {
   if kind(inet, x) == kind(inet, y) {
     let p0 = enter(inet, port(x, 1));
     let p1 = enter(inet, port(y, 1));

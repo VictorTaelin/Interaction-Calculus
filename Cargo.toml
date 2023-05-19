@@ -1,6 +1,6 @@
 [package]
 name = "interaction-calculus"
-version = "0.2.1"
+version = "0.2.5"
 description = "A parallel model of computation."
 license = "MIT"
 authors = ["Victor Maia <victor.taelin@gmail.com>"]
@@ -12,6 +12,7 @@ path = "src/lib.rs"
 
 [dependencies]
 clap = "2.26.0"
+im = "15.1.0"
 
 [[bin]]
 name = "ic"
