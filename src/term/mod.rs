@@ -140,15 +140,17 @@ impl std::fmt::Display for Term {
 }
 
 // Reduces an Interaction Calculus term through Interaction Combinators.
-pub fn normal(term : &Term) -> Term {
-  let mut net : INet = to_net(&term);
-  ::inet::normal(&mut net);
-  from_net(&net)
+pub fn normalize(term : &Term) -> Term {
+  let mut net : INet = new_inet();
+  alloc_at(&mut net, &term, ROOT);
+  normal(&mut net, ROOT);
+  read_at(&net, ROOT)
 }
 
-pub fn normal_with_stats(term : &Term) -> (Term, u32) {
-  let mut net = to_net(&term);
-  ::inet::normal(&mut net);
-  let trm = from_net(&net);
-  (trm, net.rules)
+pub fn normalize_with_stats(term : &Term) -> (Term, u32) {
+  let mut net = new_inet();
+  alloc_at(&mut net, &term, ROOT);
+  normal(&mut net, ROOT);
+  let term = read_at(&net, ROOT);
+  (term, net.rules)
 }

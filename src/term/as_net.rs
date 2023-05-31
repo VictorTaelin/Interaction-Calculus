@@ -4,7 +4,7 @@ use super::*;
 
 // Converts a term to an Interaction Combinator net. Both systems are directly isomorphic, so,
 // each node of the Interaction Calculus correspond to a single Interaction Combinator node.
-pub fn to_net(term : &Term) -> INet {
+pub fn alloc_at(inet: &mut INet, term: &Term, host: Port) {
   fn encode_term
     ( net   : &mut INet
     , term  : &Term
@@ -124,12 +124,12 @@ pub fn to_net(term : &Term) -> INet {
     }
   }
 
-  let mut net = new_inet();
+  // Initializes state variables
   let mut vars = Vec::new();
   let mut scope = HashMap::new();
 
   // Encodes the main term.
-  let main = encode_term(&mut net, &term, ROOT, &mut scope, &mut vars);
+  let main = encode_term(inet, &term, host, &mut scope, &mut vars);
 
   // Links bound variables.
   for i in 0..vars.len() {
@@ -137,8 +137,8 @@ pub fn to_net(term : &Term) -> INet {
     match scope.get(nam) {
       Some(next) => {
         let next = *next;
-        if enter(&net, next) == next {
-          link(&mut net, var, next);
+        if enter(&inet, next) == next {
+          link(inet, var, next);
         } else {
           panic!("Variable used more than once: {}.", std::str::from_utf8(nam).unwrap());
         }
@@ -147,23 +147,20 @@ pub fn to_net(term : &Term) -> INet {
     }
   }
 
-  // Connects unbound variables to erase nodes
+  // Connects unbound variables to erasure nodes
   for (_, addr) in scope {
-    if enter(&net, addr) == addr {
-      let era = new_node(&mut net, ERA);
-      link(&mut net, port(era, 1), port(era, 2));
-      link(&mut net, addr, port(era, 0));
+    if enter(&inet, addr) == addr {
+      let era = new_node(inet, ERA);
+      link(inet, port(era, 1), port(era, 2));
+      link(inet, addr, port(era, 0));
     }
   }
 
-  // Links the term to the net's root.
-  link(&mut net, 1, main);
-
-  net
+  link(inet, host, main);
 }
 
 // Converts an Interaction-INet node to an Interaction Calculus term.
-pub fn from_net(net : &INet) -> Term {
+pub fn read_at(net : &INet, host : Port) -> Term {
   // Given a port, returns its name, or assigns one if it wasn't named yet.
   fn name_of(net : &INet, var_port : Port, var_name : &mut HashMap<u32, Vec<u8>>) -> Vec<u8> {
     // If port is linked to an erase node, return an unused variable
@@ -178,13 +175,21 @@ pub fn from_net(net : &INet) -> Term {
   }
 
   // Reads a term recursively by starting at root node.
-  fn read_term
-    ( net   : &INet
-    , next   : Port
+  fn reader
+    ( net      : &INet
+    , next     : Port
     , var_name : &mut HashMap<u32, Vec<u8>>
     , dups_vec : &mut Vec<u32>
-    , dups_set : &mut HashSet<(u32)>
+    , dups_set : &mut HashSet<u32>
+    , seen     : &mut HashSet<u32>
     ) -> Term {
+
+    if seen.contains(&next) {
+      return Var{nam: b"...".to_vec()};
+    }
+
+    seen.insert(next);
+
     match kind(net, addr(next)) {
       // If we're visiting a set...
       ERA => Set,
@@ -194,12 +199,12 @@ pub fn from_net(net : &INet) -> Term {
         0 => {
           let nam = name_of(net, port(addr(next), 1), var_name);
           let prt = enter(net, port(addr(next), 2));
-          let bod = read_term(net, prt, var_name, dups_vec, dups_set);
+          let bod = reader(net, prt, var_name, dups_vec, dups_set, seen);
           let ann = enter(net, port(addr(next), 1));
           let typ = if kind(net, addr(ann)) == ANN && slot(ann) == 1 {
             let ann_addr = addr(ann);
             let typ_port = enter(net, port(ann_addr, 0));
-            Some(Box::new(read_term(net, typ_port, var_name, dups_vec, dups_set)))
+            Some(Box::new(reader(net, typ_port, var_name, dups_vec, dups_set, seen)))
           } else {
             None
           };
@@ -212,14 +217,15 @@ pub fn from_net(net : &INet) -> Term {
         },
         // If we're visiting a port 1, then it is a variable.
         1 => {
-          Var{nam: name_of(net, next, var_name)}
+          //Var{nam: name_of(net, next, var_name)}
+          Var{nam: format!("{}@{}", String::from_utf8_lossy(&name_of(net, next, var_name)), addr(next)).into()}
         },
         // If we're visiting a port 2, then it is an application.
         _ => {
           let prt = enter(net, port(addr(next), 0));
-          let fun = read_term(net, prt, var_name, dups_vec, dups_set);
+          let fun = reader(net, prt, var_name, dups_vec, dups_set, seen);
           let prt = enter(net, port(addr(next), 1));
-          let arg = read_term(net, prt, var_name, dups_vec, dups_set);
+          let arg = reader(net, prt, var_name, dups_vec, dups_set, seen);
           App{fun: Box::new(fun), arg: Box::new(arg)}
         }
       },
@@ -232,18 +238,18 @@ pub fn from_net(net : &INet) -> Term {
         // If we're visiting a port 1, then it is where the annotation occurs.
         1 => {
           let prt = enter(net, port(addr(next), 2));
-          let val = read_term(net, prt, var_name, dups_vec, dups_set);
+          let val = reader(net, prt, var_name, dups_vec, dups_set, seen);
           let prt = enter(net, port(addr(next), 0));
-          let typ = read_term(net, prt, var_name, dups_vec, dups_set);
+          let typ = reader(net, prt, var_name, dups_vec, dups_set, seen);
           Ann{val: Box::new(val), typ: Box::new(typ)}
         },
         // If we're visiting a port 2, then it is the value being annotated.
         _ => {
           let prt = enter(net, port(addr(next), 1));
-          let val = read_term(net, prt, var_name, dups_vec, dups_set);
+          let val = reader(net, prt, var_name, dups_vec, dups_set, seen);
           val
           //let prt = enter(net, port(addr(next), 0));
-          //let typ = read_term(net, prt, var_name, dups_vec, dups_set);
+          //let typ = reader(net, prt, var_name, dups_vec, dups_set, seen);
           //Ann{val: Box::new(val), typ: Box::new(typ)}
         }
       },
@@ -254,9 +260,9 @@ pub fn from_net(net : &INet) -> Term {
         0 => {
           let tag = tag - DUP;
           let prt = enter(net, port(addr(next), 1));
-          let fst = read_term(net, prt, var_name, dups_vec, dups_set);
+          let fst = reader(net, prt, var_name, dups_vec, dups_set, seen);
           let prt = enter(net, port(addr(next), 2));
-          let snd = read_term(net, prt, var_name, dups_vec, dups_set);
+          let snd = reader(net, prt, var_name, dups_vec, dups_set, seen);
           Sup{tag, fst: Box::new(fst), snd: Box::new(snd)}
         },
         // If we're visiting a port 1 or 2, then it is a variable.
@@ -266,8 +272,9 @@ pub fn from_net(net : &INet) -> Term {
             dups_set.insert(addr(next));
             dups_vec.push(addr(next));
           }
-          let nam = name_of(net, next, var_name);
-          Var{nam}
+          Var{nam: format!("{}@{}", String::from_utf8_lossy(&name_of(net, next, var_name)), addr(next)).into()}
+          //let nam = name_of(net, next, var_name);
+          //Var{nam}
         }
       }
     }
@@ -282,14 +289,15 @@ pub fn from_net(net : &INet) -> Term {
   // We have a vec for .pop(). and a set to avoid storing duplicates.
   let mut dups_vec = Vec::new();
   let mut dups_set = HashSet::new();
+  let mut seen     = HashSet::new();
 
   // Reads the main term from the net
-  let mut main = read_term(net, enter(net, ROOT), &mut binder_name, &mut dups_vec, &mut dups_set);
+  let mut main = reader(net, enter(net, host), &mut binder_name, &mut dups_vec, &mut dups_set, &mut seen);
 
-  // Reads let founds by starting the read_term function from their 0 ports.
+  // Reads let founds by starting the reader function from their 0 ports.
   while dups_vec.len() > 0 {
     let dup = dups_vec.pop().unwrap();
-    let val = read_term(net, enter(net,port(dup,0)), &mut binder_name, &mut dups_vec, &mut dups_set);
+    let val = reader(net, enter(net,port(dup,0)), &mut binder_name, &mut dups_vec, &mut dups_set, &mut seen);
     let tag = kind(net, dup) - DUP;
     let fst = name_of(net, port(dup,1), &mut binder_name);
     let snd = name_of(net, port(dup,2), &mut binder_name);
@@ -299,3 +307,16 @@ pub fn from_net(net : &INet) -> Term {
   }
   main
 }
+
+pub fn to_net(term: &Term) -> INet {
+  let mut inet = new_inet();
+  alloc_at(&mut inet, &term, ROOT);
+  return inet;
+}
+
+pub fn from_net(inet: &INet) -> Term {
+  return read_at(inet, ROOT);
+}
+
+  
+
