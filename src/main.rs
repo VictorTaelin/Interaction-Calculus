@@ -37,7 +37,7 @@ fn main() {
   file.read_to_string(&mut code).expect("Unable to read the file");
 
   let term = term::from_string(code.as_bytes());
-  let (norm, rules) = term::normal_with_stats(&term);
+  let (norm, rules) = term::normalize_with_stats(&term);
 
   println!("{}\n", norm);
   println!("{:?} rewrites", rules);
