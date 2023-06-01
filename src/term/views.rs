@@ -70,7 +70,7 @@ pub fn lambda_term_from_inet(inet : &INet) -> Term {
     let prev_port = enter(inet, next);
     let prev_slot = slot(prev_port);
     let prev_node = addr(prev_port);
-    if kind(inet, prev_node) == 1 {
+    if kind(inet, prev_node) == CON {
       match prev_slot {
         0 => {
           node_depth[prev_node as usize] = depth;
@@ -89,22 +89,26 @@ pub fn lambda_term_from_inet(inet : &INet) -> Term {
           App {fun, arg}
         }
       }
-    } else if prev_slot > 0 {
-      exit.push(prev_slot);
-      let term = go(inet, node_depth, port(prev_node, 0), exit, depth);
-      exit.pop();
-      term
+    } else if kind(inet, prev_node) >= DUP {
+      if prev_slot > 0 {
+        exit.push(prev_slot);
+        let term = go(inet, node_depth, port(prev_node, 0), exit, depth);
+        exit.pop();
+        term
+      } else {
+        let e = exit.pop().unwrap();
+        let term = go(inet, node_depth, port(prev_node, e), exit, depth);
+        exit.push(e);
+        term
+      }
     } else {
-      let e = exit.pop().unwrap();
-      let term = go(inet, node_depth, port(prev_node, e), exit, depth);
-      exit.push(e);
-      term
+      Set
     }
   }
   let mut node_depth : Vec<u32> = Vec::with_capacity(inet.nodes.len() / 4);
   let mut exit : Vec<u32> = Vec::new();
   node_depth.resize(inet.nodes.len() / 4, 0);
-  go(inet, &mut node_depth, 0, &mut exit, 0)
+  go(inet, &mut node_depth, ROOT, &mut exit, 0)
 }
 
 // Converts a binary input such as b"1001" into a λ-encoded bitstring

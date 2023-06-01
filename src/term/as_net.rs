@@ -111,6 +111,20 @@ pub fn alloc_at(inet: &mut INet, term: &Term, host: Port) {
         link(net, val, port(dup, 0));
         encode_term(net, &nxt, up, scope, vars)
       },
+      // A fix becomes a fix node.
+      &Fix { ref nam, ref bod } => {
+        let fix = new_node(net, FIX);
+        scope.insert(nam.to_vec(), port(fix, 1));
+        // If the variable is unused, create an erase node.
+        if nam == b"*" {
+          let era = new_node(net, ERA);
+          link(net, port(era, 1), port(era, 2));
+          link(net, port(fix, 1), port(era, 0));
+        }
+        let bod = encode_term(net, bod, port(fix, 0), scope, vars);
+        link(net, port(fix, 0), bod);
+        port(fix, 2)
+      },
       // A set is just an erase node stored in a place.
       &Set => {
         let set = new_node(net, ERA);
@@ -217,8 +231,8 @@ pub fn read_at(net : &INet, host : Port) -> Term {
         },
         // If we're visiting a port 1, then it is a variable.
         1 => {
-          //Var{nam: name_of(net, next, var_name)}
-          Var{nam: format!("{}@{}", String::from_utf8_lossy(&name_of(net, next, var_name)), addr(next)).into()}
+          Var{nam: name_of(net, next, var_name)}
+          //Var{nam: format!("{}@{}", String::from_utf8_lossy(&name_of(net, next, var_name)), addr(next)).into()}
         },
         // If we're visiting a port 2, then it is an application.
         _ => {
@@ -253,7 +267,24 @@ pub fn read_at(net : &INet, host : Port) -> Term {
           //Ann{val: Box::new(val), typ: Box::new(typ)}
         }
       },
-
+      // If we're visiting a fix node...
+      FIX => match slot(next) {
+        // If we're visiting a port 2, then it is a recursive term.
+        2 => {
+          let nam = name_of(net, port(addr(next), 1), var_name);
+          let prt = enter(net, port(addr(next), 0));
+          let bod = reader(net, prt, var_name, dups_vec, dups_set, seen);
+          Fix { nam: nam, bod: Box::new(bod) }
+        },
+        // If we're visiting a port 1, then it is a fixed point occurrence.
+        1 => {
+          Var { nam: name_of(net, next, var_name) }
+        },
+        // We shouldn't be able to visit a port 0
+        _ => {
+          Set
+        }
+      },
       // If we're visiting a fan node...
       tag => match slot(next) {
         // If we're visiting a port 0, then it is a pair.
@@ -272,9 +303,8 @@ pub fn read_at(net : &INet, host : Port) -> Term {
             dups_set.insert(addr(next));
             dups_vec.push(addr(next));
           }
-          Var{nam: format!("{}@{}", String::from_utf8_lossy(&name_of(net, next, var_name)), addr(next)).into()}
-          //let nam = name_of(net, next, var_name);
-          //Var{nam}
+          //Var{nam: format!("{}@{}", String::from_utf8_lossy(&name_of(net, next, var_name)), addr(next)).into()}
+          Var{nam: name_of(net, next, var_name)}
         }
       }
     }
@@ -317,6 +347,3 @@ pub fn to_net(term: &Term) -> INet {
 pub fn from_net(inet: &INet) -> Term {
   return read_at(inet, ROOT);
 }
-
-  
-

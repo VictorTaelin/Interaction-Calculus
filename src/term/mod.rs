@@ -6,6 +6,7 @@ mod views;
 
 pub use self::as_net::*;
 pub use self::syntax::*;
+pub use self::views::*;
 
 use std::collections::*;
 use inet::*;
@@ -25,6 +26,9 @@ pub enum Term {
 
   // Duplications
   Dup {tag: u32, fst: Vec<u8>, snd: Vec<u8>, val: Box<Term>, nxt: Box<Term>},
+
+  // Recursion
+  Fix {nam: Vec<u8>, bod: Box<Term>},
 
   // Annotations
   Ann {val: Box<Term>, typ: Box<Term>},
@@ -118,6 +122,11 @@ pub fn copy(space : &Vec<u8>, idx : u32, term : &Term) -> Term {
       let val = Box::new(copy(space, idx, val));
       let nxt = Box::new(copy(space, idx, nxt));
       Dup{tag, fst, snd, val, nxt}
+    },
+    Fix{nam, bod} => {
+      let nam = namespace(space, idx, nam);
+      let bod = Box::new(copy(space, idx, bod));
+      Fix{nam, bod}
     },
     Ann{val, typ} => {
       let val = Box::new(copy(space, idx, val));

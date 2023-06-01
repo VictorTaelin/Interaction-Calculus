@@ -17,15 +17,15 @@ pub fn get_argm(inet: &INet, host: Port) -> Port {
 pub fn test() {
 
   let code = "
-// Church multiplication
+// Church arithmetic
+def zero = λs λz (z)
+def succ = λn λs λz dup s0 s1 = s; (s0 (n s1 z))
 def mul = λn λm λs (n (m s))
 
-// Church nats
+// Church consts
 def c1 = λf λx (f x)
 def c2 = λf λx (dup #b f0 f1 = f; (f0 (f1 x)))
 def c3 = λf λx (dup #c f0 f1 = f; dup #c f2 f3 = f0; (f1 (f2 (f3 x))))
-
-// Church powers of two
 def p1 = c2          // 2
 def p2 = (mul c2 p1) // 4
 def p3 = (mul c2 p2) // 8
@@ -41,15 +41,26 @@ def false = λt λf f
 def not = λb ((b false) true)
 def neg = λb λt λf (b f t)
 
-def v0 = λf λx
-  dup #b f0 f1 = f;
-  dup #b f2 f3 = f0;
-  dup #b f4 f5 = f1;
-  (f2 (f3 (f4 (f5 x))))
+// Lists
+def cons = λhead λtail λcons λnil (cons head tail)
+def nil = λcons λnil nil
+def head = λlist (list λhλt(h) λx(x))
+def tail = λlist (list λhλt(t) nil)
 
-def v1 = (mul c2 c2)
+def map = @map λf λxs
+  dup #f f0 f1 = f;
+  (xs λhead λtail (cons (f0 head) (map f1 tail)) nil)
 
-λT (T v0 v1)
+def ids = @k λcons λnil (cons λx(x) k)
+def nums = @x (cons zero (map succ x))
+def inf = @inf λs λz (s inf)
+
+def f0 = @x (cons true (cons true (cons false x)))
+def f1 = @x (cons true (cons true (cons false (cons true (cons true (cons false x))))))
+
+λt (t f0 f1)
+
+//(head (tail (tail (tail ids))))
 
 ";
 
@@ -59,53 +70,26 @@ def v1 = (mul c2 c2)
   // Creates the net from term
   let mut inet = new_inet();
   alloc_at(&mut inet, &term, ROOT);
-  //normal(&mut inet, ROOT);
 
+  // Equal
   let body = get_body(&inet, ROOT);
   let arg0 = get_argm(&inet, get_func(&inet, body));
   let arg1 = get_argm(&inet, body);
-
-  // Reads the term back
-  let term = read_at(&inet, ROOT);
-
-  println!("{}", read_at(&inet, ROOT));
+  //println!("{}", read_at(&inet, ROOT));
   println!("a = {}", read_at(&inet, arg0));
   println!("b = {}", read_at(&inet, arg1));
-
   let eq = equal(&mut inet, arg0, arg1);
   println!("");
   println!("[[a==b : {}]]", eq);
 
-  println!("");
-  println!("{:?} rewrites", inet.rules);
+  // Normal
+  //normal(&mut inet, ROOT);
+  //println!("itt {}", read_at(&inet, ROOT));
+  //println!("lam {}", lambda_term_from_inet(&inet));
+  //println!("{:?} rewrites", inet.rules);
 
 
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

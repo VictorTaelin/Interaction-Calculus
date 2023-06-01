@@ -5,6 +5,7 @@
 // <Ann>  ::= "<" <Term> ":" <Term> ")"
 // <Sup>  ::= "{" <Term> <Term> "}" ["#" <tag>]
 // <Dup>  ::= "dup" ["#" <tag>] <name> <name> "=" <Term> [";"] <Term>
+// <Fix>  ::= "@" <name> <Term>
 // <Var>  ::= <name>
 // <Set>  ::= "*"
 // <name> ::= <alphanumeric_name>
@@ -56,6 +57,17 @@ pub fn parse_term<'a>(code: &'a Str, ctx: &mut Context<'a>, idx: &mut u32) -> (&
     b'/' if code[1] == b'/' => {
       let end = code.iter().position(|&c| c == b'\n').unwrap_or(code.len());
       parse_term(&code[end..], ctx, idx)
+    }
+    // Definition: `def nam = val; bod` (note: ';' is optional)
+    b'd' if code.starts_with(b"def ") => {
+      let (code, nam) = parse_name(&code[4..]);
+      let  code       = parse_text(code, b"=").unwrap();
+      let (code, val) = parse_term(code, ctx, idx);
+      let  code       = if code[0] == b';' { &code[1..] } else { code };
+      extend(nam, Some(val), ctx);
+      let (code, bod) = parse_term(code, ctx, idx);
+      narrow(ctx);
+      (code, bod)
     }
     // Typed Abstraction: `λ(var: Type) body`
     b'\xce' if code[1] == b'\xbb' && code[2] == b'(' => {
@@ -134,16 +146,13 @@ pub fn parse_term<'a>(code: &'a Str, ctx: &mut Context<'a>, idx: &mut u32) -> (&
       let nxt = Box::new(nxt);
       (code, Dup { tag, fst, snd, val, nxt })
     }
-    // Definition: `def nam = val; bod` (note: ';' is optional)
-    b'd' if code.starts_with(b"def ") => {
-      let (code, nam) = parse_name(&code[4..]);
-      let  code       = parse_text(code, b"=").unwrap();
-      let (code, val) = parse_term(code, ctx, idx);
-      let  code       = if code[0] == b';' { &code[1..] } else { code };
-      extend(nam, Some(val), ctx);
+    // Fix: `@name body`
+    b'@' => {
+      let (code, nam) = parse_name(&code[1..]);
       let (code, bod) = parse_term(code, ctx, idx);
-      narrow(ctx);
-      (code, bod)
+      let nam = nam.to_vec();
+      let bod = Box::new(bod);
+      (code, Fix { nam, bod })
     }
     // Set: `*`
     b'*' => {
@@ -238,6 +247,12 @@ pub fn to_string(term : &Term) -> Vec<Chr> {
         stringify_term(code, &val);
         code.extend_from_slice(b"; ");
         stringify_term(code, &nxt);
+      },
+      &Fix{ref nam, ref bod} => {
+        code.extend_from_slice(b"@");
+        code.append(&mut nam.clone());
+        code.extend_from_slice(b" ");
+        stringify_term(code, &bod);
       },
       &Set => {
         code.extend_from_slice(b"*");
