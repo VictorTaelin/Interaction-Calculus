@@ -282,7 +282,7 @@ pub fn read_at(net : &INet, host : Port) -> Term {
         },
         // We shouldn't be able to visit a port 0
         _ => {
-          Set
+          Var { nam: b"^".to_vec() }
         }
       },
       // If we're visiting a fan node...
