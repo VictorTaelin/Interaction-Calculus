@@ -62,7 +62,8 @@ fn parse_node<'a>(code: &'a Str) -> Result<(&'a Str, INode), String> {
   let code = parse_text(code, b"]")?;
 
   let (code, label) = parse_name(code);
-  let label = String::from_utf8_lossy(label).parse::<u32>().unwrap_or(1);
+  let label = String::from_utf8_lossy(label).parse::<u32>().unwrap_or(CON);
+  let label = if label == CON { CON } else { DUP + label };
 
   Ok((code, INode {
     label,

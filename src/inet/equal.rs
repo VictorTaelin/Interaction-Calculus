@@ -184,7 +184,7 @@ pub fn compare(inet: &mut INet, a: &mut Cursor, b: &mut Cursor) -> bool {
     todo!()
   }
 
-  //println!("check {:?} == {:?}", a.path, b.path);
+  //println!("check {:?} == {:?} {}", a.path, b.path, a.path.get(&CON) == b.path.get(&CON));
 
   // If we've reached a final port (root or fix), compare the unconsumed paths
   return a.path.get(&CON) == b.path.get(&CON);
