@@ -14,24 +14,54 @@ pub fn get_argm(inet: &INet, host: Port) -> Port {
   return port(addr(enter(inet,host)), 1);
 }
 
+pub fn show(inet: &INet, prev: Port) -> String {
+  let next = enter(inet, prev);
+  if next == ROOT {
+    "*".to_string()
+  } else {
+    let slot_next = slot(next);
+    if slot_next == 0 {
+      let a = show(inet, port(addr(next), 1));
+      let b = show(inet, port(addr(next), 2));
+      format!("({} {})", a, b)
+    } else {
+      let x = show(inet, port(addr(next), 0));
+      format!("{}{}", slot_next, x)
+    }
+  }
+}
+
 pub fn test() {
   let code = b"
 [_ a b]
 [a c c]
-[b k k]
+[b d e]
+[d f f]
+[e g h]
+[h g i]
+[i j j]
 ";
 
   let inodes = from_string_inodes(code).unwrap();
-  println!("oi {:?}", inodes);
+  println!("inodes: {:?}", inodes);
 
-  let inet = inodes_to_inet(&inodes);
-  println!("oi {:?}", inet);
+  let mut inet = inodes_to_inet(&inodes);
+  println!("inet {:?}", inet);
 
   let inodes = inet_to_inodes(&inet);
   println!("oi {:?}", inodes);
 
   println!("{}", show_inodes(&inodes));
-  
+
+  let body = get_body(&mut inet, ROOT);
+  let arg0 = get_body(&mut inet, body);
+  let arg1 = get_argm(&mut inet, body);
+
+  println!("{}", show(&inet, arg0));
+  println!("{}", show(&inet, arg1));
+
+  let eq = equal(&mut inet, arg0, arg1);
+  println!("eq = {}", eq)
 
 }
 
