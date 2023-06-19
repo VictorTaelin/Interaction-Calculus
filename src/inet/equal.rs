@@ -43,7 +43,9 @@ pub struct Cursor<'a> {
   root: Port,
   prev: Port,
   path: &'a mut BTreeMap<u32, VecDeque<u8>>,
+  logs: &'a mut Vec<String>,
 }
+
 
 impl<'a> Cursor<'a> {
   fn next(&mut self, inet: &mut INet, slot: u8) -> Cursor {
@@ -51,6 +53,7 @@ impl<'a> Cursor<'a> {
       root: self.root,
       prev: port(addr(enter(inet, self.prev)), slot as u32),
       path: self.path,
+      logs: self.logs,
     }
   }
 
@@ -85,23 +88,26 @@ impl<'a> Cursor<'a> {
 pub fn equal(inet: &mut INet, a: Port, b: Port) -> bool {
   let mut a_path = BTreeMap::new();
   let mut b_path = BTreeMap::new();
-  let mut a_cursor = Cursor { root: a, prev: a, path: &mut a_path };
-  let mut b_cursor = Cursor { root: b, prev: b, path: &mut b_path };
+  let mut a_logs = vec![];
+  let mut b_logs = vec![];
+  let mut a_cursor = Cursor { root: a, prev: a, path: &mut a_path, logs: &mut a_logs, };
+  let mut b_cursor = Cursor { root: b, prev: b, path: &mut b_path, logs: &mut b_logs, };
   compare(inet, &mut a_cursor, &mut b_cursor)
 }
 
 // Compares two cursors by moving them forward until root is reached
 pub fn compare(inet: &mut INet, a: &mut Cursor, b: &mut Cursor) -> bool {
-  //println!("equal {} {} {:?} {:?}", a.prev, b.prev, a.path, b.path);
-  //println!("== {}", crate::term::read_at(inet, a.prev));
-  //println!("== {}", crate::term::read_at(inet, b.prev));
-
+  println!("Equal: (Node: {}, Slot: {}) ~ (Node {}, Slot {})\n  Paths: {:?} | {:?}\n  Logs : {:?} | {:?}", addr(a.prev), slot(a.prev), addr(b.prev), slot(b.prev), a.path, b.path, a.logs, b.logs);
+  // One line print
+  // println!("equal {} {} | {:?} | {:?} | {:?} | {:?}", a.prev, b.prev, a.path, b.path, a.logs, b.logs);
+  
   // Moves one of the cursors forward and compares
   fn advance(inet: &mut INet, a: &mut Cursor, b: &mut Cursor) -> Option<bool> {
 
     //reduce(inet, a.prev, &|ak, bk| ak == FIX || bk == FIX);
 
     let a_next = enter(inet, a.prev);
+    let a_slot = slot(a_next);
     let a_kind = kind(inet, addr(a_next));
 
     // If on root, stop
@@ -113,13 +119,14 @@ pub fn compare(inet: &mut INet, a: &mut Cursor, b: &mut Cursor) -> bool {
       return None;
 
     // If entering main port...
-    } else if slot(enter(inet, a.prev)) == 0 {
+  } else if a_slot == 0 {
 
       // If deque isn't empty, pop_back a slot and move to it
       if let Some(slot) = a.pop_back(a_kind) {
-        //println!("enter main (pass)");
+        a.logs.push(format!("V{}", slot));
         let an = &mut a.next(inet, slot);
         let eq = compare(inet, an, b);
+        a.logs.pop();
         a.push_back(a_kind, slot);
         return Some(eq);
 
@@ -127,9 +134,11 @@ pub fn compare(inet: &mut INet, a: &mut Cursor, b: &mut Cursor) -> bool {
       } else {
         //println!("enter main (split)");
         for slot in [2,1] {
+          a.logs.push(format!("W{}", slot));
           b.push_front(a_kind, slot);
           let an = &mut a.next(inet, slot);
           let eq = compare(inet, an, b);
+          a.logs.pop();
           b.pop_front(a_kind);
           if !eq {
             return Some(false);
@@ -140,11 +149,12 @@ pub fn compare(inet: &mut INet, a: &mut Cursor, b: &mut Cursor) -> bool {
 
     // If entering an aux port, push_back that slot to the deque, and move to the main port
     } else {
-      //println!("enter aux");
+      a.logs.push(format!("^{}", a_slot));
       a.push_back(a_kind, slot(enter(inet, a.prev)) as u8);
       let an = &mut a.next(inet, 0);
       let eq = compare(inet, an, b);
       a.pop_back(a_kind);
+      a.logs.pop();
       return Some(eq);
     }
   }
@@ -184,7 +194,7 @@ pub fn compare(inet: &mut INet, a: &mut Cursor, b: &mut Cursor) -> bool {
     todo!()
   }
 
-  //println!("check {:?} == {:?} {}", a.path, b.path, a.path.get(&CON) == b.path.get(&CON));
+  //println!("check {:?} == {:?}", a.path, b.path);
 
   // If we've reached a final port (root or fix), compare the unconsumed paths
   return a.path.get(&CON) == b.path.get(&CON);
