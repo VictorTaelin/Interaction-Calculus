@@ -1,8 +1,7 @@
 // Implements Interaction Combinators. The Interaction Calculus is directly isomorphic to them, so,
 // to reduce a term, we simply translate to interaction combinators, reduce, then translate back.
 
-use crate::term::definition_book::DefinitionBook;
-
+use crate::term::{definition_book::DefinitionBook, alloc_at, read_at};
 pub use super::*;
 
 #[derive(Clone, Debug)]
@@ -142,33 +141,51 @@ pub fn normal(inet: &mut INet, root: Port, definition_book: &DefinitionBook) {
   }
 }
 
-/// Insert the definition body in place of the REF node
-fn expand_ref_node(
-  inet: &mut INet,
-  definition_book: &DefinitionBook,
-  ref_node: NodeId,
-  other_node: NodeId,
-  ref_kind: NodeKind,
-  other_kind: NodeKind,
-) {
-}
+/// Rewrites an active pair.
+pub fn rewrite(inet: &mut INet, x: NodeId, y: NodeId, definition_book: &DefinitionBook) {
+  /// Inserts the definition body in place of the REF node.
+  /// Returns ID of node that replaced it (connected to principal port of other node)
+  fn expand_ref_node(
+    inet: &mut INet,
+    definition_book: &DefinitionBook,
+    ref_node: NodeId,
+    other_node: NodeId,
+    ref_kind: NodeKind,
+  ) -> NodeId {
+    inet.reuse.push(ref_node); // Remove REF node
 
-// Rewrites an active pair.
-pub fn rewrite(inet: &mut INet, x: Port, y: Port, definition_book: &DefinitionBook) {
+    let definition_id = (ref_kind - REF) as usize;
+    let definition_data = &definition_book.definition_id_to_data[definition_id];
+    let host = port(other_node, 0);
+    debug_assert_eq!(enter(inet, host), port(ref_node, 0));
+    alloc_at(inet, &definition_data.term, host, &definition_book.definition_name_to_id);
+
+    addr(enter(inet, host)) // Return ID of new node facing `other_node`
+  }
+
   let kind_x = kind(inet, x);
   let kind_y = kind(inet, y);
 
-  let kind_x = if kind_x & TAG_MASK == REF {
-    expand_ref_node(inet, definition_book, x, y, kind_x, kind_y);
-    kind(inet, x)
+  // x is `prev` in `reduce`, we came from `prev`. But REF nodes have ports 1 and 2 linked together.
+  // So the `prev` node that we came from cannot be a REF.
+  // This is important because if `prev` could potentially be a REF node, substituting it would
+  // invalidate the return `path` in `reduce`.
+  debug_assert_ne!(kind_x & TAG_MASK, REF);
+
+  // We only need to check if `y` is a REF node
+  let (y, kind_y) = if kind_y & TAG_MASK == REF {
+    let new_node_id = expand_ref_node(inet, definition_book, y, x, kind_y);
+
+    if enter(inet, port(x, 0)) != port(new_node_id, 0) {
+      // If the inserted subnet's main wire is not at port 0, (x, y) is not an active pair anymore.
+      // E.g. an application: def X = (Y Z)
+      // So we cannot rewrite this new pair
+      return;
+    }
+
+    (new_node_id, kind(inet, new_node_id))
   } else {
-    kind_x
-  };
-  let kind_y = if kind_y & TAG_MASK == REF {
-    expand_ref_node(inet, definition_book, y, x, kind_y, kind_x);
-    kind(inet, y)
-  } else {
-    kind_y
+    (y, kind_y)
   };
 
   if kind_x == kind_y {
