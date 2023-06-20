@@ -1,6 +1,8 @@
 // Implements Interaction Combinators. The Interaction Calculus is directly isomorphic to them, so,
 // to reduce a term, we simply translate to interaction combinators, reduce, then translate back.
 
+use crate::term::definition_book::DefinitionBook;
+
 pub use super::*;
 
 #[derive(Clone, Debug)]
@@ -10,22 +12,28 @@ pub struct INet {
   pub rules: u32,
 }
 
-// Node types are consts because those are used in a Vec<u32>.
-pub const TAG : u32 = 28;
-pub const ERA : u32 = 0 << TAG;
-pub const CON : u32 = 1 << TAG;
-pub const ANN : u32 = 2 << TAG;
-pub const DUP : u32 = 3 << TAG;
-pub const FIX : u32 = 4 << TAG;
-pub const REF : u32 = 5 << TAG;
+pub type NodeKind = u32;
 
-pub const TAG_MASK: u32 = !((1 << TAG) - 1);
+// Node types are consts because those are used in a Vec<u32>.
+pub const TAG : NodeKind = 28;
+pub const ERA : NodeKind = 0 << TAG;
+pub const CON : NodeKind = 1 << TAG;
+pub const ANN : NodeKind = 2 << TAG;
+pub const DUP : NodeKind = 3 << TAG;
+pub const FIX : NodeKind = 4 << TAG;
+pub const REF : NodeKind = 5 << TAG;
+
+pub const TAG_MASK: NodeKind = !((1 << TAG) - 1);
 
 // The ROOT port is on the deadlocked root node at address 0.
 pub const ROOT : u32 = 1;
 
 // A port is just a u32 combining address (30 bits) and slot (2 bits).
 pub type Port = u32;
+
+pub type NodeId = u32;
+
+pub type SlotId = u32;
 
 // Create a new net, with a deadlocked root node.
 pub fn new_inet() -> INet {
@@ -54,17 +62,17 @@ pub fn new_node(inet: &mut INet, kind: u32) -> u32 {
 }
 
 // Builds a port (an address / slot pair).
-pub fn port(node: u32, slot: u32) -> Port {
+pub fn port(node: NodeId, slot: SlotId) -> Port {
   (node << 2) | slot
 }
 
 // Returns the address of a port (TODO: rename).
-pub fn addr(port: Port) -> u32 {
+pub fn addr(port: Port) -> NodeId {
   port >> 2
 }
 
 // Returns the slot of a port.
-pub fn slot(port: Port) -> u32 {
+pub fn slot(port: Port) -> SlotId {
   port & 3
 }
 
@@ -74,23 +82,23 @@ pub fn enter(inet: &INet, port: Port) -> Port {
 }
 
 // Enters a slot on the node pointed by this port.
-pub fn get(inet: &INet, p: Port, s: u32) -> Port {
+pub fn get(inet: &INet, p: Port, s: SlotId) -> Port {
   enter(inet, port(addr(p), s))
 }
 
 // Kind of the node.
-pub fn kind(inet: &INet, node: u32) -> u32 {
+pub fn kind(inet: &INet, node: NodeId) -> NodeKind {
   inet.nodes[port(node, 3) as usize]
 }
 
 // Links two ports.
-pub fn link(inet: &mut INet, ptr_a: u32, ptr_b: u32) {
+pub fn link(inet: &mut INet, ptr_a: Port, ptr_b: Port) {
   inet.nodes[ptr_a as usize] = ptr_b;
   inet.nodes[ptr_b as usize] = ptr_a;
 }
 
 // Reduces a wire to weak normal form.
-pub fn reduce(inet: &mut INet, root: Port, skip: &dyn Fn(u32,u32) -> bool) {
+pub fn reduce(inet: &mut INet, root: Port, skip: &dyn Fn(NodeKind, NodeKind) -> bool, definition_book: &DefinitionBook) {
   let mut path = vec![];
   let mut prev = root;
   loop {
@@ -106,7 +114,7 @@ pub fn reduce(inet: &mut INet, root: Port, skip: &dyn Fn(u32,u32) -> bool) {
       // If prev is a main port, reduce the active pair.
       if slot(prev) == 0 && !skipped {
         inet.rules += 1;
-        rewrite(inet, addr(prev), addr(next));
+        rewrite(inet, addr(prev), addr(next), definition_book);
         prev = path.pop().unwrap();
         continue;
       // Otherwise, return the axiom.
@@ -121,11 +129,11 @@ pub fn reduce(inet: &mut INet, root: Port, skip: &dyn Fn(u32,u32) -> bool) {
 }
 
 // Reduces the net to normal form.
-pub fn normal(inet: &mut INet, root: Port) {
+pub fn normal(inet: &mut INet, root: Port, definition_book: &DefinitionBook) {
   let mut warp = vec![root];
   let mut tick = 0;
   while let Some(prev) = warp.pop() {
-    reduce(inet, prev, &|ak,bk| false);
+    reduce(inet, prev, &|ak,bk| false, definition_book);
     let next = enter(inet, prev);
     if slot(next) == 0 {
       warp.push(port(addr(next), 1));
@@ -134,9 +142,36 @@ pub fn normal(inet: &mut INet, root: Port) {
   }
 }
 
+/// Insert the definition body in place of the REF node
+fn expand_ref_node(
+  inet: &mut INet,
+  definition_book: &DefinitionBook,
+  ref_node: NodeId,
+  other_node: NodeId,
+  ref_kind: NodeKind,
+  other_kind: NodeKind,
+) {
+}
+
 // Rewrites an active pair.
-pub fn rewrite(inet: &mut INet, x: Port, y: Port) {
-  if kind(inet, x) == kind(inet, y) {
+pub fn rewrite(inet: &mut INet, x: Port, y: Port, definition_book: &DefinitionBook) {
+  let kind_x = kind(inet, x);
+  let kind_y = kind(inet, y);
+
+  let kind_x = if kind_x & TAG_MASK == REF {
+    expand_ref_node(inet, definition_book, x, y, kind_x, kind_y);
+    kind(inet, x)
+  } else {
+    kind_x
+  };
+  let kind_y = if kind_y & TAG_MASK == REF {
+    expand_ref_node(inet, definition_book, y, x, kind_y, kind_x);
+    kind(inet, y)
+  } else {
+    kind_y
+  };
+
+  if kind_x == kind_y {
     let p0 = enter(inet, port(x, 1));
     let p1 = enter(inet, port(y, 1));
     link(inet, p0, p1);

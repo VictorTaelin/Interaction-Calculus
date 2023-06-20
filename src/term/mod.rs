@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 mod as_net;
-mod definition_book;
+pub mod definition_book;
 mod syntax;
 mod views;
 
@@ -156,14 +156,14 @@ impl std::fmt::Display for Term {
 pub fn normalize(term: &Term, definition_book: &DefinitionBook) -> Term {
   let mut net : INet = new_inet();
   alloc_at(&mut net, &term, ROOT, &definition_book.definition_name_to_id);
-  normal(&mut net, ROOT);
+  normal(&mut net, ROOT, definition_book);
   read_at(&net, ROOT, definition_book)
 }
 
 pub fn normalize_with_stats(term: &Term, definition_book: &DefinitionBook) -> (Term, u32) {
   let mut net = new_inet();
   alloc_at(&mut net, &term, ROOT, &definition_book.definition_name_to_id);
-  normal(&mut net, ROOT);
+  normal(&mut net, ROOT, definition_book);
   let term = read_at(&net, ROOT, definition_book);
   (term, net.rules)
 }
