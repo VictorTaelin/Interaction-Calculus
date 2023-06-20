@@ -1,0 +1,24 @@
+def T = λt λf t
+def F = λt λf f
+def and = λpλq dup #a p1 p2 = p; (p1 q p2)
+def Z = λs λz (z)
+def S = λn λs λz (s n)
+def Node = λa λb λn λl (n a b)
+def Leaf = λn λl l
+
+def pred = λn (n (λp p) Z)
+
+// def Y = λf dup #f f1 f2 = f; ((λx dup #xx x1 x2 = x; (f1 (x1 x2))) (λx dup #xx x1 x2 = x; (f2 (x1 x2))))
+def Y = λf dup #f f1 f2 = f; ((λx dup #xx x1 x2 = x; (f1 (x1 x2))) (λy dup #yy y1 y2 = y; (f2 (y1 y2))))
+def double = λf λn (n (λp (S (S (f p)))) Z)
+
+// (Y double (S (S Z)))
+
+(pred (S (S Z)))
+// (pred λs λz (s λs λz (s λs λz (z)))) // 'Variable used more than once: s'
+
+// (Node (S (S (S Z))) Leaf)
+// (Node Z Z)
+// (S (S (S Z)))
+// (S Z)
+// (and T T)

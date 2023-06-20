@@ -1,10 +1,14 @@
 #![allow(dead_code)]
 
 mod as_net;
+mod definition_book;
 mod syntax;
 mod views;
 
 pub use self::as_net::*;
+use self::definition_book::DefinitionBook;
+use self::definition_book::DefinitionId;
+use self::definition_book::DefinitionName;
 pub use self::syntax::*;
 pub use self::views::*;
 
@@ -16,7 +20,7 @@ use std;
 #[derive(Clone, Debug)]
 pub enum Term {
   // Abstractions
-  Lam {nam: Vec<u8>, typ: Option<Box<Term>>, bod: Box<Term>},                
+  Lam {nam: Vec<u8>, typ: Option<Box<Term>>, bod: Box<Term>},
 
   // Applications
   App {fun: Box<Term>, arg: Box<Term>},
@@ -34,7 +38,7 @@ pub enum Term {
   Ann {val: Box<Term>, typ: Box<Term>},
 
   // Variables
-  Var {nam: Vec<u8>}, 
+  Var {nam: Vec<u8>},
 
   // Erasure
   Set
@@ -149,17 +153,17 @@ impl std::fmt::Display for Term {
 }
 
 // Reduces an Interaction Calculus term through Interaction Combinators.
-pub fn normalize(term : &Term) -> Term {
+pub fn normalize(term: &Term, definition_book: &DefinitionBook) -> Term {
   let mut net : INet = new_inet();
-  alloc_at(&mut net, &term, ROOT);
+  alloc_at(&mut net, &term, ROOT, &definition_book.definition_name_to_id);
   normal(&mut net, ROOT);
-  read_at(&net, ROOT)
+  read_at(&net, ROOT, definition_book)
 }
 
-pub fn normalize_with_stats(term : &Term) -> (Term, u32) {
+pub fn normalize_with_stats(term: &Term, definition_book: &DefinitionBook) -> (Term, u32) {
   let mut net = new_inet();
-  alloc_at(&mut net, &term, ROOT);
+  alloc_at(&mut net, &term, ROOT, &definition_book.definition_name_to_id);
   normal(&mut net, ROOT);
-  let term = read_at(&net, ROOT);
+  let term = read_at(&net, ROOT, definition_book);
   (term, net.rules)
 }

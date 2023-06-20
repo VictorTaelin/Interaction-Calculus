@@ -1,10 +1,12 @@
 // Converts Term to Nets, and back.
 
-use super::*;
+use crate::term::definition_book::DefinitionBook;
+
+use super::{*, definition_book::{DefinitionName, DefinitionId}};
 
 // Converts a term to an Interaction Combinator net. Both systems are directly isomorphic, so,
 // each node of the Interaction Calculus correspond to a single Interaction Combinator node.
-pub fn alloc_at(inet: &mut INet, term: &Term, host: Port) {
+pub fn alloc_at(inet: &mut INet, term: &Term, host: Port, definition_name_to_id: &HashMap<DefinitionName, DefinitionId>) {
   fn encode_term
     ( net   : &mut INet
     , term  : &Term
@@ -157,7 +159,16 @@ pub fn alloc_at(inet: &mut INet, term: &Term, host: Port) {
           panic!("Variable used more than once: {}.", std::str::from_utf8(nam).unwrap());
         }
       },
-      None => panic!("Unbound variable: {}.", std::str::from_utf8(nam).unwrap())
+      None => {
+        let name = std::str::from_utf8(nam).unwrap();
+        if let Some(definition_id) = definition_name_to_id.get(name) {
+          let node = new_node(inet, REF + definition_id);
+          link(inet, port(node, 1), port(node, 2));
+          link(inet, var, port(node, 0));
+        } else {
+          panic!("Unbound variable: {}", name);
+        }
+      }
     }
   }
 
@@ -174,7 +185,7 @@ pub fn alloc_at(inet: &mut INet, term: &Term, host: Port) {
 }
 
 // Converts an Interaction-INet node to an Interaction Calculus term.
-pub fn read_at(net : &INet, host : Port) -> Term {
+pub fn read_at(net: &INet, host: Port, definition_book: &DefinitionBook) -> Term {
   // Given a port, returns its name, or assigns one if it wasn't named yet.
   fn name_of(net : &INet, var_port : Port, var_name : &mut HashMap<u32, Vec<u8>>) -> Vec<u8> {
     // If port is linked to an erase node, return an unused variable
@@ -196,6 +207,7 @@ pub fn read_at(net : &INet, host : Port) -> Term {
     , dups_vec : &mut Vec<u32>
     , dups_set : &mut HashSet<u32>
     , seen     : &mut HashSet<u32>
+    , definition_book: &DefinitionBook,
     ) -> Term {
 
     if seen.contains(&next) {
@@ -213,12 +225,12 @@ pub fn read_at(net : &INet, host : Port) -> Term {
         0 => {
           let nam = name_of(net, port(addr(next), 1), var_name);
           let prt = enter(net, port(addr(next), 2));
-          let bod = reader(net, prt, var_name, dups_vec, dups_set, seen);
+          let bod = reader(net, prt, var_name, dups_vec, dups_set, seen, definition_book);
           let ann = enter(net, port(addr(next), 1));
           let typ = if kind(net, addr(ann)) == ANN && slot(ann) == 1 {
             let ann_addr = addr(ann);
             let typ_port = enter(net, port(ann_addr, 0));
-            Some(Box::new(reader(net, typ_port, var_name, dups_vec, dups_set, seen)))
+            Some(Box::new(reader(net, typ_port, var_name, dups_vec, dups_set, seen, definition_book)))
           } else {
             None
           };
@@ -237,9 +249,9 @@ pub fn read_at(net : &INet, host : Port) -> Term {
         // If we're visiting a port 2, then it is an application.
         _ => {
           let prt = enter(net, port(addr(next), 0));
-          let fun = reader(net, prt, var_name, dups_vec, dups_set, seen);
+          let fun = reader(net, prt, var_name, dups_vec, dups_set, seen, definition_book);
           let prt = enter(net, port(addr(next), 1));
-          let arg = reader(net, prt, var_name, dups_vec, dups_set, seen);
+          let arg = reader(net, prt, var_name, dups_vec, dups_set, seen, definition_book);
           App{fun: Box::new(fun), arg: Box::new(arg)}
         }
       },
@@ -252,18 +264,18 @@ pub fn read_at(net : &INet, host : Port) -> Term {
         // If we're visiting a port 1, then it is where the annotation occurs.
         1 => {
           let prt = enter(net, port(addr(next), 2));
-          let val = reader(net, prt, var_name, dups_vec, dups_set, seen);
+          let val = reader(net, prt, var_name, dups_vec, dups_set, seen, definition_book);
           let prt = enter(net, port(addr(next), 0));
-          let typ = reader(net, prt, var_name, dups_vec, dups_set, seen);
+          let typ = reader(net, prt, var_name, dups_vec, dups_set, seen, definition_book);
           Ann{val: Box::new(val), typ: Box::new(typ)}
         },
         // If we're visiting a port 2, then it is the value being annotated.
         _ => {
           let prt = enter(net, port(addr(next), 1));
-          let val = reader(net, prt, var_name, dups_vec, dups_set, seen);
+          let val = reader(net, prt, var_name, dups_vec, dups_set, seen, definition_book);
           val
           //let prt = enter(net, port(addr(next), 0));
-          //let typ = reader(net, prt, var_name, dups_vec, dups_set, seen);
+          //let typ = reader(net, prt, var_name, dups_vec, dups_set, seen, definition_book);
           //Ann{val: Box::new(val), typ: Box::new(typ)}
         }
       },
@@ -273,7 +285,7 @@ pub fn read_at(net : &INet, host : Port) -> Term {
         2 => {
           let nam = name_of(net, port(addr(next), 1), var_name);
           let prt = enter(net, port(addr(next), 0));
-          let bod = reader(net, prt, var_name, dups_vec, dups_set, seen);
+          let bod = reader(net, prt, var_name, dups_vec, dups_set, seen, definition_book);
           Fix { nam: nam, bod: Box::new(bod) }
         },
         // If we're visiting a port 1, then it is a fixed point occurrence.
@@ -285,15 +297,18 @@ pub fn read_at(net : &INet, host : Port) -> Term {
           Var { nam: b"^".to_vec() }
         }
       },
+      tag if tag & TAG_MASK == REF => {
+        Var { nam: definition_book.definition_id_to_data[(tag - REF) as usize].name.as_bytes().to_vec() }
+      }
       // If we're visiting a fan node...
       tag => match slot(next) {
         // If we're visiting a port 0, then it is a pair.
         0 => {
           let tag = tag - DUP;
           let prt = enter(net, port(addr(next), 1));
-          let fst = reader(net, prt, var_name, dups_vec, dups_set, seen);
+          let fst = reader(net, prt, var_name, dups_vec, dups_set, seen, definition_book);
           let prt = enter(net, port(addr(next), 2));
-          let snd = reader(net, prt, var_name, dups_vec, dups_set, seen);
+          let snd = reader(net, prt, var_name, dups_vec, dups_set, seen, definition_book);
           Sup{tag, fst: Box::new(fst), snd: Box::new(snd)}
         },
         // If we're visiting a port 1 or 2, then it is a variable.
@@ -322,12 +337,12 @@ pub fn read_at(net : &INet, host : Port) -> Term {
   let mut seen     = HashSet::new();
 
   // Reads the main term from the net
-  let mut main = reader(net, enter(net, host), &mut binder_name, &mut dups_vec, &mut dups_set, &mut seen);
+  let mut main = reader(net, enter(net, host), &mut binder_name, &mut dups_vec, &mut dups_set, &mut seen, definition_book);
 
   // Reads let founds by starting the reader function from their 0 ports.
   while dups_vec.len() > 0 {
     let dup = dups_vec.pop().unwrap();
-    let val = reader(net, enter(net,port(dup,0)), &mut binder_name, &mut dups_vec, &mut dups_set, &mut seen);
+    let val = reader(net, enter(net,port(dup,0)), &mut binder_name, &mut dups_vec, &mut dups_set, &mut seen, definition_book);
     let tag = kind(net, dup) - DUP;
     let fst = name_of(net, port(dup,1), &mut binder_name);
     let snd = name_of(net, port(dup,2), &mut binder_name);
@@ -338,12 +353,12 @@ pub fn read_at(net : &INet, host : Port) -> Term {
   main
 }
 
-pub fn to_net(term: &Term) -> INet {
+pub fn to_net(term: &Term, definition_name_to_id: &HashMap<DefinitionName, DefinitionId>) -> INet {
   let mut inet = new_inet();
-  alloc_at(&mut inet, &term, ROOT);
+  alloc_at(&mut inet, &term, ROOT, definition_name_to_id);
   return inet;
 }
 
-pub fn from_net(inet: &INet) -> Term {
-  return read_at(inet, ROOT);
+pub fn from_net(inet: &INet, definition_book: &DefinitionBook) -> Term {
+  return read_at(inet, ROOT, definition_book);
 }

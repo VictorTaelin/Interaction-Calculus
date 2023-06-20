@@ -1,0 +1,32 @@
+agent Z
+agent S(p)
+rule S(ret) ~ Z = ret ~ S(Z)
+rule S(ret) ~ S(p) = ret ~ S(S(p))
+
+agent Leaf
+agent Node(a, b)
+
+agent Dup(a, b)
+rule Dup(a, b) ~ Z = a ~ Z, b ~ Z
+rule Dup(a, b) ~ S(p) = Dup(p1, p2) ~ p, a ~ S(p1), b ~ S(p2)
+
+agent Alloc(ret)
+rule Alloc(ret) ~ Z = ret ~ Leaf
+rule Alloc(ret) ~ S(p) = Dup(p1, p2) ~ p, Alloc(a) ~ p1, Alloc(b) ~ p2, ret ~ Node(a, b)
+
+agent T
+agent F
+
+agent Era
+rule Era ~ T =
+rule Era ~ F =
+
+agent And(ret, a)
+rule And(ret, a) ~ T = ret ~ a
+rule And(ret, a) ~ F = ret ~ F, a ~ Era
+
+agent Destroy(ret)
+rule Destroy(ret) ~ Leaf = ret ~ T
+rule Destroy(ret) ~ Node(a, b) = Destroy(l) ~ a, Destroy(r) ~ b, And(ret, l) ~ r
+
+init Destroy(root) ~ tree, Alloc(tree) ~ S(S(S(Z)))
