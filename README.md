@@ -305,5 +305,5 @@ main = add (S (S (S Z))) (S (S Z))
 
 # High-order Virtual Machine (HVM)
 
-The [High-order Virtual Machine (HVM)](https://github.com/kindelia/hvm) is a
+The [High-order Virtual Machine (HVM)](https://github.com/higherorderco/hvm) is a
 high-performance practical implementation of the IC. Check it out!
