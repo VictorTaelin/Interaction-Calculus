@@ -101,7 +101,7 @@ pub fn reduce(inet: &mut INet, root: Port, skip: &dyn Fn(NodeKind, NodeKind) -> 
   let mut path = vec![];
   let mut prev = root;
   loop {
-    let next = enter(inet, prev);
+    let mut next = enter(inet, prev);
     // If next is ROOT, stop.
     if next == ROOT {
       return;
@@ -112,12 +112,17 @@ pub fn reduce(inet: &mut INet, root: Port, skip: &dyn Fn(NodeKind, NodeKind) -> 
       let skipped = skip(kind(inet,addr(prev)), kind(inet,addr(next)));
       // If prev is a main port, reduce the active pair.
       if slot(prev) == 0 && !skipped {
-        inet.rules += 1;
-        rewrite(inet, addr(prev), addr(next), definition_book);
-        prev = path.pop().unwrap();
-        continue;
-      // Otherwise, return the axiom.
+        if let Some(new_next) = rewrite(inet, addr(prev), addr(next), definition_book) {
+          // Continue advancing because no rewrite happened (only REF substitution).
+          // We need to overwrite `next` because the target node of the active pair was replaced.
+          next = new_next;
+        } else {
+          inet.rules += 1;
+          prev = path.pop().unwrap();
+          continue;
+        }
       } else {
+        // Otherwise, return the axiom.
         return;
       }
     }
@@ -142,7 +147,11 @@ pub fn normal(inet: &mut INet, root: Port, definition_book: &DefinitionBook) {
 }
 
 /// Rewrites an active pair.
-pub fn rewrite(inet: &mut INet, x: NodeId, y: NodeId, definition_book: &DefinitionBook) {
+/// Returns None if rewrite happened, Some(next) otherwise.
+/// This is the case when `y` is REF node and was substituted by its body, and the
+/// body's entry node doesn't form an active pair with `x`, e.g. `def A = (B C)`
+/// The caller (`reduce`) can then use the returned port to continue advancing.
+pub fn rewrite(inet: &mut INet, x: NodeId, y: NodeId, definition_book: &DefinitionBook) -> Option<Port> {
   /// Inserts the definition body in place of the REF node.
   /// Returns ID of node that replaced it (connected to principal port of other node)
   fn expand_ref_node(
@@ -174,16 +183,22 @@ pub fn rewrite(inet: &mut INet, x: NodeId, y: NodeId, definition_book: &Definiti
 
   // We only need to check if `y` is a REF node
   let (y, kind_y) = if kind_y & TAG_MASK == REF {
-    let new_node_id = expand_ref_node(inet, definition_book, y, x, kind_y);
-    let new_node_kind = kind(inet, new_node_id);
-    if enter(inet, port(x, 0)) != port(new_node_id, 0) || new_node_kind & TAG_MASK == REF {
-      // If the inserted subnet's main wire is not at port 0, (x,y) is not an active pair anymore.
-      // E.g. an application: def X = (Y Z)
-      // So we cannot rewrite this new pair.
-      // Also if the REF node was replaced by another REF node, e.g.: def A = B
-      return;
+    let (mut y, mut kind_y) = (y, kind_y);
+    // Substitute REF node by its body, repeatedly if the body is another REF node (e.g. `def A = B`)
+    while {
+      y = expand_ref_node(inet, definition_book, y, x, kind_y);
+      kind_y = kind(inet, y);
+      kind_y & TAG_MASK == REF
+    } {}
+    let target_port = enter(inet, port(x, 0));
+    if target_port != port(y, 0) {
+      // If the inserted subnet's entry wire is not at port 0, (x,y) is not an active pair anymore.
+      // E.g. an application: def A = (B C)
+      // So we cannot rewrite this new pair, but the caller (`reduce`) can keep advancing
+      // using `target_port` as its `next` port, which is why we return it here.
+      return Some(target_port);
     }
-    (new_node_id, new_node_kind)
+    (y, kind_y)
   } else {
     (y, kind_y)
   };
@@ -215,5 +230,6 @@ pub fn rewrite(inet: &mut INet, x: NodeId, y: NodeId, definition_book: &Definiti
     link(inet, port(x, 1), port(b, 2));
     link(inet, port(x, 2), port(y, 2));
   }
+  None
 }
 
