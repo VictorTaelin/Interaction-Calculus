@@ -9,9 +9,11 @@ def Leaf = λn λl l
 def pred = λn (n (λp p) Z)
 
 // def Y = λf dup #f f1 f2 = f; ((λx dup #xx x1 x2 = x; (f1 (x1 x2))) (λx dup #xx x1 x2 = x; (f2 (x1 x2))))
-// def Y = λf dup #f f1 f2 = f; ((λx dup #xx x1 x2 = x; (f1 (x1 x2))) (λy dup #yy y1 y2 = y; (f2 (y1 y2))))
+def Y = λf dup #f f1 f2 = f; ((λx dup #xx x1 x2 = x; (f1 (x1 x2))) (λy dup #yy y1 y2 = y; (f2 (y1 y2))))
 // def double = λf λn (n (λp (S (S (f p)))) Z)
 def double = λn (n (λp (S (S (double p)))) Z)
+// def double = @f λn (n (λp (S (S (f p)))) Z)
+// def double = (Y λf λn (n (λp (S (S (f p)))) Z))
 
 def mul = λn λm λs (n (m s))
 def n6 = (mul (S (S Z)) (S (S (S Z))))
