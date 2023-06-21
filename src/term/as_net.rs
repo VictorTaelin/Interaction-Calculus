@@ -300,7 +300,16 @@ pub fn read_at(net: &INet, host: Port, definition_book: &DefinitionBook) -> Term
         }
       },
       tag if tag & TAG_MASK == REF => {
-        Var { nam: definition_book.definition_id_to_data[(tag - REF) as usize].name.as_bytes().to_vec() }
+        let definition_id = (tag - REF) as usize;
+        let definition_data = &definition_book.definition_id_to_data[definition_id];
+        let name = &definition_data.name;
+        if name.starts_with(EXTRACTED_DEFINITION_PREFIX) {
+          // If result is name of an extracted def, resolve it,
+          // because the user doesn't know it, as it's not part of the source code
+          definition_data.term.clone()
+        } else {
+          Var { nam: name.as_bytes().to_vec() }
+        }
       }
       // If we're visiting a fan node...
       tag => match slot(next) {

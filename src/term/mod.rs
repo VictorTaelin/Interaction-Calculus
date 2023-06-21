@@ -46,6 +46,129 @@ pub enum Term {
 
 use self::Term::{*};
 
+impl Term {
+  /**
+  E.g.
+  ```
+    def double = λn (n (λp (S (S (double p)))) Z)
+  ```
+  gets pre-processed to:
+  ```
+    def double = λn (n EXTRACTED_0 Z)
+    def $EXTRACTED_0 = λp (S (S (double p)))
+  ```
+  */
+  pub fn extract_closed_subterms(self, definition_book: &DefinitionBook, extracted_definition_book: &mut DefinitionBook, idx: &mut DefinitionId) -> Term {
+    let mut generate_available_name = |definition_book: &DefinitionBook, idx: &mut DefinitionId| {
+      let mut name;
+      while {
+        name = format!("{EXTRACTED_DEFINITION_PREFIX}{idx}");
+        *idx += 1;
+        definition_book.contains(&name)
+      } {}
+      name
+    };
+
+    fn should_be_extracted(term: &Term, definition_book: &DefinitionBook) -> bool {
+      // If `self` is already a reference to a definition (e.g. `X`), don't extract it (into `def A = X`)
+      !matches!(term, Var { .. }) && term.is_closed(definition_book)
+    }
+
+    let mut transform = |term: Box<Term>| {
+      Box::new(if should_be_extracted(&*term, definition_book) {
+        let name = generate_available_name(definition_book, idx);
+        let nam = name.as_bytes().to_vec();
+        extracted_definition_book.add_definition(name, *term);
+        Var { nam }
+      } else {
+        term.extract_closed_subterms(definition_book, extracted_definition_book, idx)
+      })
+    };
+
+    match self {
+      Lam { nam, typ, bod } => {
+        Lam { nam, typ: typ.map(&mut transform), bod: transform(bod) }
+      }
+      App { fun, arg } => {
+        App { fun: transform(fun), arg: transform(arg) }
+      }
+      Sup { tag, fst, snd } => {
+        Sup { tag, fst: transform(fst), snd: transform(snd) }
+      }
+      Dup { tag, fst, snd, val, nxt } => {
+        Dup { tag, fst, snd, val: transform(val), nxt: transform(nxt) }
+      }
+      Fix { nam, bod } => {
+        Fix { nam, bod: transform(bod) }
+      }
+      Ann { val, typ } => {
+        Ann { val: transform(val), typ: transform(typ) }
+      }
+      Var { .. } => self,
+      Set => self,
+    }
+  }
+
+  /// A closed term has no free variables.
+  /// (A reference to a definition in `definition_book` is not a free var)
+  /// E.g. in `def double = λn (n (λp (S (S (double p)))) Z)`,
+  /// the sub-term `λp (S (S (double p)))` is closed (`S` and `double` are refs to defs),
+  /// but the sub-term `(S (S (double p)))` is not closed because `p` is a free var.
+  /// So `λp (S (S (double p)))` can be extracted into a new def but `(S (S (double p)))` can't.
+  fn is_closed<'a>(&'a self, definition_book: &DefinitionBook) -> bool {
+    !self.has_free_vars(definition_book)
+  }
+
+  fn has_free_vars<'a>(&'a self, definition_book: &DefinitionBook) -> bool {
+    fn has_free_vars<'a>(this: &'a Term, definition_book: &DefinitionBook, ctx: &mut Vec<&'a Str>) -> bool {
+      match this {
+        Lam { nam, typ, bod } => {
+          ctx.push(nam);
+          let r = typ.as_ref().map_or(false, |typ| has_free_vars(typ, definition_book, ctx)) || has_free_vars(bod, definition_book, ctx);
+          ctx.pop();
+          r
+        }
+        App { fun, arg } => {
+          has_free_vars(fun, definition_book, ctx) || has_free_vars(arg, definition_book, ctx)
+        }
+        Sup { tag, fst, snd } => {
+          has_free_vars(fst, definition_book, ctx) || has_free_vars(snd, definition_book, ctx)
+        }
+        Dup { tag, fst, snd, val, nxt } => {
+          let r = has_free_vars(val, definition_book, ctx);
+          ctx.push(snd);
+          ctx.push(fst);
+          let r = r || has_free_vars(nxt, definition_book, ctx);
+          ctx.pop();
+          ctx.pop();
+          r
+        }
+        Fix { nam, bod } => {
+          ctx.push(nam);
+          let r = has_free_vars(bod, definition_book, ctx);
+          ctx.pop();
+          r
+        }
+        Ann { val, typ } => {
+          has_free_vars(val, definition_book, ctx) || has_free_vars(typ, definition_book, ctx)
+        }
+        Var { nam } => {
+          let name = std::str::from_utf8(nam).unwrap();
+          !ctx.contains(&nam.as_slice()) && !definition_book.contains(name)
+        }
+        Set => false,
+      }
+    }
+
+    let mut ctx = vec![];
+    let r = has_free_vars(self, definition_book, &mut ctx);
+    debug_assert_eq!(ctx, Vec::<&'a Str>::new());
+    r
+  }
+}
+
+pub const EXTRACTED_DEFINITION_PREFIX: &str = "$EXTRACTED_";
+
 // Source code is Ascii-encoded.
 pub type Str = [u8];
 pub type Chr = u8;

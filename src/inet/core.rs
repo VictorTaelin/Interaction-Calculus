@@ -167,6 +167,8 @@ pub fn rewrite(inet: &mut INet, x: NodeId, y: NodeId, definition_book: &Definiti
     let definition_data = &definition_book.definition_id_to_data[definition_id];
     let host = port(other_node, 0);
     debug_assert_eq!(enter(inet, host), port(ref_node, 0));
+    // TODO: Instead of calling `alloc_at`, insert nodes from precomputed `definition_data.net`.
+    // and map node indices correctly (new node indices aren't necessarily contiguous).
     alloc_at(inet, &definition_data.term, host, &definition_book.definition_name_to_id);
 
     addr(enter(inet, host)) // Return ID of new node facing `other_node`
