@@ -181,7 +181,9 @@ pub fn alloc_at(inet: &mut INet, term: &Term, host: Port, definition_name_to_id:
     }
   }
 
-  link(inet, host, main);
+  if host != main {
+    link(inet, host, main);
+  }
 }
 
 // Converts an Interaction-INet node to an Interaction Calculus term.

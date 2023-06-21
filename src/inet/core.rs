@@ -175,15 +175,15 @@ pub fn rewrite(inet: &mut INet, x: NodeId, y: NodeId, definition_book: &Definiti
   // We only need to check if `y` is a REF node
   let (y, kind_y) = if kind_y & TAG_MASK == REF {
     let new_node_id = expand_ref_node(inet, definition_book, y, x, kind_y);
-
-    if enter(inet, port(x, 0)) != port(new_node_id, 0) {
-      // If the inserted subnet's main wire is not at port 0, (x, y) is not an active pair anymore.
+    let new_node_kind = kind(inet, new_node_id);
+    if enter(inet, port(x, 0)) != port(new_node_id, 0) || new_node_kind & TAG_MASK == REF {
+      // If the inserted subnet's main wire is not at port 0, (x,y) is not an active pair anymore.
       // E.g. an application: def X = (Y Z)
-      // So we cannot rewrite this new pair
+      // So we cannot rewrite this new pair.
+      // Also if the REF node was replaced by another REF node, e.g.: def A = B
       return;
     }
-
-    (new_node_id, kind(inet, new_node_id))
+    (new_node_id, new_node_kind)
   } else {
     (y, kind_y)
   };
