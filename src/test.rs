@@ -31,39 +31,39 @@ pub fn show(inet: &INet, prev: Port) -> String {
   }
 }
 
-pub fn test() {
-  let code = b"
-[_ a b]
-[a c c]
-[b d e]
-[d f f]
-[e g h]
-[h g i]
-[i j j]
-";
+//pub fn test() {
+  //let code = b"
+//[_ a b]
+//[a c c]
+//[b d e]
+//[d f f]
+//[e g h]
+//[h g i]
+//[i j j]
+//";
 
-  let inodes = from_string_inodes(code).unwrap();
-  println!("inodes: {:?}", inodes);
+  //let inodes = from_string_inodes(code).unwrap();
+  //println!("inodes: {:?}", inodes);
 
-  let mut inet = inodes_to_inet(&inodes);
-  println!("inet {:?}", inet);
+  //let mut inet = inodes_to_inet(&inodes);
+  //println!("inet {:?}", inet);
 
-  let inodes = inet_to_inodes(&inet);
-  println!("oi {:?}", inodes);
+  //let inodes = inet_to_inodes(&inet);
+  //println!("oi {:?}", inodes);
 
-  println!("{}", show_inodes(&inodes));
+  //println!("{}", show_inodes(&inodes));
 
-  let body = get_body(&mut inet, ROOT);
-  let arg0 = get_body(&mut inet, body);
-  let arg1 = get_argm(&mut inet, body);
+  //let body = get_body(&mut inet, ROOT);
+  //let arg0 = get_body(&mut inet, body);
+  //let arg1 = get_argm(&mut inet, body);
 
-  println!("{}", show(&inet, arg0));
-  println!("{}", show(&inet, arg1));
+  //println!("{}", show(&inet, arg0));
+  //println!("{}", show(&inet, arg1));
 
-  let eq = equal(&mut inet, arg0, arg1);
-  println!("eq = {}", eq)
+  //let eq = equal(&mut inet, arg0, arg1);
+  //println!("eq = {}", eq)
 
-}
+//}
 
 //pub fn test() {
 
@@ -150,3 +150,97 @@ pub fn test() {
 
 
 //}
+
+pub fn test() {
+
+  let code = "
+def Y = λf
+  dup #y f0 f1 = f
+  dup #y r0 r1 = r
+  dup #y s0 s1 = s
+  (λr(f0 (r0 r1)) λs(f1 (s0 s1)))
+
+// Nats
+def Z = λs λz (z)
+def S = λn λs λz (s n)
+
+// Church arithmetic
+def zero = λs λz (z)
+def succ = λn λs λz dup s0 s1 = s; (s0 (n s1 z))
+def mul = λn λm λs (n (m s))
+
+// Church consts
+def c1 = λf λx (f x)
+def c2 = λf λx (dup #c f0 f1 = f; (f0 (f1 x)))
+def c3 = λf λx (dup #c f0 f1 = f; dup #c f2 f3 = f0; (f1 (f2 (f3 x))))
+def c4 = λf λx (dup #c f0 f1 = f; dup #c f2 f3 = f0; dup #c f4 f5 = f1; (f2 (f3 (f4 (f5 x)))))
+def p1 = c2          // 2
+def p2 = (mul c2 p1) // 4
+def p3 = (mul c2 p2) // 8
+def p4 = (mul c2 p3) // 16
+def p5 = (mul c2 p4) // 32
+def p6 = (mul c2 p5) // 64
+def p7 = (mul c2 p6) // 128
+def p8 = (mul c2 p7) // 256
+
+// Booleans
+def true = λt λf t
+def false = λt λf f
+def not = λb ((b false) true)
+def neg = λb λt λf (b f t)
+
+// Lists
+def cons = λhead λtail λcons λnil (cons head tail)
+def nil = λcons λnil nil
+def head = λlist (list λhλt(h) λx(x))
+def tail = λlist (list λhλt(t) nil)
+
+def map = @map λf λxs
+  dup #f f0 f1 = f;
+  (xs λhead λtail (cons (f0 head) (map f1 tail)) nil)
+
+def ids = @k λcons λnil (cons λx(x) k)
+def nums = @x (cons zero (map succ x))
+def inf = @inf λs λz (s inf)
+
+//def f0 = @x (cons true (cons true (cons false x)))
+//def f1 = @x (cons true (cons true (cons false (cons true (cons true (cons false x))))))
+
+def f0 = @x λsλz(s inf)
+def f1 = inf
+
+def gen = (Y λf λn
+  dup #b f0 f1 = f
+  dup #b p0 p1 = p
+  (n λpλnode(node (f0 p0) (f1 p1)) λx(x)))
+
+def use = (Y λf λn λnode
+  dup f0 f1 = f
+  dup p0 p1 = p
+  (n λp(node λa λb ((f0 p0 a) (f1 p1 b))) λx(x)))
+
+def num = (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S Z))))))))))))))))))))))
+
+(use num (gen num))
+";
+
+  // Mark time:
+  let start = std::time::Instant::now();
+
+  //  Creates initial term
+  let term = from_string(code.as_bytes());
+
+  // Creates the net from term
+  let mut inet = new_inet();
+  alloc_at(&mut inet, &term, ROOT);
+
+  // Normal
+  normal(&mut inet, ROOT);
+  println!("itt {}", read_at(&inet, ROOT));
+  println!("lam {}", lambda_term_from_inet(&inet));
+  println!("{:?} rewrites", inet.rules);
+
+  // Show delta time:
+  let duration = start.elapsed();
+  println!("Time elapsed: {:?}", duration);
+}

@@ -170,31 +170,32 @@ pub fn compare(inet: &mut INet, a: &mut Cursor, b: &mut Cursor) -> bool {
   }
 
   // If both are fixed-point, check `@x (f (g x)) == @x (g (f x))`
-  let a_next = enter(inet, a.prev);
-  let b_next = enter(inet, b.prev);
-  if kind(inet,addr(a_next)) == FIX && kind(inet,addr(b_next)) == FIX {
-    // If both ports are different, apply the fixpose transformation and compare
-    if a_next != b_next {
-      fixpose(inet, a_next, b_next);
-      return compare(inet, a, b);
+  
+  if false { // TODO: re-add once the TODO's are done
+    let a_next = enter(inet, a.prev);
+    let b_next = enter(inet, b.prev);
+    if kind(inet,addr(a_next)) == FIX && kind(inet,addr(b_next)) == FIX {
+      // If both ports are different, apply the fixpose transformation and compare
+      if a_next != b_next {
+        fixpose(inet, a_next, b_next);
+        return compare(inet, a, b);
+      }
+      // If both ports are identical on slot 2, enter the merged fixpoint and compare
+      if slot(a_next) == 2 {
+        let a = &mut a.next(inet,0);
+        let b = &mut b.next(inet,0);
+        return compare(inet, a, b);
+      }
     }
-    // If both ports are identical on slot 2, enter the merged fixpoint and compare
-    if slot(a_next) == 2 {
-      let a = &mut a.next(inet,0);
-      let b = &mut b.next(inet,0);
-      return compare(inet, a, b);
+
+    if kind(inet,addr(a_next)) == FIX && kind(inet,addr(b_next)) != FIX {
+      todo!()
+    }
+
+    if kind(inet,addr(a_next)) != FIX && kind(inet,addr(b_next)) == FIX {
+      todo!()
     }
   }
-
-  if kind(inet,addr(a_next)) == FIX && kind(inet,addr(b_next)) != FIX {
-    todo!()
-  }
-
-  if kind(inet,addr(a_next)) != FIX && kind(inet,addr(b_next)) == FIX {
-    todo!()
-  }
-
-  //println!("check {:?} == {:?}", a.path, b.path);
 
   // If we've reached a final port (root or fix), compare the unconsumed paths
   return a.path.get(&CON) == b.path.get(&CON);
