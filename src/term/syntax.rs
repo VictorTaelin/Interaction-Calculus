@@ -191,12 +191,7 @@ pub fn from_string<'a>(code : &'a Str) -> (Term, DefinitionBook) {
   let mut idx = 0;
   let mut functions = HashMap::new();
   let term = parse_term(code, &mut ctx, &mut idx, &mut functions).1;
-  let mut definition_book = DefinitionBook::new(functions);
-
-  definition_book.print();
-  definition_book.extract_closed_subterms();
-  definition_book.print();
-
+  let definition_book = DefinitionBook::new(functions);
   (term, definition_book)
 }
 
