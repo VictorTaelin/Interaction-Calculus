@@ -1,7 +1,7 @@
 use itertools::Itertools;
 use crate::inet::{INet, new_inet, ROOT};
 use super::{Term, alloc_at, to_net};
-use std::{collections::HashMap};
+use std::{collections::HashMap, vec};
 
 pub type DefinitionName = String;
 pub type DefinitionId = u32;
@@ -50,7 +50,7 @@ impl DefinitionBook {
   }
 
   pub fn add_definition(&mut self, name: DefinitionName, term: Term) {
-    debug_assert!(!self.contains(&name));
+    debug_assert!(!self.contains(&name), "{}", name);
     let id = self.definition_id_to_data.len() as DefinitionId;
     self.definition_name_to_id.insert(name.clone(), id);
     self.definition_id_to_data.push(DefinitionData {
@@ -63,8 +63,11 @@ impl DefinitionBook {
   pub fn extract_closed_subterms(&mut self) {
     let mut extracted_definition_book = self.clone();
     let mut idx = 0;
+    let mut ctx = vec![];
     let updated_definition_terms = self.definition_id_to_data.iter().map(|data| {
-      data.term.clone().extract_closed_subterms(self, &mut extracted_definition_book, &mut idx)
+      let r = data.term.clone().extract_closed_subterms(self, &mut extracted_definition_book, &mut idx, &mut ctx);
+      debug_assert_eq!(ctx, Vec::<Vec<_>>::new());
+      r
     }).collect_vec();
     for (term, data) in updated_definition_terms.into_iter().zip(&mut extracted_definition_book.definition_id_to_data) {
       data.term = term;

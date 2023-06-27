@@ -6,9 +6,7 @@ mod syntax;
 mod views;
 
 pub use self::as_net::*;
-use self::definition_book::DefinitionBook;
-use self::definition_book::DefinitionId;
-use self::definition_book::DefinitionName;
+use self::definition_book::{DefinitionBook, DefinitionId, DefinitionName};
 pub use self::syntax::*;
 pub use self::views::*;
 
@@ -58,7 +56,7 @@ impl Term {
     def $EXTRACTED_0 = λp (S (S (double p)))
   ```
   */
-  pub fn extract_closed_subterms(self, definition_book: &DefinitionBook, extracted_definition_book: &mut DefinitionBook, idx: &mut DefinitionId) -> Term {
+  pub fn extract_closed_subterms(self, definition_book: &DefinitionBook, extracted_definition_book: &mut DefinitionBook, idx: &mut DefinitionId, ctx: &mut Vec<Vec<Chr>>) -> Term {
     let mut generate_available_name = |definition_book: &DefinitionBook, idx: &mut DefinitionId| {
       let mut name;
       while {
@@ -69,25 +67,14 @@ impl Term {
       name
     };
 
-    fn should_be_extracted(term: &Term, definition_book: &DefinitionBook, extracted_definition_book: &DefinitionBook) -> bool {
+    fn should_be_extracted(term: &Term, ctx: &Vec<Vec<Chr>>, definition_book: &DefinitionBook, extracted_definition_book: &DefinitionBook) -> bool {
       // If `self` is already a reference to a definition (e.g. `X`), don't extract it (into `def A = X`)
-      !matches!(term, Var { .. }) && term.is_closed(definition_book, extracted_definition_book)
+      !matches!(term, Var { .. }) && term.is_closed(ctx, definition_book, extracted_definition_book)
     }
 
-    /* let mut transform = |term: Box<Term>| {
-      Box::new(if should_be_extracted(&*term, definition_book) {
-        let name = generate_available_name(definition_book, idx);
-        let nam = name.as_bytes().to_vec();
-        extracted_definition_book.add_definition(name, *term);
-        Var { nam }
-      } else {
-        term.extract_closed_subterms(definition_book, extracted_definition_book, idx)
-      })
-    }; */
-
-    let mut transform = |term: Box<Term>| {
-      let term = term.extract_closed_subterms(definition_book, extracted_definition_book, idx);
-      Box::new(if should_be_extracted(&term, definition_book, extracted_definition_book) {
+    let mut transform = |term: Box<Term>, ctx: &mut Vec<Vec<Chr>>| {
+      let term = term.extract_closed_subterms(definition_book, extracted_definition_book, idx, ctx);
+      Box::new(if should_be_extracted(&term, ctx, definition_book, extracted_definition_book) {
         let name = generate_available_name(definition_book, idx);
         let nam = name.as_bytes().to_vec();
         extracted_definition_book.add_definition(name, term);
@@ -99,22 +86,35 @@ impl Term {
 
     match self {
       Lam { nam, typ, bod } => {
-        Lam { nam, typ: typ.map(&mut transform), bod: transform(bod) }
+        let typ = typ.map(|typ| transform(typ, ctx));
+        ctx.push(nam.clone());
+        let bod = transform(bod, ctx);
+        ctx.pop();
+        Lam { nam, typ, bod }
       }
       App { fun, arg } => {
-        App { fun: transform(fun), arg: transform(arg) }
+        App { fun: transform(fun, ctx), arg: transform(arg, ctx) }
       }
       Sup { tag, fst, snd } => {
-        Sup { tag, fst: transform(fst), snd: transform(snd) }
+        Sup { tag, fst: transform(fst, ctx), snd: transform(snd, ctx) }
       }
       Dup { tag, fst, snd, val, nxt } => {
-        Dup { tag, fst, snd, val: transform(val), nxt: transform(nxt) }
+        let val = transform(val, ctx);
+        ctx.push(snd.clone());
+        ctx.push(fst.clone());
+        let nxt = transform(nxt, ctx);
+        ctx.pop();
+        ctx.pop();
+        Dup { tag, fst, snd, val, nxt }
       }
       Fix { nam, bod } => {
-        Fix { nam, bod: transform(bod) }
+        ctx.push(nam.clone());
+        let bod = transform(bod, ctx);
+        ctx.pop();
+        Fix { nam, bod }
       }
       Ann { val, typ } => {
-        Ann { val: transform(val), typ: transform(typ) }
+        Ann { val: transform(val, ctx), typ: transform(typ, ctx) }
       }
       Var { .. } => self,
       Set => self,
@@ -122,58 +122,69 @@ impl Term {
   }
 
   /// A closed term has no free variables.
-  /// (A reference to a definition in `definition_book` is not a free var)
+  /// (A reference to a definition in `definition_book` doesn't count as free var)
   /// E.g. in `def double = λn (n (λp (S (S (double p)))) Z)`,
   /// the sub-term `λp (S (S (double p)))` is closed (`S` and `double` are refs to defs),
   /// but the sub-term `(S (S (double p)))` is not closed because `p` is a free var.
   /// So `λp (S (S (double p)))` can be extracted into a new def but `(S (S (double p)))` can't.
-  fn is_closed<'a>(&'a self, definition_book: &DefinitionBook, extracted_definition_book: &DefinitionBook) -> bool {
-    !self.has_free_vars(definition_book, extracted_definition_book)
+  fn is_closed<'a>(&'a self, outer_ctx: &Vec<Vec<Chr>>, definition_book: &DefinitionBook, extracted_definition_book: &DefinitionBook) -> bool {
+    !self.has_free_vars(outer_ctx, definition_book, extracted_definition_book)
   }
 
-  fn has_free_vars<'a>(&'a self, definition_book: &DefinitionBook, extracted_definition_book: &DefinitionBook) -> bool {
-    fn has_free_vars<'a>(this: &'a Term, definition_book: &DefinitionBook, extracted_definition_book: &DefinitionBook, ctx: &mut Vec<&'a Str>) -> bool {
+  /// `Var { .. }` references to global definitions don't count as free variables for the purpose of sub-expr extraction
+  fn has_free_vars<'a>(&'a self, outer_ctx: &Vec<Vec<Chr>>, definition_book: &DefinitionBook, extracted_definition_book: &DefinitionBook) -> bool {
+    fn has_free_vars<'a>(this: &'a Term, definition_book: &DefinitionBook, extracted_definition_book: &DefinitionBook, outer_ctx: &Vec<Vec<Chr>>, ctx: &mut Vec<&'a Str>) -> bool {
       match this {
         Lam { nam, typ, bod } => {
+          let r = typ.as_ref().map_or(false, |typ| has_free_vars(typ, definition_book, extracted_definition_book, outer_ctx, ctx));
           ctx.push(nam);
-          let r = typ.as_ref().map_or(false, |typ| has_free_vars(typ, definition_book, extracted_definition_book, ctx)) || has_free_vars(bod, definition_book, extracted_definition_book, ctx);
+          let r = r || has_free_vars(bod, definition_book, extracted_definition_book, outer_ctx, ctx);
           ctx.pop();
           r
         }
         App { fun, arg } => {
-          has_free_vars(fun, definition_book, extracted_definition_book, ctx) || has_free_vars(arg, definition_book, extracted_definition_book, ctx)
+          has_free_vars(fun, definition_book, extracted_definition_book, outer_ctx, ctx) || has_free_vars(arg, definition_book, extracted_definition_book, outer_ctx, ctx)
         }
         Sup { tag, fst, snd } => {
-          has_free_vars(fst, definition_book, extracted_definition_book, ctx) || has_free_vars(snd, definition_book, extracted_definition_book, ctx)
+          has_free_vars(fst, definition_book, extracted_definition_book, outer_ctx, ctx) || has_free_vars(snd, definition_book, extracted_definition_book, outer_ctx, ctx)
         }
         Dup { tag, fst, snd, val, nxt } => {
-          let r = has_free_vars(val, definition_book, extracted_definition_book, ctx);
+          let r = has_free_vars(val, definition_book, extracted_definition_book, outer_ctx, ctx);
           ctx.push(snd);
           ctx.push(fst);
-          let r = r || has_free_vars(nxt, definition_book, extracted_definition_book, ctx);
+          let r = r || has_free_vars(nxt, definition_book, extracted_definition_book, outer_ctx, ctx);
           ctx.pop();
           ctx.pop();
           r
         }
         Fix { nam, bod } => {
           ctx.push(nam);
-          let r = has_free_vars(bod, definition_book, extracted_definition_book, ctx);
+          let r = has_free_vars(bod, definition_book, extracted_definition_book, outer_ctx, ctx);
           ctx.pop();
           r
         }
         Ann { val, typ } => {
-          has_free_vars(val, definition_book, extracted_definition_book, ctx) || has_free_vars(typ, definition_book, extracted_definition_book, ctx)
+          has_free_vars(val, definition_book, extracted_definition_book, outer_ctx, ctx) || has_free_vars(typ, definition_book, extracted_definition_book, outer_ctx, ctx)
         }
         Var { nam } => {
-          let name = std::str::from_utf8(nam).unwrap();
-          !ctx.contains(&nam.as_slice()) && !definition_book.contains(name) && !extracted_definition_book.contains(name)
+          if ctx.contains(&nam.as_slice()) {
+            false // Var is defined in the inner scope, so it's not a free var
+          } else if outer_ctx.contains(&nam) {
+            true // Var is defined in the outer scope, so in the inner expr it's a free var
+          } else {
+            // If the var is defined in the global scope, it doesn't count as free var, because
+            // extraction is possible: After extraction this name would still reference the same definition.
+            let name = std::str::from_utf8(nam).unwrap();
+            let is_global_def = definition_book.contains(name) || extracted_definition_book.contains(name);
+            !is_global_def
+          }
         }
         Set => false,
       }
     }
 
     let mut ctx = vec![];
-    let r = has_free_vars(self, definition_book, extracted_definition_book, &mut ctx);
+    let r = has_free_vars(self, definition_book, extracted_definition_book, outer_ctx, &mut ctx);
     debug_assert_eq!(ctx, Vec::<&'a Str>::new());
     r
   }
