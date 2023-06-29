@@ -3,6 +3,22 @@ agent S(p)
 rule S(ret) ~ Z = ret ~ S(Z)
 rule S(ret) ~ S(p) = ret ~ S(S(p))
 
+agent Add(ret, a)
+rule Add(ret, a) ~ Z = ret ~ a
+rule Add(ret, a) ~ S(b) = ret ~ S(cnt), Add(cnt, a) ~ b
+
+agent Mul(ret, a)
+rule Mul(ret, a) ~ Z = ret ~ Z, a ~ Era
+rule Mul(ret, a) ~ S(b) = Dup(a2, a3) ~ a, Add(ret, a2) ~ cnt, Mul(cnt, a3) ~ b
+
+// a^(b+1) = a*a^b
+agent Pow(ret, base)
+rule Pow(ret, base) ~ Z = Era ~ base, ret ~ S(Z)
+rule Pow(ret, base) ~ S(exp) =
+    Dup(base1, base2) ~ base,
+    Pow(pow, base2) ~ exp,
+    Mul(ret, base1) ~ pow
+
 agent Leaf
 agent Node(a, b)
 
@@ -21,6 +37,9 @@ agent Era
 rule Era ~ T =
 rule Era ~ F =
 
+rule Era ~ Z =
+rule Era ~ S(p) = Era ~ p
+
 agent And(ret, a)
 rule And(ret, a) ~ T = ret ~ a
 rule And(ret, a) ~ F = ret ~ F, a ~ Era
@@ -29,4 +48,6 @@ agent Destroy(ret)
 rule Destroy(ret) ~ Leaf = ret ~ T
 rule Destroy(ret) ~ Node(a, b) = Destroy(l) ~ a, Destroy(r) ~ b, And(ret, l) ~ r
 
-init Destroy(root) ~ tree, Alloc(tree) ~ S(S(S(Z)))
+init
+    Pow(n, S(S(Z))) ~ S(S(S(S(Z)))),
+    Destroy(root) ~ tree, Alloc(tree) ~ n

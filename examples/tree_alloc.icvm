@@ -1,15 +1,13 @@
 def T = λt λf t
 def F = λt λf f
-def and = λpλq dup #n p1 p2 = p; (p1 q p2)
+def and = λpλq (p q F)
 def Z = λs λz (z)
-// def S = λn λs λz (s n)
-def S = λn λs λz dup s1 s2 = s; (s1 (n s2 z))
-def pred = λn (n (λp p) Z)
-def mul = λn λm λs (n (m s))
-def pow = λa λb (b a)
+def S = λn λs λz (s n)
+def add = @add λa λb dup b1 b2 = b; (a (λp (S (add p b1))) b2)
+def mul = @mul λa λb (a (λp dup b1 b2 = b; (add b1 (mul p b2))) Z)
+def pow = @pow λa λb (b (λp dup a1 a2 = a; (mul a1 (pow a2 p))) (S Z))
 def Node = λa λb λn λl (n a b)
 def Leaf = λn λl l
-// def Y = λf dup #f f1 f2 = f; ((λx dup #xx x1 x2 = x; (f1 (x1 x2))) (λy dup #yy y1 y2 = y; (f2 (y1 y2))))
 def alloc = @alloc λn (n (λp dup #a alloc1 alloc2 = alloc; dup #p p1 p2 = p; (Node (alloc1 p1) (alloc2 p2))) Leaf)
 def destroy = @destroy λt (t (λaλb dup #d destroy1 destroy2 = destroy; (and (destroy1 a) (destroy2 b))) T)
-(destroy (alloc (S (S (S Z)))))
+(destroy (alloc (pow (S (S Z)) (S (S (S (S Z)))))))
