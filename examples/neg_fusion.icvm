@@ -24,4 +24,3 @@ def neg = λb λt λf (b f t)
 
 // Negates 'true' 256 times: 'neg' is faster than 'not' because it fuses
 (p8 neg true)
-// (p8 neg)
