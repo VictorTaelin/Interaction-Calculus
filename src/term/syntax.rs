@@ -50,24 +50,24 @@ fn parse_text<'a>(code: &'a Str, text: &Str) -> Result<&'a Str, String> {
 }
 
 // Parses a term, returns the remaining code and the term.
-pub fn parse_term<'a>(code: &'a Str, ctx: &mut Context<'a>, idx: &mut u32, functions: &mut HashMap<String, Term>) -> (&'a Str, Term) {
+pub fn parse_term<'a>(code: &'a Str, ctx: &mut Context<'a>, idx: &mut u32, definitions: &mut HashMap<DefinitionName, Term>) -> (&'a Str, Term) {
   let code = skip_whitespace(code);
   match code[0] {
     // Comment: `// many words here ... <newline>`
     b'/' if code[1] == b'/' => {
       let end = code.iter().position(|&c| c == b'\n').unwrap_or(code.len());
-      parse_term(&code[end..], ctx, idx, functions)
+      parse_term(&code[end..], ctx, idx, definitions)
     }
     // Definition: `def nam = val; bod` (note: ';' is optional)
     b'd' if code.starts_with(b"def ") => {
       let (code, nam) = parse_name(&code[4..]);
       let  code       = parse_text(code, b"=").unwrap();
-      let (code, val) = parse_term(code, ctx, idx, functions);
+      let (code, val) = parse_term(code, ctx, idx, definitions);
       let  code       = if code[0] == b';' { &code[1..] } else { code };
       // extend(nam, Some(val), ctx);
       let name = String::from_utf8_lossy(nam).to_string();
-      assert!(functions.insert(name.clone(), val).is_none(), "Duplicate definition: {}", name);
-      let (code, bod) = parse_term(code, ctx, idx, functions);
+      assert!(definitions.insert(name.clone(), val).is_none(), "Duplicate definition: {}", name);
+      let (code, bod) = parse_term(code, ctx, idx, definitions);
       // narrow(ctx);
       (code, bod)
     }
@@ -75,10 +75,10 @@ pub fn parse_term<'a>(code: &'a Str, ctx: &mut Context<'a>, idx: &mut u32, funct
     b'\xce' if code[1] == b'\xbb' && code[2] == b'(' => {
       let (code, nam) = parse_name(&code[3..]);
       let  code       = parse_text(code, b":").unwrap();
-      let (code, typ) = parse_term(code, ctx, idx, functions);
+      let (code, typ) = parse_term(code, ctx, idx, definitions);
       let  code       = parse_text(code, b")").unwrap();
       extend(nam, None, ctx);
-      let (code, bod) = parse_term(code, ctx, idx, functions);
+      let (code, bod) = parse_term(code, ctx, idx, definitions);
       narrow(ctx);
       let nam = nam.to_vec();
       let typ = Some(Box::new(typ));
@@ -89,7 +89,7 @@ pub fn parse_term<'a>(code: &'a Str, ctx: &mut Context<'a>, idx: &mut u32, funct
     b'\xce' if code[1] == b'\xbb' => {
       let (code, nam) = parse_name(&code[2..]);
       extend(nam, None, ctx);
-      let (code, bod) = parse_term(code, ctx, idx, functions);
+      let (code, bod) = parse_term(code, ctx, idx, definitions);
       narrow(ctx);
       let nam = nam.to_vec();
       let typ = None;
@@ -98,9 +98,9 @@ pub fn parse_term<'a>(code: &'a Str, ctx: &mut Context<'a>, idx: &mut u32, funct
     }
     // Application: `(func argm1 argm2 ... argmN)`
     b'(' => {
-      let (mut code, mut fun) = parse_term(&code[1..], ctx, idx, functions);
+      let (mut code, mut fun) = parse_term(&code[1..], ctx, idx, definitions);
       while code[0] != b')' {
-        let (new_code, arg) = parse_term(code, ctx, idx, functions);
+        let (new_code, arg) = parse_term(code, ctx, idx, definitions);
         code = skip_whitespace(new_code);
         let arg = Box::new(arg);
         fun = App { fun: Box::new(fun), arg };
@@ -110,16 +110,16 @@ pub fn parse_term<'a>(code: &'a Str, ctx: &mut Context<'a>, idx: &mut u32, funct
     }
     // Annotation: `<val:typ>`
     b'<' => {
-      let (code, val) = parse_term(&code[1..], ctx, idx, functions);
+      let (code, val) = parse_term(&code[1..], ctx, idx, definitions);
       let code = parse_text(code, b":").unwrap();
-      let (code, typ) = parse_term(code, ctx, idx, functions);
+      let (code, typ) = parse_term(code, ctx, idx, definitions);
       let code = parse_text(code, b">").unwrap();
       (code, Ann { val: Box::new(val), typ: Box::new(typ) })
     },
     // Pair: `{val0 val1}#tag` (note: '#tag' is optional)
     b'{' => {
-      let (code, fst) = parse_term(&code[1..], ctx, idx, functions);
-      let (code, snd) = parse_term(code, ctx, idx, functions);
+      let (code, fst) = parse_term(&code[1..], ctx, idx, definitions);
+      let (code, snd) = parse_term(code, ctx, idx, definitions);
       let  code       = parse_text(code, b"}").unwrap();
       let (code, tag) = if code[0] == b'#' { parse_name(&code[1..]) } else { (code, &b""[..]) };
       let tag = name_to_index(&tag.to_vec());
@@ -136,9 +136,9 @@ pub fn parse_term<'a>(code: &'a Str, ctx: &mut Context<'a>, idx: &mut u32, funct
       let  code       = parse_text(code, b"=").unwrap();
       extend(snd, None, ctx);
       extend(fst, None, ctx);
-      let (code, val) = parse_term(code, ctx, idx, functions);
+      let (code, val) = parse_term(code, ctx, idx, definitions);
       let  code       = if code[0] == b';' { &code[1..] } else { code };
-      let (code, nxt) = parse_term(code, ctx, idx, functions);
+      let (code, nxt) = parse_term(code, ctx, idx, definitions);
       narrow(ctx);
       narrow(ctx);
       let tag = name_to_index(&tag.to_vec());
@@ -151,7 +151,7 @@ pub fn parse_term<'a>(code: &'a Str, ctx: &mut Context<'a>, idx: &mut u32, funct
     // Fix: `@name body`
     b'@' => {
       let (code, nam) = parse_name(&code[1..]);
-      let (code, bod) = parse_term(code, ctx, idx, functions);
+      let (code, bod) = parse_term(code, ctx, idx, definitions);
       let nam = nam.to_vec();
       let bod = Box::new(bod);
       (code, Fix { nam, bod })
