@@ -1,7 +1,18 @@
 // Implements Interaction Combinators. The Interaction Calculus is directly isomorphic to them, so,
 // to reduce a term, we simply translate to interaction combinators, reduce, then translate back.
 
-pub use super::*;
+#![allow(dead_code)]
+
+#[derive(Debug)]
+pub struct INode {
+  label: u32,
+  ports: [String; 3]
+}
+
+type IGraph = Vec<INode>;
+
+// Implements Interaction Combinators. The Interaction Calculus is directly isomorphic to them, so,
+// to reduce a term, we simply translate to interaction combinators, reduce, then translate back.
 
 #[derive(Clone, Debug)]
 pub struct INet {
@@ -12,12 +23,11 @@ pub struct INet {
 
 // Node types are consts because those are used in a Vec<u32>.
 pub const TAG : u32 = 28;
-pub const ERA : u32 = 0 << TAG;
-pub const CON : u32 = 1 << TAG;
-pub const ANN : u32 = 2 << TAG;
-pub const DUP : u32 = 3 << TAG;
-pub const FIX : u32 = 4 << TAG;
-pub const OBS : u32 = 5 << TAG;
+pub const CON : u32 = 0;
+pub const DUP : u32 = 1;
+pub const ERA : u32 = u32::MAX;
+pub const ANN : u32 = u32::MAX - 1;
+pub const FIX : u32 = u32::MAX - 2;
 
 // The ROOT port is on the deadlocked root node at address 0.
 pub const ROOT : u32 = 1;
@@ -28,7 +38,7 @@ pub type Port = u32;
 // Create a new net, with a deadlocked root node.
 pub fn new_inet() -> INet {
   INet {
-    nodes: vec![2,1,0,0], // p2 points to p0, p1 points to net
+    nodes: vec![2,1,0,0],
     reuse: vec![],
     rules: 0
   }
