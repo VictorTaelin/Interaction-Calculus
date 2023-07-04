@@ -2,8 +2,7 @@ use crate::main;
 use crate::term;
 
 pub fn test() {
-
-  let code = "
+    let code = "
 // Church multiplication
 def mul = λn λm λs (n (m s))
 
@@ -35,10 +34,9 @@ def neg = λb λt λf (b f t)
 λx λy (x y (c3 not true))
 ";
 
-  let term = term::from_string(code.as_bytes());
-  let (norm, rules) = term::normal_with_stats(&term);
+    let term = term::from_string(code.as_bytes());
+    let (norm, rules) = term::normal_with_stats(&term);
 
-  println!("{}\n", norm);
-  println!("{:?} rewrites", rules);
-
+    println!("{}\n", norm);
+    println!("{:?} rewrites", rules);
 }
