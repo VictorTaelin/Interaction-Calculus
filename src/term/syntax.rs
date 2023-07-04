@@ -14,12 +14,7 @@ use super::*;
 
 // Parses a name, returns the remaining code and the name.
 fn is_name_char(c: Chr) -> bool {
-    false
-        || (c >= b'A' && c <= b'Z')
-        || (c >= b'a' && c <= b'z')
-        || (c >= b'0' && c <= b'9')
-        || (c == b'_')
-        || (c == b'.')
+    matches!(c, b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'_' | b'.')
 }
 
 fn parse_name(code: &Str) -> (&Str, &Str) {
