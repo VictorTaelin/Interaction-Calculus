@@ -132,7 +132,7 @@ pub fn bitstring_to_term(s: &[u8], i: u32) -> Term {
                 bod: Box::new(e_lam),
             };
             let o_lam = Term::Lam {
-                nam: nam,
+                nam,
                 bod: Box::new(i_lam),
             };
             o_lam
@@ -148,7 +148,7 @@ pub fn bitstring_to_term(s: &[u8], i: u32) -> Term {
                 bod: Box::new(app),
             };
             let i_lam = Term::Lam {
-                nam: nam,
+                nam,
                 bod: Box::new(e_lam),
             };
             let o_lam = Term::Lam {
@@ -161,7 +161,7 @@ pub fn bitstring_to_term(s: &[u8], i: u32) -> Term {
             let nam = index_to_name(i + 1);
             let var = Var { nam: nam.clone() };
             let e_lam = Term::Lam {
-                nam: nam,
+                nam,
                 bod: Box::new(var),
             };
             let i_lam = Term::Lam {

@@ -176,7 +176,7 @@ pub fn from_net(net: &INet) -> Term {
                     let bod = read_term(net, prt, var_name, dups_vec, dups_set);
                     let ann = enter(net, port(addr(next), 1));
                     Lam {
-                        nam: nam,
+                        nam,
                         bod: Box::new(bod),
                     }
                 }
