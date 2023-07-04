@@ -34,7 +34,7 @@ fn parse_name(code: &Str) -> (&Str, &Str) {
 
 fn skip_whitespace(code: &Str) -> &Str {
   let mut i: usize = 0;
-  while i < code.len() && (code[i] == b' ' || code[i] == b'\n') {
+  while i < code.len() && code[i].is_ascii_whitespace(){
     i += 1;
   }
   &code[i..]
@@ -84,10 +84,35 @@ pub fn parse_term<'a>(code: &'a Str, ctx: &mut Context<'a>, idx: &mut u32, defin
       let typ = Some(Box::new(typ));
       let bod = Box::new(bod);
       (code, Lam { nam, typ, bod })
-    },
+    }
+    // Typed Abstraction: `\(var: Type) body`
+    b'\\' if code[1] == b'(' => {
+      let (code, nam) = parse_name(&code[2..]);
+      let  code       = parse_text(code, b":").unwrap();
+      let (code, typ) = parse_term(code, ctx, idx, definitions);
+      let  code       = parse_text(code, b")").unwrap();
+      extend(nam, None, ctx);
+      let (code, bod) = parse_term(code, ctx, idx, definitions);
+      narrow(ctx);
+      let nam = nam.to_vec();
+      let typ = Some(Box::new(typ));
+      let bod = Box::new(bod);
+      (code, Lam { nam, typ, bod })
+    }
     // Untyped Abstraction: `λvar body`
     b'\xce' if code[1] == b'\xbb' => {
       let (code, nam) = parse_name(&code[2..]);
+      extend(nam, None, ctx);
+      let (code, bod) = parse_term(code, ctx, idx, definitions);
+      narrow(ctx);
+      let nam = nam.to_vec();
+      let typ = None;
+      let bod = Box::new(bod);
+      (code, Lam { nam, typ, bod })
+    }
+    // Untyped Abstraction: `\var body`
+    b'\\' => { 
+      let (code, nam) = parse_name(&code[1..]);
       extend(nam, None, ctx);
       let (code, bod) = parse_term(code, ctx, idx, definitions);
       narrow(ctx);
