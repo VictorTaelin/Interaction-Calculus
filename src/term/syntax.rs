@@ -52,9 +52,7 @@ fn parse_text<'a>(code: &'a Str, text: &Str) -> Result<&'a Str, String> {
 // Parses a term, returns the remaining code and the term.
 pub fn parse_term<'a>(code: &'a Str, ctx: &mut Context<'a>, idx: &mut u32, definitions: &mut HashMap<DefinitionName, Term>) -> (&'a Str, Term) {
   let code = skip_whitespace(code);
-  // println!("{:?}",code);
   match code[0] {
-    
     // Comment: `// many words here ... <newline>`
     b'/' if code[1] == b'/' => {
       let end = code.iter().position(|&c| c == b'\n').unwrap_or(code.len());
