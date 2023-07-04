@@ -17,20 +17,20 @@ pub enum Term {
     // Abstractions
     Lam {
         nam: Vec<u8>,
-        bod: Box<Term>,
+        bod: Box<Self>,
     },
 
     // Applications
     App {
-        fun: Box<Term>,
-        arg: Box<Term>,
+        fun: Box<Self>,
+        arg: Box<Self>,
     },
 
     // Superpositions
     Sup {
         tag: u32,
-        fst: Box<Term>,
-        snd: Box<Term>,
+        fst: Box<Self>,
+        snd: Box<Self>,
     },
 
     // Duplications
@@ -38,8 +38,8 @@ pub enum Term {
         tag: u32,
         fst: Vec<u8>,
         snd: Vec<u8>,
-        val: Box<Term>,
-        nxt: Box<Term>,
+        val: Box<Self>,
+        nxt: Box<Self>,
     },
 
     // Variables
