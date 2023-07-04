@@ -57,7 +57,7 @@ pub fn lambda_term_to_inet(term: &Term) -> INet {
     }
     let mut inet: INet = new_inet();
     let mut label: u32 = 1;
-    let mut scope: Vec<(Vec<u8>, u32)> = Vec::new();
+    let mut scope: Vec<(Vec<u8>, u32)> = vec![];
     let ptr: Port = encode(&mut inet, &mut label, &mut scope, term);
     link(&mut inet, 0, ptr);
     inet
@@ -108,7 +108,7 @@ pub fn lambda_term_from_inet(inet: &INet) -> Term {
         }
     }
     let mut node_depth: Vec<u32> = Vec::with_capacity(inet.nodes.len() / 4);
-    let mut exit: Vec<u32> = Vec::new();
+    let mut exit: Vec<u32> = vec![];
     node_depth.resize(inet.nodes.len() / 4, 0);
     go(inet, &mut node_depth, 0, &mut exit, 0)
 }
@@ -217,7 +217,7 @@ pub fn term_to_bitstring(t: &Term) -> Vec<u8> {
             _ => {}
         }
     }
-    let mut v: Vec<u8> = Vec::new();
+    let mut v: Vec<u8> = vec![];
     format_binary_output(t, &mut v);
     v
 }
@@ -233,7 +233,7 @@ pub fn bits_to_char(s: &[u8]) -> u8 {
 
 // Converts a character to a bitstring.
 pub fn char_to_bits(c: u8) -> Vec<u8> {
-    let mut v: Vec<u8> = Vec::new();
+    let mut v: Vec<u8> = vec![];
     let mut c = c;
     for _i in 0..8 {
         v.extend_from_slice(if c % 2 == 0 { b"0" } else { b"1" });
@@ -245,7 +245,7 @@ pub fn char_to_bits(c: u8) -> Vec<u8> {
 
 // Converts a bitstring to an ascii string.
 pub fn bits_to_ascii(s: &[u8]) -> Vec<u8> {
-    let mut v: Vec<u8> = Vec::new();
+    let mut v: Vec<u8> = vec![];
     for i in 0..s.len() / 8 {
         v.push(bits_to_char(&s[i * 8..i * 8 + 8]));
     }
@@ -254,7 +254,7 @@ pub fn bits_to_ascii(s: &[u8]) -> Vec<u8> {
 
 // Converts an ascii string to a bitstring.
 pub fn ascii_to_bits(a: &[u8]) -> Vec<u8> {
-    let mut v: Vec<u8> = Vec::new();
+    let mut v: Vec<u8> = vec![];
     for i in 0..a.len() {
         v.append(&mut char_to_bits(a[i]))
     }

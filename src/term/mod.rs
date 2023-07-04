@@ -59,7 +59,7 @@ pub type Chr = u8;
 
 // Converts an index to a name
 pub fn index_to_name(idx: u32) -> Vec<Chr> {
-    let mut name = Vec::new();
+    let mut name = vec![];
     let mut idx = idx;
     while idx > 0 {
         idx = idx - 1;

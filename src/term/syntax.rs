@@ -181,7 +181,7 @@ pub fn parse_term<'a>(code: &'a Str, ctx: &mut Context<'a>, idx: &mut u32) -> (&
 
 // Converts a source-code to a λ-term.
 pub fn from_string<'a>(code: &'a Str) -> Term {
-    let mut ctx = Vec::new();
+    let mut ctx = vec![];
     let mut idx = 0;
     parse_term(code, &mut ctx, &mut idx).1
 }
@@ -247,7 +247,7 @@ pub fn to_string(term: &Term) -> Vec<Chr> {
             }
         }
     }
-    let mut code = Vec::new();
+    let mut code = vec![];
     stringify_term(&mut code, &term);
     return code;
 }

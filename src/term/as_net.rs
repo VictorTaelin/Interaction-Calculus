@@ -101,7 +101,7 @@ pub fn to_net(term: &Term) -> INet {
     }
 
     let mut net = new_inet();
-    let mut vars = Vec::new();
+    let mut vars = vec![];
     let mut scope = HashMap::new();
 
     // Encodes the main term.
@@ -232,7 +232,7 @@ pub fn from_net(net: &INet) -> Term {
     // Dup aren't scoped. We find them when we read one of the variables
     // introduced by them. Thus, we must store the dups we find to read later.
     // We have a vec for .pop(). and a set to avoid storing duplicates.
-    let mut dups_vec = Vec::new();
+    let mut dups_vec = vec![];
     let mut dups_set = HashSet::new();
 
     // Reads the main term from the net
