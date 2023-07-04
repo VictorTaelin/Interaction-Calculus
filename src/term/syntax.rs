@@ -34,8 +34,7 @@ fn parse_name(code: &Str) -> (&Str, &Str) {
 
 fn skip_whitespace(code: &Str) -> &Str {
   let mut i: usize = 0;
-  while i < code.len() && ((code[i] == b' ' || code[i] == b'\n') || code[i] == b'\t'){
-  // while i < code.len() && (code[i] == b' ' || code[i] == b'\n'){
+  while i < code.len() && code[i].is_ascii_whitespace(){
     i += 1;
   }
   &code[i..]
@@ -89,9 +88,7 @@ pub fn parse_term<'a>(code: &'a Str, ctx: &mut Context<'a>, idx: &mut u32, defin
       (code, Lam { nam, typ, bod })
     },
     // Untyped Abstraction: `λvar body`
-    // b'\xce' if code[1] == b'\xbb' || code[1] == b'\xbb' => {
-    // b'$' | b'%' => {
-    b'$' => { 
+    b'\\' => { 
       let (code, nam) = parse_name(&code[1..]);
       extend(nam, None, ctx);
       let (code, bod) = parse_term(code, ctx, idx, definitions);
