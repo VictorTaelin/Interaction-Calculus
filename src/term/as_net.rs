@@ -245,8 +245,7 @@ pub fn from_net(net: &INet) -> Term {
     );
 
     // Reads let founds by starting the read_term function from their 0 ports.
-    while dups_vec.len() > 0 {
-        let dup = dups_vec.pop().unwrap();
+    while let Some(dup) = dups_vec.pop() {
         let val = read_term(
             net,
             enter(net, port(dup, 0)),

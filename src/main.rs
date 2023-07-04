@@ -1,9 +1,11 @@
-#![allow(dead_code)]
-#![allow(unused_imports)]
-#![allow(unused_mut)]
-#![allow(unused_parens)]
-#![allow(unused_variables)]
-#![allow(unreachable_code)]
+#![allow(
+    dead_code,
+    unused_imports,
+    unused_mut,
+    unused_parens,
+    unused_variables,
+    unreachable_code
+)]
 
 extern crate clap;
 use clap::{App, Arg};
@@ -14,9 +16,7 @@ mod test;
 
 use term::*;
 
-use std::fs::File;
-use std::io;
-use std::io::prelude::*;
+use std::{fs::File, io, io::prelude::*};
 
 fn main() {
     //return test::test();
