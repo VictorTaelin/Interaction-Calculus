@@ -34,7 +34,8 @@ fn parse_name(code: &Str) -> (&Str, &Str) {
 
 fn skip_whitespace(code: &Str) -> &Str {
   let mut i: usize = 0;
-  while i < code.len() && (code[i] == b' ' || code[i] == b'\n') {
+  while i < code.len() && ((code[i] == b' ' || code[i] == b'\n') || code[i] == b'\t'){
+  // while i < code.len() && (code[i] == b' ' || code[i] == b'\n'){
     i += 1;
   }
   &code[i..]
@@ -52,7 +53,9 @@ fn parse_text<'a>(code: &'a Str, text: &Str) -> Result<&'a Str, String> {
 // Parses a term, returns the remaining code and the term.
 pub fn parse_term<'a>(code: &'a Str, ctx: &mut Context<'a>, idx: &mut u32, definitions: &mut HashMap<DefinitionName, Term>) -> (&'a Str, Term) {
   let code = skip_whitespace(code);
+  // println!("{:?}",code);
   match code[0] {
+    
     // Comment: `// many words here ... <newline>`
     b'/' if code[1] == b'/' => {
       let end = code.iter().position(|&c| c == b'\n').unwrap_or(code.len());
@@ -86,6 +89,18 @@ pub fn parse_term<'a>(code: &'a Str, ctx: &mut Context<'a>, idx: &mut u32, defin
       (code, Lam { nam, typ, bod })
     },
     // Untyped Abstraction: `λvar body`
+    // b'\xce' if code[1] == b'\xbb' || code[1] == b'\xbb' => {
+    // b'$' | b'%' => {
+    b'$' => { 
+      let (code, nam) = parse_name(&code[1..]);
+      extend(nam, None, ctx);
+      let (code, bod) = parse_term(code, ctx, idx, definitions);
+      narrow(ctx);
+      let nam = nam.to_vec();
+      let typ = None;
+      let bod = Box::new(bod);
+      (code, Lam { nam, typ, bod })
+    }
     b'\xce' if code[1] == b'\xbb' => {
       let (code, nam) = parse_name(&code[2..]);
       extend(nam, None, ctx);
