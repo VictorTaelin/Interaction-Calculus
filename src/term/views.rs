@@ -180,43 +180,36 @@ pub fn bitstring_to_term(s: &[u8], i: u32) -> Term {
 // Can this highly-idented style be improved?
 pub fn term_to_bitstring(t: &Term) -> Vec<u8> {
     fn format_binary_output(t: &Term, v: &mut Vec<u8>) {
-        match t {
-            Term::Lam {
-                nam: ref o_nam,
-                bod: ref o_bod,
-            } => match **o_bod {
-                Term::Lam {
-                    nam: ref i_nam,
-                    bod: ref i_bod,
-                } => match **i_bod {
-                    Term::Lam {
-                        nam: _,
-                        bod: ref e_bod,
-                    } => match **e_bod {
-                        Term::App {
-                            fun: ref app_fun,
-                            arg: ref app_arg,
-                        } => match **app_fun {
-                            Term::Var { nam: ref var_nam } => {
-                                if var_nam == o_nam {
-                                    v.extend_from_slice(b"0");
-                                    format_binary_output(app_arg, v);
-                                } else if var_nam == i_nam {
-                                    v.extend_from_slice(b"1");
-                                    format_binary_output(app_arg, v);
-                                }
-                            }
-                            _ => {}
-                        },
-                        _ => {}
-                    },
-                    _ => {}
-                },
-                _ => {}
-            },
-            _ => {}
+        let Term::Lam {
+            nam: ref o_nam,
+            bod: ref o_bod,
+        } = t else { return };
+
+        let Term::Lam {
+            nam: ref i_nam,
+            bod: ref i_bod,
+        } = **o_bod else { return };
+
+        let Term::Lam {
+            bod: ref e_bod,..
+        } = **i_bod else { return };
+
+        let Term::App {
+            fun: ref app_fun,
+            arg: ref app_arg,
+        } = **e_bod else { return };
+
+        let Term::Var { nam: ref var_nam } = **app_fun else { return };
+
+        if var_nam == o_nam {
+            v.extend_from_slice(b"0");
+            format_binary_output(app_arg, v);
+        } else if var_nam == i_nam {
+            v.extend_from_slice(b"1");
+            format_binary_output(app_arg, v);
         }
     }
+
     let mut v: Vec<u8> = vec![];
     format_binary_output(t, &mut v);
     v
@@ -255,8 +248,8 @@ pub fn bits_to_ascii(s: &[u8]) -> Vec<u8> {
 // Converts an ascii string to a bitstring.
 pub fn ascii_to_bits(a: &[u8]) -> Vec<u8> {
     let mut v: Vec<u8> = vec![];
-    for i in 0..a.len() {
-        v.append(&mut char_to_bits(a[i]))
+    for c in a.iter() {
+        v.append(&mut char_to_bits(*c))
     }
     v
 }
