@@ -5,22 +5,16 @@
 #![allow(unused_variables)]
 #![allow(unreachable_code)]
 
+extern crate ic;
 extern crate clap;
+
 use clap::{Arg, App};
-
-mod term;
-mod inet;
-mod test;
-
-use term::*;
-
+use ic::*;
 use std::io;
 use std::io::prelude::*;
 use std::fs::File;
 
 fn main() {
-  return test::test();
-
   let matches = App::new("My App")
     .version("1.0")
     .author("Victor Taelin <victor.taelin@gmail.com>")
@@ -36,8 +30,13 @@ fn main() {
   let mut code = String::new();
   file.read_to_string(&mut code).expect("Unable to read the file");
 
-  let term = term::from_string(code.as_bytes());
-  let (norm, rules) = term::normalize_with_stats(&term);
+  let (term, mut definition_book) = term::from_string(code.as_bytes());
+
+  definition_book.print();
+  definition_book.extract_closed_subterms();
+  definition_book.print();
+
+  let (norm, rules) = term::normalize_with_stats(&term, &definition_book);
 
   println!("{}\n", norm);
   println!("{:?} rewrites", rules);
