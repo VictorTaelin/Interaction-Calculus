@@ -71,6 +71,21 @@ pub fn parse_term<'a>(code: &'a Str, ctx: &mut Context<'a>, idx: &mut u32, defin
       // narrow(ctx);
       (code, bod)
     }
+    // Let: `let <name> = <val>; body` => `((λname body) val)`
+    b'l' if code.starts_with(b"let ") => {
+      let (code, nam) = parse_name(&code[4..]);
+      let  code       = parse_text(code, b"=").unwrap();
+      let (code, val) = parse_term(code, ctx, idx, definitions);
+      let  code       = parse_text(code, b";").unwrap();
+      extend(nam, None, ctx);
+      let (code, bod) = parse_term(code, ctx, idx, definitions);
+      narrow(ctx);
+      let nam = nam.to_vec();
+      let bod = Box::new(bod);
+      let arg = Box::new(val);
+      (code, App { fun: Box::new(Lam {nam, typ: None, bod}), arg})
+    }
+
     // Typed Abstraction: `λ(var: Type) body`
     b'\xce' if code[1] == b'\xbb' && code[2] == b'(' => {
       let (code, nam) = parse_name(&code[3..]);
