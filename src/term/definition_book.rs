@@ -50,9 +50,10 @@ impl DefinitionBook {
   }
 
   pub fn add_definition(&mut self, name: DefinitionName, term: Term) {
-    debug_assert!(!self.contains(&name), "{}", name);
     let id = self.definition_id_to_data.len() as DefinitionId;
-    self.definition_name_to_id.insert(name.clone(), id);
+    let prev = self.definition_name_to_id.insert(name.clone(), id);
+    // TODO: Return error
+    assert!(prev.is_none(), "Duplicate definition: {}", name);
     self.definition_id_to_data.push(DefinitionData {
       net: to_net(&term, &self.definition_name_to_id),
       name,
