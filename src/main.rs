@@ -10,9 +10,12 @@ use clap::{Arg, App};
 
 mod term;
 mod inet;
+mod check;
 mod test;
 
+use inet::*;
 use term::*;
+use check::*;
 
 use std::io;
 use std::io::prelude::*;

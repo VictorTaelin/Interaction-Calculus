@@ -1,6 +1,7 @@
 use crate::main;
 use crate::term::*;
 use crate::inet::*;
+use crate::check::*;
 
 pub fn get_body(inet: &INet, host: Port) -> Port {
   return port(addr(enter(inet,host)), 2);
@@ -69,9 +70,14 @@ def f1 = inf
 //λA λB λ(a: A) <a: B>
 
 def term = λa λb λc λd d
-def type = λa λb λx λy y
+def type = 
+  dup A0 A1 = A; 
+  dup B0 B1 = B; 
+  ∀A ∀B &A0 &B0
+  B1
 
 <term : type>
+
 ";
 
   //  Creates initial term
@@ -83,9 +89,14 @@ def type = λa λb λx λy y
 
   // Normal
   normal(&mut inet, ROOT);
-  println!("itt {}", readback(&inet, ROOT));
-  //println!("lam {}", lambda_term_from_inet(&inet));
+  //println!("itt {}", readback(&inet, ROOT));
+
+  println!("normal:\n{}", show(&inet, ROOT));
   println!("{:?} rewrites", inet.rules);
+  println!("");
+
+  println!("check:\n{}", check(&mut inet, ROOT));
+  println!("");
 
   // Equal
   //let body = get_body(&inet, ROOT);

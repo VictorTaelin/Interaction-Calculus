@@ -173,3 +173,33 @@ pub fn rewrite(inet: &mut INet, x: Port, y: Port) {
   }
 }
 
+pub fn show(inet: &INet, prev: Port) -> String {
+  let next = enter(inet, prev);
+  if next == ROOT {
+    "".to_string()
+  } else {
+    let slot_next = slot(next);
+    if slot_next == 0 {
+      let a = show(inet, port(addr(next), 1));
+      let b = show(inet, port(addr(next), 2));
+      let k = kind(inet, addr(next));
+      if k == ERA {
+        format!("*")
+      } else {
+        let p = if k == CON {
+          ('(', ')')
+        } else if k == ANN {
+          ('[', ']')
+        } else if k >= DUP {
+          ('{', '}')
+        } else {
+          ('?', '?')
+        };
+        format!("\x1b[2m{}\x1b[0m\x1b[1m{}\x1b[0m{} {}\x1b[1m{}\x1b[0m", addr(next), p.0, a, b, p.1)
+      }
+    } else {
+      let x = show(inet, port(addr(next), 0));
+      format!("{}\x1b[34m{}\x1b[0m", x, if slot_next == 1 { '<' } else { '>' })
+    }
+  }
+}
