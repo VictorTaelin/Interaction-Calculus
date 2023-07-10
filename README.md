@@ -16,8 +16,11 @@ characteristics:
 
 4. It is fully linear, making it garbage-collection free.
 
-This repository contains a Rust reference implementation. Also check the Kind
-formalization [here](https://github.com/HigherOrderCO/Kindex/blob/master/Apps/IC/_.kind2).
+This repository contains a Rust reference implementation. Also check:
+
+- A formalization in Kind-Lang: [IC.kind](https://github.com/HigherOrderCO/Kindex/blob/master/Apps/IC/_.kind2).
+
+- A typed version (a la Calculus of Constructions): [Interaction Type Theory](https://github.com/VictorTaelin/Interaction-Type-Theory)
 
 # Usage
 

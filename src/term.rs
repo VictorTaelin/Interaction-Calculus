@@ -19,34 +19,12 @@ pub enum Term {
   // Duplications
   Dup {tag: u32, fst: Vec<u8>, snd: Vec<u8>, val: Box<Term>, nxt: Box<Term>},
 
-  // Recursion
-  Fix {nam: Vec<u8>, bod: Box<Term>},
-
-  // Annotations
-  Ann {val: Box<Term>, typ: Box<Term>},
-
-  // Arrow
-  Arr {inp: Box<Term>, out: Box<Term>},
-
-  // Polymorphism
-  Pol {nam: Vec<u8>, out: Box<Term>},
-
   // Variables
   Var {nam: Vec<u8>}, 
 
   // Erasure
-  Set
+  Era
 }
-
-// TODO:
-//
-// The "Arr" constructor becomes a CON node with inp (port 1) and out (port 2)
-//
-// The "Pol" constructor becomes a CON node with bnd (port 1) and out (port 2),
-// where 'bnd' is an ANN node with:
-// - port 0 connected to the port 1 of the CON node above
-// - port 1 connected to an ERA node
-// - port 2 binds a new variable (like lambdas)
 
 use self::Term::{*};
 
@@ -91,18 +69,6 @@ pub fn inject(inet: &mut INet, term: &Term, host: Port) {
         link(net, port(app, 1), arg);
         port(app, 2)
       },
-      // An annotation becomes an ANN node. Ports:
-      // - 0: points to the type of the annotation.
-      // - 1: points to where the annotation occurs.
-      // - 2: points to the value being annotated.
-      &Ann{ref val, ref typ} => {
-        let ann = new_node(net, ANN);
-        let val = encode_term(net, val, port(ann, 2), scope, vars);
-        link(net, port(ann, 2), val);
-        let typ = encode_term(net, typ, port(ann, 0), scope, vars);
-        link(net, port(ann, 0), typ);
-        port(ann, 1)
-      },
       // A pair becomes a dup node. Ports:
       // - 0: points to where the pair occurs.
       // - 1: points to the first value.
@@ -139,51 +105,8 @@ pub fn inject(inet: &mut INet, term: &Term, host: Port) {
         link(net, val, port(dup, 0));
         encode_term(net, &nxt, up, scope, vars)
       },
-      // A fix becomes a fix node.
-      &Fix { ref nam, ref bod } => {
-        let fix = new_node(net, FIX);
-        scope.insert(nam.to_vec(), port(fix, 1));
-        // If the variable is unused, create an erase node.
-        if nam == b"*" {
-          let era = new_node(net, ERA);
-          link(net, port(era, 1), port(era, 2));
-          link(net, port(fix, 1), port(era, 0));
-        }
-        let bod = encode_term(net, bod, port(fix, 0), scope, vars);
-        link(net, port(fix, 0), bod);
-        port(fix, 2)
-      },
-      // Arrow becomes a CON node. Ports:
-      // - 0: points to where the arrow occurs.
-      // - 1: points to the input type of the arrow.
-      // - 2: points to the output type of the arrow.
-      &Arr { ref inp, ref out } => {
-        let arr = new_node(net, CON);
-        let inp = encode_term(net, inp, port(arr, 1), scope, vars);
-        link(net, port(arr, 1), inp);
-        let out = encode_term(net, out, port(arr, 2), scope, vars);
-        link(net, port(arr, 2), out);
-        port(arr, 0)
-      },
-      // Polymorphism becomes a CON node with ann (port 1) and out (port 2),
-      // where 'ann' is an ANN node with:
-      // - port 0 connected to the port 1 of the CON node above.
-      // - port 1 points to the polymorphic variable.
-      // - port 2 connected to an ERA node.
-      &Pol { ref nam, ref out } => {
-        let pol = new_node(net, CON);
-        let ann = new_node(net, ANN);
-        link(net, port(ann, 0), port(pol, 1));
-        let era = new_node(net, ERA);
-        link(net, port(era, 1), port(era, 2));
-        link(net, port(ann, 2), port(era, 0));
-        scope.insert(nam.to_vec(), port(ann, 1));
-        let out = encode_term(net, out, port(pol, 2), scope, vars);
-        link(net, port(pol, 2), out);
-        port(pol, 0)
-      },
       // A set is just an erase node stored in a place.
-      &Set => {
+      &Era => {
         let set = new_node(net, ERA);
         link(net, port(set, 1), port(set, 2));
         port(set, 0)
@@ -270,7 +193,7 @@ pub fn readback(net : &INet, host : Port) -> Term {
 
     match kind(net, addr(next)) {
       // If we're visiting a set...
-      ERA => Set,
+      ERA => Era,
       // If we're visiting a con node...
       CON => match slot(next) {
         // If we're visiting a port 0, then it is a lambda.
@@ -294,39 +217,6 @@ pub fn readback(net : &INet, host : Port) -> Term {
           let prt = enter(net, port(addr(next), 1));
           let arg = reader(net, prt, var_name, dups_vec, dups_set, seen);
           App{fun: Box::new(fun), arg: Box::new(arg)}
-        }
-      },
-      // If we're visiting an ANN node...
-      ANN => match slot(next) {
-        // If we're visiting a port 0, then it is an annotation...
-        0 => {
-          panic!("Reached port 0 of an ANN node on readback. That shouldn't be possible.");
-        },
-        // If we're visiting a port 1, then it is where the annotation occurs.
-        _ => {
-          let prt = enter(net, port(addr(next), if slot(next) == 1 { 2 } else { 1 }));
-          let val = reader(net, prt, var_name, dups_vec, dups_set, seen);
-          let prt = enter(net, port(addr(next), 0));
-          let typ = reader(net, prt, var_name, dups_vec, dups_set, seen);
-          Ann{val: Box::new(val), typ: Box::new(typ)}
-        },
-      },
-      // If we're visiting a fix node...
-      FIX => match slot(next) {
-        // If we're visiting a port 2, then it is a recursive term.
-        2 => {
-          let nam = name_of(net, port(addr(next), 1), var_name);
-          let prt = enter(net, port(addr(next), 0));
-          let bod = reader(net, prt, var_name, dups_vec, dups_set, seen);
-          Fix { nam: nam, bod: Box::new(bod) }
-        },
-        // If we're visiting a port 1, then it is a fixed point occurrence.
-        1 => {
-          Var { nam: name_of(net, next, var_name) }
-        },
-        // We shouldn't be able to visit a port 0
-        _ => {
-          Var { nam: b"^".to_vec() }
         }
       },
       // If we're visiting a fan node...
@@ -403,17 +293,13 @@ pub fn normalize(term : &Term) -> (Term, u32) {
 // ======
 
 // Term parser and stringifier. Grammar:
-// <Term> ::= <Lam> | <App> | <Sup> | <Dup> | <Var> | <Set>
+// <Term> ::= <Lam> | <App> | <Sup> | <Dup> | <Var> | <Era>
 // <Lam>  ::= "λ" <Name> <Term>
 // <App>  ::= "(" <Term> <Term> ")"
-// <Ann>  ::= "<" <Term> ":" <Term> ")"
 // <Sup>  ::= "{" <Term> <Term> "}" ["#" <Tag>]
 // <Dup>  ::= "dup" ["#" <Tag>] <Name> <Name> "=" <Term> [";"] <Term>
-// <Arr>  ::= <Term> "->" <Term>
-// <Pol>  ::= ∀ <Name> <Term>
-// <Fix>  ::= "@" <Name> <Term>
 // <Var>  ::= <Name>
-// <Set>  ::= "*"
+// <Era>  ::= "*"
 // <Name> ::= <alphanumeric_Name>
 // <Tag>  ::= <positive_integer>
 
@@ -507,31 +393,11 @@ pub fn copy(space : &Vec<u8>, idx : u32, term : &Term) -> Term {
       let nxt = Box::new(copy(space, idx, nxt));
       Dup{tag, fst, snd, val, nxt}
     },
-    Fix{nam, bod} => {
-      let nam = namespace(space, idx, nam);
-      let bod = Box::new(copy(space, idx, bod));
-      Fix{nam, bod}
-    },
-    Ann{val, typ} => {
-      let val = Box::new(copy(space, idx, val));
-      let typ = Box::new(copy(space, idx, typ));
-      Ann{val, typ}
-    },
-    Arr{inp, out} => {
-      let inp = Box::new(copy(space, idx, inp));
-      let out = Box::new(copy(space, idx, out));
-      Arr{inp, out}
-    },
-    Pol{nam, out} => {
-      let nam = namespace(space, idx, nam);
-      let out = Box::new(copy(space, idx, out));
-      Pol{nam, out}
-    },
     Var{nam} => {
       let nam = namespace(space, idx, nam);
       Var{nam}
     },
-    Set => Set
+    Era => Era
   }
 }
 
@@ -603,14 +469,6 @@ pub fn parse_term<'a>(code: &'a Str, ctx: &mut Context<'a>, idx: &mut u32) -> (&
       let code = parse_text(code, b")").unwrap();
       (code, fun)
     }
-    // Annotation: `<val:typ>`
-    b'<' => {
-      let (code, val) = parse_term(&code[1..], ctx, idx);
-      let code = parse_text(code, b":").unwrap();
-      let (code, typ) = parse_term(code, ctx, idx);
-      let code = parse_text(code, b">").unwrap();
-      (code, Ann { val: Box::new(val), typ: Box::new(typ) })
-    },
     // Pair: `{val0 val1}#tag` (note: '#tag' is optional)
     b'{' => {
       let (code, fst) = parse_term(&code[1..], ctx, idx);
@@ -643,30 +501,9 @@ pub fn parse_term<'a>(code: &'a Str, ctx: &mut Context<'a>, idx: &mut u32) -> (&
       let nxt = Box::new(nxt);
       (code, Dup { tag, fst, snd, val, nxt })
     }
-    // Fix: `@name body`
-    b'@' => {
-      let (code, nam) = parse_name(&code[1..]);
-      let (code, bod) = parse_term(code, ctx, idx);
-      let nam = nam.to_vec();
-      let bod = Box::new(bod);
-      (code, Fix { nam, bod })
-    }
-    // Arrow: `&term0 -> term1`
-    b'&' => {
-      let (code, inp) = parse_term(&code[1..], ctx, idx);
-      let (code, out) = parse_term(code, ctx, idx);
-      (code, Arr { inp: Box::new(inp), out: Box::new(out) })
-    },
-    // Polymorphism: `∀nam out`
-    b'\xe2' if code[1] == b'\x88' && code[2] == b'\x80' => {
-      let (code, nam) = parse_name(&code[3..]);
-      let (code, out) = parse_term(code, ctx, idx);
-      let nam = nam.to_vec();
-      (code, Pol { nam, out: Box::new(out) })
-    },
-    // Set: `*`
+    // Era: `*`
     b'*' => {
-      (&code[1..], Set)
+      (&code[1..], Era)
     },
     // Variable: `<alphanumeric_name>`
     _ => {
@@ -717,13 +554,6 @@ pub fn to_string(term : &Term) -> Vec<Chr> {
         stringify_term(code, &arg);
         code.extend_from_slice(b")");
       },
-      &Ann{ref val, ref typ} => {
-        code.extend_from_slice(b"<");
-        stringify_term(code, &val);
-        code.extend_from_slice(b": ");
-        stringify_term(code, &typ);
-        code.extend_from_slice(b">");
-      },
       &Sup{tag, ref fst, ref snd} => {
         code.extend_from_slice(b"[");
         stringify_term(code, &fst);
@@ -750,25 +580,7 @@ pub fn to_string(term : &Term) -> Vec<Chr> {
         code.extend_from_slice(b"; ");
         stringify_term(code, &nxt);
       },
-      &Fix{ref nam, ref bod} => {
-        code.extend_from_slice(b"@");
-        code.append(&mut nam.clone());
-        code.extend_from_slice(b" ");
-        stringify_term(code, &bod);
-      },
-      &Arr{ref inp, ref out} => {
-        code.extend_from_slice(b"&");
-        stringify_term(code, &inp);
-        code.extend_from_slice(b" ");
-        stringify_term(code, &out);
-      },
-      &Pol{ref nam, ref out} => {
-        code.extend_from_slice(b"\xE2\x88\x80");
-        code.append(&mut nam.clone());
-        code.extend_from_slice(b" ");
-        stringify_term(code, &out);
-      },
-      &Set => {
+      &Era => {
         code.extend_from_slice(b"*");
       },
       &Var{ref nam} => {
@@ -813,9 +625,6 @@ pub fn lambda_term_to_inet(term : &Term) -> INet {
         scope.pop();
         link(inet, port(fun, 2), bod);
         port(fun, 0)
-      },
-      &Ann{..} => {
-        todo!();
       },
       &Var{ref nam} => {
         let mut lam = 0;
@@ -887,7 +696,7 @@ pub fn lambda_term_from_inet(inet : &INet) -> Term {
         term
       }
     } else {
-      Set
+      Era
     }
   }
   let mut node_depth : Vec<u32> = Vec::with_capacity(inet.nodes.len() / 4);

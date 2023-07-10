@@ -10,20 +10,15 @@ use clap::{Arg, App};
 
 mod term;
 mod inet;
-mod check;
-mod test;
 
 use inet::*;
 use term::*;
-use check::*;
 
 use std::io;
 use std::io::prelude::*;
 use std::fs::File;
 
 fn main() {
-  return test::test();
-
   let matches = App::new("My App")
     .version("1.0")
     .author("Victor Taelin <victor.taelin@gmail.com>")
@@ -50,16 +45,9 @@ fn main() {
   // Normalizes
   normal(&mut inet, ROOT);
 
-  println!("{}", show(&inet, ROOT));
+  let term = readback(&inet, ROOT);
+
+  println!("{}", term);
   println!("\x1b[90m{:?} rewrites\x1b[0m", inet.rules);
-
-  println!("Check? \n{}", if check(&mut inet, ROOT) { "✓" } else { "✗" });
-  println!("");
-
-  let term = term::from_string(code.as_bytes());
-  let (norm, rules) = term::normalize(&term);
-
-  println!("{}\n", norm);
-  println!("{:?} rewrites", rules);
 
 }

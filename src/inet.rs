@@ -26,8 +26,6 @@ pub const TAG : u32 = 28;
 pub const CON : u32 = 0;
 pub const DUP : u32 = 1;
 pub const ERA : u32 = u32::MAX;
-pub const ANN : u32 = u32::MAX - 1;
-pub const FIX : u32 = u32::MAX - 2;
 
 // The ROOT port is on the deadlocked root node at address 0.
 pub const ROOT : u32 = 1;
@@ -188,8 +186,6 @@ pub fn show(inet: &INet, prev: Port) -> String {
       } else {
         let p = if k == CON {
           ('(', ')')
-        } else if k == ANN {
-          ('[', ']')
         } else if k >= DUP {
           ('{', '}')
         } else {

@@ -1,0 +1,42 @@
+// Nats
+def Z = λs λz (z)
+def S = λn λs λz (s n)
+
+// Church arithmetic
+def zero = λs λz (z)
+def succ = λn λs λz dup s0 s1 = s; (s0 (n s1 z))
+def mul = λn λm λs (n (m s))
+
+// Church consts
+def c1 = λf λx (f x)
+def c2 = λf λx (dup #c f0 f1 = f; (f0 (f1 x)))
+def c3 = λf λx (dup #c f0 f1 = f; dup #c f2 f3 = f0; (f1 (f2 (f3 x))))
+def c4 = λf λx (dup #c f0 f1 = f; dup #c f2 f3 = f0; dup #c f4 f5 = f1; (f2 (f3 (f4 (f5 x)))))
+def p1 = c2          // 2
+def p2 = (mul c2 p1) // 4
+def p3 = (mul c2 p2) // 8
+def p4 = (mul c2 p3) // 16
+def p5 = (mul c2 p4) // 32
+def p6 = (mul c2 p5) // 64
+def p7 = (mul c2 p6) // 128
+def p8 = (mul c2 p7) // 256
+
+// Booleans
+def true = λt λf t
+def false = λt λf f
+def not = λb ((b false) true)
+def fnot = λb λt λf (b f t) // fast not fuses
+
+// Lists
+def cons = λhead λtail λcons λnil (cons head tail)
+def nil = λcons λnil nil
+def head = λlist (list λhλt(h) λx(x))
+def tail = λlist (list λhλt(t) nil)
+def map = 
+  dup map rec = λf λxs
+    dup #f f0 f1 = f;
+    (xs λhead λtail (cons (f0 head) (rec f1 tail)) nil)
+  map
+
+// Applies fast not 2^8 times to true
+(fnot p8 true)
