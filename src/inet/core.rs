@@ -22,7 +22,8 @@ pub const DUP : NodeKind = 3 << TAG;
 pub const FIX : NodeKind = 4 << TAG;
 pub const REF : NodeKind = 5 << TAG;
 
-pub const TAG_MASK: NodeKind = !((1 << TAG) - 1);
+pub const LABEL_MASK: NodeKind = ((1 << TAG) - 1);
+pub const TAG_MASK: NodeKind = !LABEL_MASK;
 
 // The ROOT port is on the deadlocked root node at address 0.
 pub const ROOT : u32 = 1;
