@@ -132,7 +132,7 @@ As such, lambda applications and pair projections are just annihilations:
       body                               b <- snd                  
                                          cont                      
                                                                    
-    ret  arg    ret  arg                  a   b       a    b       
+    ret  arg    ret  arg                  b   a       b    a       
      |   |       |    |                   |   |       |    |       
      |___|       |    |                   |___|       |    |       
  app  \ /         \  /                let  \#/         \  /        
