@@ -163,7 +163,7 @@ effects of the commutation rule on the interaction combinator point of view, we
 can propose a reasonable reduction for these lambda expressions:
 
 ```
-   Lambda Application                         Pair Application
+   Lambda Projection                         Pair Application
                                                                   
    let {a b} = (λx body) in cont             ({fst snd} arg)   
    ------------------------------             ---------------
