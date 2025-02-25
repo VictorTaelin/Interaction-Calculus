@@ -1,0 +1,52 @@
+.tmp/
+
+# Build directories
+suptt/bin/
+suptt/obj/
+
+# Compiled Object files
+*.o
+*.ko
+*.obj
+*.elf
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Compiled Static libraries
+*.a
+*.la
+*.lai
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+*.i*86
+*.x86_64
+*.hex
+suptt/bin/suptt
+
+# Debug files
+*.dSYM/
+*.su
+*.idb
+*.pdb
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*~
+
+# OS specific files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
