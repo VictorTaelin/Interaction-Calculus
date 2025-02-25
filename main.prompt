@@ -1,0 +1,1252 @@
+//./ic.prompt//
+//./suptt.prompt//
+
+TASK: your goal is to create a complete C implementation of the runtime above.
+Include a parser (directly recursive, inspired on Parsec), a stringifier, and an
+evaluator. Include a main() function that parses and evaluates the default test
+term, printing its normal form and the total interaction count. Include a simple
+bump allocator, with a pre-allocated buffer of with 2^24 Terms. Make your code
+simple, efficient and correct.
+
+Hints:
+
+- For the parser, implement a parse_term() function that dispatches to each
+  individual parser type (parse_app, parse_lam, etc.).
+- Be mindful of unicode. Avoid the following error:
+    main.c:381:12: error: character too large for enclosing character literal type
+      381 |   if (c == 'λ') {
+          |            ^
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdint.h>
+#include <stdbool.h>
+#include <ctype.h>
+
+// Term tags
+#define VAR 0
+#define LET 1
+#define SUP 2
+#define CO0 3
+#define CO1 4
+#define SET 5
+#define EMP 6
+#define EFQ 7
+#define UNI 8
+#define NIL 9
+#define USE 10
+#define BIT 11
+#define B_0 12
+#define B_1 13
+#define ITE 14
+#define SIG 15
+#define TUP 16
+#define GET 17
+#define ALL 18
+#define LAM 19
+#define APP 20
+#define EQL 21
+#define RFL 22
+#define RWT 23
+
+// Term representation (a 64-bit pointer)
+typedef uint64_t Term;
+
+// Memory space for our bump allocator
+#define HEAP_SIZE (1 << 24)
+Term heap[HEAP_SIZE];
+uint32_t heap_top = 0;
+
+// Bit manipulation macros for Term
+#define MAKE_TERM(sub, lab, tag, val) ((((uint64_t)(sub) & 0x1) << 63) | \
+                                      (((uint64_t)(lab) & 0x3) << 61) | \
+                                      (((uint64_t)(tag) & 0x1F) << 56) | \
+                                      ((uint64_t)(val) & 0xFFFFFF))
+
+#define IS_SUB(term) (((term) >> 63) & 0x1)
+#define GET_LAB(term) (((term) >> 61) & 0x3)
+#define GET_TAG(term) (((term) >> 56) & 0x1F)
+#define GET_VAL(term) ((term) & 0xFFFFFF)
+
+#define AS_SUB(term) ((term) | (0x1ULL << 63))
+
+// Simple bump allocator
+uint32_t alloc(uint32_t size) {
+    uint32_t addr = heap_top;
+    heap_top += size;
+    if (heap_top > HEAP_SIZE) {
+        fprintf(stderr, "Out of memory\n");
+        exit(1);
+    }
+    return addr;
+}
+
+// Interaction counter
+uint64_t interaction_count = 0;
+
+// Parser context
+typedef struct {
+    const char* input;
+    int pos;
+} Parser;
+
+// Variable binding table
+typedef struct {
+    char* name;
+    Term term;
+} Binding;
+
+#define MAX_BINDINGS 1024
+Binding bindings[MAX_BINDINGS];
+int binding_count = 0;
+
+// Add a binding
+void add_binding(const char* name, Term term) {
+    if (binding_count >= MAX_BINDINGS) {
+        fprintf(stderr, "Too many bindings\n");
+        exit(1);
+    }
+    bindings[binding_count].name = strdup(name);
+    bindings[binding_count].term = term;
+    binding_count++;
+}
+
+// Look up a binding
+Term lookup_binding(const char* name) {
+    for (int i = binding_count - 1; i >= 0; i--) {
+        if (strcmp(bindings[i].name, name) == 0) {
+            return bindings[i].term;
+        }
+    }
+    fprintf(stderr, "Undefined variable: %s\n", name);
+    exit(1);
+}
+
+// Error reporting
+void parse_error(Parser* p, const char* msg) {
+    int context_start = p->pos - 20;
+    if (context_start < 0) context_start = 0;
+    
+    fprintf(stderr, "Parse error at position %d: %s\n", p->pos, msg);
+    fprintf(stderr, "Context: ...%.*s <HERE> %.*s...\n", 
+            p->pos - context_start, p->input + context_start, 
+            20, p->input + p->pos);
+    exit(1);
+}
+
+// Skip whitespace
+void skip_whitespace(Parser* p) {
+    while (p->input[p->pos] == ' ' || p->input[p->pos] == '\t' || 
+           p->input[p->pos] == '\n' || p->input[p->pos] == '\r') {
+        p->pos++;
+    }
+}
+
+// Consume a specific string
+bool consume(Parser* p, const char* str) {
+    skip_whitespace(p);
+    size_t len = strlen(str);
+    if (strncmp(p->input + p->pos, str, len) == 0) {
+        p->pos += len;
+        return true;
+    }
+    return false;
+}
+
+// Parse an unsigned integer
+uint32_t parse_uint(Parser* p) {
+    skip_whitespace(p);
+    if (!isdigit(p->input[p->pos])) {
+        parse_error(p, "Expected a number");
+    }
+    uint32_t num = 0;
+    while (isdigit(p->input[p->pos])) {
+        num = num * 10 + (p->input[p->pos] - '0');
+        p->pos++;
+    }
+    return num;
+}
+
+// Parse a name (identifier)
+char* parse_name(Parser* p) {
+    skip_whitespace(p);
+    if (!isalpha(p->input[p->pos]) && p->input[p->pos] != '_') {
+        parse_error(p, "Expected a name");
+    }
+    
+    int start = p->pos;
+    while (isalnum(p->input[p->pos]) || p->input[p->pos] == '_') {
+        p->pos++;
+    }
+    
+    int len = p->pos - start;
+    char* name = malloc(len + 1);
+    strncpy(name, p->input + start, len);
+    name[len] = '\0';
+    return name;
+}
+
+// Forward declaration
+Term parse_term(Parser* p);
+
+// Parse a variable
+Term parse_var(Parser* p) {
+    char* name = parse_name(p);
+    Term term = lookup_binding(name);
+    free(name);
+    return term;
+}
+
+// Parse a lambda term
+Term parse_lam(Parser* p) {
+    if (!consume(p, "\\")) {
+        parse_error(p, "Expected '\\'");
+    }
+    
+    char* name = parse_name(p);
+    
+    if (!consume(p, ".")) {
+        parse_error(p, "Expected '.'");
+    }
+    
+    uint32_t lam_loc = alloc(1);
+    Term var_term = MAKE_TERM(0, 0, VAR, lam_loc);
+    add_binding(name, var_term);
+    free(name);
+    
+    heap[lam_loc] = parse_term(p);
+    
+    return MAKE_TERM(0, 0, LAM, lam_loc);
+}
+
+// Parse an application
+Term parse_app(Parser* p) {
+    if (!consume(p, "(")) {
+        parse_error(p, "Expected '('");
+    }
+    
+    uint32_t app_loc = alloc(2);
+    heap[app_loc] = parse_term(p);
+    
+    if (!consume(p, " ")) {
+        parse_error(p, "Expected space");
+    }
+    
+    heap[app_loc + 1] = parse_term(p);
+    
+    if (!consume(p, ")")) {
+        parse_error(p, "Expected ')'");
+    }
+    
+    return MAKE_TERM(0, 0, APP, app_loc);
+}
+
+// Parse a superposition
+Term parse_sup(Parser* p) {
+    if (!consume(p, "&")) {
+        parse_error(p, "Expected '&'");
+    }
+    
+    uint32_t label = parse_uint(p);
+    
+    if (!consume(p, "{")) {
+        parse_error(p, "Expected '{'");
+    }
+    
+    uint32_t sup_loc = alloc(2);
+    heap[sup_loc] = parse_term(p);
+    
+    if (!consume(p, ",")) {
+        parse_error(p, "Expected ','");
+    }
+    
+    heap[sup_loc + 1] = parse_term(p);
+    
+    if (!consume(p, "}")) {
+        parse_error(p, "Expected '}'");
+    }
+    
+    return MAKE_TERM(0, label, SUP, sup_loc);
+}
+
+// Parse a collapser
+Term parse_col(Parser* p) {
+    if (!consume(p, "!")) {
+        parse_error(p, "Expected '!'");
+    }
+    
+    if (!consume(p, "&")) {
+        parse_error(p, "Expected '&'");
+    }
+    
+    uint32_t label = parse_uint(p);
+    
+    if (!consume(p, "{")) {
+        parse_error(p, "Expected '{'");
+    }
+    
+    char* name1 = parse_name(p);
+    
+    if (!consume(p, ",")) {
+        parse_error(p, "Expected ','");
+    }
+    
+    char* name2 = parse_name(p);
+    
+    if (!consume(p, "}")) {
+        parse_error(p, "Expected '}'");
+    }
+    
+    if (!consume(p, "=")) {
+        parse_error(p, "Expected '='");
+    }
+    
+    uint32_t col_loc = alloc(1);
+    heap[col_loc] = parse_term(p);
+    
+    if (!consume(p, ";")) {
+        parse_error(p, "Expected ';'");
+    }
+    
+    Term co0 = MAKE_TERM(0, label, CO0, col_loc);
+    Term co1 = MAKE_TERM(0, label, CO1, col_loc);
+    
+    add_binding(name1, co0);
+    add_binding(name2, co1);
+    
+    free(name1);
+    free(name2);
+    
+    return parse_term(p);
+}
+
+// Parse a let term
+Term parse_let(Parser* p) {
+    if (!consume(p, "!")) {
+        parse_error(p, "Expected '!'");
+    }
+    
+    char* name = parse_name(p);
+    
+    if (!consume(p, "=")) {
+        parse_error(p, "Expected '='");
+    }
+    
+    uint32_t let_loc = alloc(2);
+    heap[let_loc] = parse_term(p);
+    
+    if (!consume(p, ";")) {
+        parse_error(p, "Expected ';'");
+    }
+    
+    Term var = MAKE_TERM(0, 0, VAR, let_loc);
+    add_binding(name, var);
+    free(name);
+    
+    heap[let_loc + 1] = parse_term(p);
+    
+    return MAKE_TERM(0, 0, LET, let_loc);
+}
+
+// Parse SET term
+Term parse_set(Parser* p) {
+    if (!consume(p, "*")) {
+        parse_error(p, "Expected '*'");
+    }
+    return MAKE_TERM(0, 0, SET, 0);
+}
+
+// Parse EMP term
+Term parse_emp(Parser* p) {
+    if (!consume(p, "\\bot")) {
+        parse_error(p, "Expected '\\bot'");
+    }
+    return MAKE_TERM(0, 0, EMP, 0);
+}
+
+// Parse EFQ term
+Term parse_efq(Parser* p) {
+    if (!consume(p, "\\neg")) {
+        parse_error(p, "Expected '\\neg'");
+    }
+    
+    uint32_t efq_loc = alloc(1);
+    heap[efq_loc] = parse_term(p);
+    
+    return MAKE_TERM(0, 0, EFQ, efq_loc);
+}
+
+// Parse UNI term
+Term parse_uni(Parser* p) {
+    if (!consume(p, "\\top")) {
+        parse_error(p, "Expected '\\top'");
+    }
+    return MAKE_TERM(0, 0, UNI, 0);
+}
+
+// Parse NIL term
+Term parse_nil(Parser* p) {
+    if (!consume(p, "()")) {
+        parse_error(p, "Expected '()'");
+    }
+    return MAKE_TERM(0, 0, NIL, 0);
+}
+
+// Parse USE term
+Term parse_use(Parser* p) {
+    if (!consume(p, "-")) {
+        parse_error(p, "Expected '-'");
+    }
+    
+    uint32_t use_loc = alloc(2);
+    heap[use_loc] = parse_term(p);
+    
+    if (!consume(p, ";")) {
+        parse_error(p, "Expected ';'");
+    }
+    
+    heap[use_loc + 1] = parse_term(p);
+    
+    return MAKE_TERM(0, 0, USE, use_loc);
+}
+
+// Parse BIT term
+Term parse_bit(Parser* p) {
+    if (!consume(p, "\\mathbb{B}")) {
+        parse_error(p, "Expected '\\mathbb{B}'");
+    }
+    return MAKE_TERM(0, 0, BIT, 0);
+}
+
+// Parse B_0 term
+Term parse_b_0(Parser* p) {
+    if (!consume(p, "0")) {
+        parse_error(p, "Expected '0'");
+    }
+    return MAKE_TERM(0, 0, B_0, 0);
+}
+
+// Parse B_1 term
+Term parse_b_1(Parser* p) {
+    if (!consume(p, "1")) {
+        parse_error(p, "Expected '1'");
+    }
+    return MAKE_TERM(0, 0, B_1, 0);
+}
+
+// Parse ITE term
+Term parse_ite(Parser* p) {
+    if (!consume(p, "?")) {
+        parse_error(p, "Expected '?'");
+    }
+    
+    uint32_t ite_loc = alloc(3);
+    heap[ite_loc] = parse_term(p);
+    
+    if (!consume(p, "{")) {
+        parse_error(p, "Expected '{'");
+    }
+    
+    heap[ite_loc + 1] = parse_term(p);
+    
+    if (!consume(p, "}")) {
+        parse_error(p, "Expected '}'");
+    }
+    
+    if (!consume(p, ";")) {
+        parse_error(p, "Expected ';'");
+    }
+    
+    if (!consume(p, "{")) {
+        parse_error(p, "Expected '{'");
+    }
+    
+    heap[ite_loc + 2] = parse_term(p);
+    
+    if (!consume(p, "}")) {
+        parse_error(p, "Expected '}'");
+    }
+    
+    return MAKE_TERM(0, 0, ITE, ite_loc);
+}
+
+// Parse SIG term
+Term parse_sig(Parser* p) {
+    if (!consume(p, "\\Sigma")) {
+        parse_error(p, "Expected '\\Sigma'");
+    }
+    
+    char* name = parse_name(p);
+    
+    if (!consume(p, ":")) {
+        parse_error(p, "Expected ':'");
+    }
+    
+    uint32_t sig_loc = alloc(2);
+    heap[sig_loc] = parse_term(p);
+    
+    if (!consume(p, ".")) {
+        parse_error(p, "Expected '.'");
+    }
+    
+    Term var = MAKE_TERM(0, 0, VAR, sig_loc);
+    add_binding(name, var);
+    free(name);
+    
+    heap[sig_loc + 1] = parse_term(p);
+    
+    return MAKE_TERM(0, 0, SIG, sig_loc);
+}
+
+// Parse TUP term
+Term parse_tup(Parser* p) {
+    if (!consume(p, "[")) {
+        parse_error(p, "Expected '['");
+    }
+    
+    uint32_t tup_loc = alloc(2);
+    heap[tup_loc] = parse_term(p);
+    
+    if (!consume(p, ",")) {
+        parse_error(p, "Expected ','");
+    }
+    
+    heap[tup_loc + 1] = parse_term(p);
+    
+    if (!consume(p, "]")) {
+        parse_error(p, "Expected ']'");
+    }
+    
+    return MAKE_TERM(0, 0, TUP, tup_loc);
+}
+
+// Parse GET term
+Term parse_get(Parser* p) {
+    if (!consume(p, "!")) {
+        parse_error(p, "Expected '!'");
+    }
+    
+    if (!consume(p, "[")) {
+        parse_error(p, "Expected '['");
+    }
+    
+    char* name1 = parse_name(p);
+    
+    if (!consume(p, ",")) {
+        parse_error(p, "Expected ','");
+    }
+    
+    char* name2 = parse_name(p);
+    
+    if (!consume(p, "]")) {
+        parse_error(p, "Expected ']'");
+    }
+    
+    if (!consume(p, "=")) {
+        parse_error(p, "Expected '='");
+    }
+    
+    uint32_t get_loc = alloc(2);
+    heap[get_loc] = parse_term(p);
+    
+    if (!consume(p, ";")) {
+        parse_error(p, "Expected ';'");
+    }
+    
+    // Create variables for both projections
+    Term var1 = MAKE_TERM(0, 0, VAR, get_loc);
+    Term var2 = MAKE_TERM(0, 0, VAR, get_loc + 1);
+    
+    add_binding(name1, var1);
+    add_binding(name2, var2);
+    free(name1);
+    free(name2);
+    
+    heap[get_loc + 1] = parse_term(p);
+    
+    return MAKE_TERM(0, 0, GET, get_loc);
+}
+
+// Parse ALL term
+Term parse_all(Parser* p) {
+    if (!consume(p, "\\Pi")) {
+        parse_error(p, "Expected '\\Pi'");
+    }
+    
+    char* name = parse_name(p);
+    
+    if (!consume(p, ":")) {
+        parse_error(p, "Expected ':'");
+    }
+    
+    uint32_t all_loc = alloc(2);
+    heap[all_loc] = parse_term(p);
+    
+    if (!consume(p, ".")) {
+        parse_error(p, "Expected '.'");
+    }
+    
+    Term var = MAKE_TERM(0, 0, VAR, all_loc);
+    add_binding(name, var);
+    free(name);
+    
+    heap[all_loc + 1] = parse_term(p);
+    
+    return MAKE_TERM(0, 0, ALL, all_loc);
+}
+
+// Parse EQL term
+Term parse_eql(Parser* p) {
+    if (!consume(p, "<")) {
+        parse_error(p, "Expected '<'");
+    }
+    
+    uint32_t eql_loc = alloc(2);
+    heap[eql_loc] = parse_term(p);
+    
+    if (!consume(p, "=")) {
+        parse_error(p, "Expected '='");
+    }
+    
+    heap[eql_loc + 1] = parse_term(p);
+    
+    if (!consume(p, ">")) {
+        parse_error(p, "Expected '>'");
+    }
+    
+    return MAKE_TERM(0, 0, EQL, eql_loc);
+}
+
+// Parse RFL term
+Term parse_rfl(Parser* p) {
+    if (!consume(p, "\\theta")) {
+        parse_error(p, "Expected '\\theta'");
+    }
+    return MAKE_TERM(0, 0, RFL, 0);
+}
+
+// Parse RWT term
+Term parse_rwt(Parser* p) {
+    if (!consume(p, "%")) {
+        parse_error(p, "Expected '%'");
+    }
+    
+    uint32_t rwt_loc = alloc(2);
+    heap[rwt_loc] = parse_term(p);
+    
+    if (!consume(p, ";")) {
+        parse_error(p, "Expected ';'");
+    }
+    
+    heap[rwt_loc + 1] = parse_term(p);
+    
+    return MAKE_TERM(0, 0, RWT, rwt_loc);
+}
+
+// Parse a term
+Term parse_term(Parser* p) {
+    skip_whitespace(p);
+    
+    if (p->input[p->pos] == '\0') {
+        parse_error(p, "Unexpected end of input");
+    }
+    
+    if (isalpha(p->input[p->pos]) || p->input[p->pos] == '_') {
+        return parse_var(p);
+    }
+    
+    if (p->input[p->pos] == '\\') {
+        p->pos++; // Skip backslash
+        if (p->input[p->pos] == 'P' && p->input[p->pos+1] == 'i') {
+            p->pos--; // Roll back
+            return parse_all(p);
+        } else if (p->input[p->pos] == 'S' && p->input[p->pos+1] == 'i') {
+            p->pos--; // Roll back
+            return parse_sig(p);
+        } else if (p->input[p->pos] == 'b' && p->input[p->pos+1] == 'o') {
+            p->pos--; // Roll back
+            return parse_emp(p);
+        } else if (p->input[p->pos] == 'n' && p->input[p->pos+1] == 'e') {
+            p->pos--; // Roll back
+            return parse_efq(p);
+        } else if (p->input[p->pos] == 't' && p->input[p->pos+1] == 'o') {
+            p->pos--; // Roll back
+            return parse_uni(p);
+        } else if (p->input[p->pos] == 'm' && p->input[p->pos+1] == 'a') {
+            p->pos--; // Roll back
+            return parse_bit(p);
+        } else if (p->input[p->pos] == 't' && p->input[p->pos+1] == 'h') {
+            p->pos--; // Roll back
+            return parse_rfl(p);
+        } else {
+            p->pos--; // Roll back
+            return parse_lam(p);
+        }
+    }
+    
+    switch (p->input[p->pos]) {
+        case '(':
+            if (p->input[p->pos + 1] == ')') {
+                return parse_nil(p);
+            } else {
+                return parse_app(p);
+            }
+        case '&':
+            return parse_sup(p);
+        case '!':
+            if (p->input[p->pos + 1] == '&') {
+                return parse_col(p);
+            } else if (p->input[p->pos + 1] == '[') {
+                return parse_get(p);
+            } else {
+                return parse_let(p);
+            }
+        case '*':
+            return parse_set(p);
+        case '-':
+            return parse_use(p);
+        case '0':
+            return parse_b_0(p);
+        case '1':
+            return parse_b_1(p);
+        case '?':
+            return parse_ite(p);
+        case '[':
+            return parse_tup(p);
+        case '<':
+            return parse_eql(p);
+        case '%':
+            return parse_rwt(p);
+        default:
+            parse_error(p, "Unexpected character");
+            return 0; // Unreachable
+    }
+}
+
+// Forward declarations for evaluation
+Term whnf(Term term);
+Term normal_form(Term term);
+
+// APP-LAM interaction
+Term app_lam(uint32_t app_loc, uint32_t lam_loc) {
+    interaction_count++;
+    
+    Term arg = heap[app_loc + 1];
+    Term body = heap[lam_loc];
+    
+    // Substitute by setting sub bit
+    heap[lam_loc] = AS_SUB(arg);
+    
+    return body;
+}
+
+// APP-SUP interaction
+Term app_sup(uint32_t app_loc, uint32_t sup_loc, uint8_t label) {
+    interaction_count++;
+    
+    uint32_t co_loc = alloc(1);
+    uint32_t new_sup_loc = alloc(2);
+    
+    // Create new applications
+    uint32_t app0_loc = alloc(2);
+    uint32_t app1_loc = alloc(2);
+    
+    heap[app0_loc] = heap[sup_loc];
+    heap[app0_loc + 1] = MAKE_TERM(0, label, CO0, co_loc);
+    
+    heap[app1_loc] = heap[sup_loc + 1];
+    heap[app1_loc + 1] = MAKE_TERM(0, label, CO1, co_loc);
+    
+    // Create new superposition result
+    heap[new_sup_loc] = MAKE_TERM(0, 0, APP, app0_loc);
+    heap[new_sup_loc + 1] = MAKE_TERM(0, 0, APP, app1_loc);
+    
+    // Set up collapser
+    heap[co_loc] = heap[app_loc + 1];
+    
+    return MAKE_TERM(0, label, SUP, new_sup_loc);
+}
+
+// COL-LAM interaction
+Term col_lam(uint32_t col_loc, uint32_t lam_loc, uint8_t col_tag, uint8_t label) {
+    interaction_count++;
+    
+    // Create new lambdas
+    uint32_t lam0_loc = alloc(1);
+    uint32_t lam1_loc = alloc(1);
+    
+    // Create superposition for variable
+    uint32_t sup_loc = alloc(2);
+    heap[sup_loc] = MAKE_TERM(0, 0, VAR, lam0_loc);
+    heap[sup_loc + 1] = MAKE_TERM(0, 0, VAR, lam1_loc);
+    
+    // Set up collapser for body
+    uint32_t new_col_loc = alloc(1);
+    heap[new_col_loc] = heap[lam_loc];
+    
+    // Create new lambda bodies
+    heap[lam0_loc] = MAKE_TERM(0, label, CO0, new_col_loc);
+    heap[lam1_loc] = MAKE_TERM(0, label, CO1, new_col_loc);
+    
+    // Substitute x with superposition
+    heap[lam_loc] = AS_SUB(MAKE_TERM(0, label, SUP, sup_loc));
+    
+    // Return appropriate lambda based on collapser tag
+    if (col_tag == CO0) {
+        heap[col_loc] = AS_SUB(MAKE_TERM(0, 0, LAM, lam1_loc));
+        return MAKE_TERM(0, 0, LAM, lam0_loc);
+    } else {
+        heap[col_loc] = AS_SUB(MAKE_TERM(0, 0, LAM, lam0_loc));
+        return MAKE_TERM(0, 0, LAM, lam1_loc);
+    }
+}
+
+// COL-SUP interaction
+Term col_sup(uint32_t col_loc, uint32_t sup_loc, uint8_t col_tag, uint8_t col_label, uint8_t sup_label) {
+    interaction_count++;
+    
+    // If labels match, simple collapse
+    if (col_label == sup_label) {
+        if (col_tag == CO0) {
+            heap[col_loc] = AS_SUB(heap[sup_loc + 1]);
+            return heap[sup_loc];
+        } else {
+            heap[col_loc] = AS_SUB(heap[sup_loc]);
+            return heap[sup_loc + 1];
+        }
+    } else {
+        // Labels differ, superposed collapse
+        uint32_t co0_loc = alloc(1);
+        uint32_t co1_loc = alloc(1);
+        uint32_t sup0_loc = alloc(2);
+        uint32_t sup1_loc = alloc(2);
+        
+        // Set up collapsers
+        heap[co0_loc] = heap[sup_loc];
+        heap[co1_loc] = heap[sup_loc + 1];
+        
+        // Create superpositions
+        heap[sup0_loc] = MAKE_TERM(0, col_label, CO0, co0_loc);
+        heap[sup0_loc + 1] = MAKE_TERM(0, col_label, CO0, co1_loc);
+        
+        heap[sup1_loc] = MAKE_TERM(0, col_label, CO1, co0_loc);
+        heap[sup1_loc + 1] = MAKE_TERM(0, col_label, CO1, co1_loc);
+        
+        // Return appropriate superposition
+        if (col_tag == CO0) {
+            heap[col_loc] = AS_SUB(MAKE_TERM(0, sup_label, SUP, sup1_loc));
+            return MAKE_TERM(0, sup_label, SUP, sup0_loc);
+        } else {
+            heap[col_loc] = AS_SUB(MAKE_TERM(0, sup_label, SUP, sup0_loc));
+            return MAKE_TERM(0, sup_label, SUP, sup1_loc);
+        }
+    }
+}
+
+// USE-NIL interaction
+Term use_nil(uint32_t use_loc) {
+    interaction_count++;
+    return heap[use_loc + 1];
+}
+
+// ITE-B_0 interaction
+Term ite_b_0(uint32_t ite_loc) {
+    interaction_count++;
+    return heap[ite_loc + 2]; // Return 'else' branch
+}
+
+// ITE-B_1 interaction
+Term ite_b_1(uint32_t ite_loc) {
+    interaction_count++;
+    return heap[ite_loc + 1]; // Return 'then' branch
+}
+
+// GET-TUP interaction
+Term get_tup(uint32_t get_loc, uint32_t tup_loc) {
+    interaction_count++;
+    
+    // Substitute variables
+    heap[get_loc] = AS_SUB(heap[tup_loc]);
+    heap[get_loc + 1] = AS_SUB(heap[tup_loc + 1]);
+    
+    return heap[get_loc + 1];
+}
+
+// RWT-RFL interaction
+Term rwt_rfl(uint32_t rwt_loc) {
+    interaction_count++;
+    return heap[rwt_loc + 1];
+}
+
+// Compute weak head normal form (WHNF)
+Term whnf(Term term) {
+    while (1) {
+        uint8_t tag = GET_TAG(term);
+        uint32_t val = GET_VAL(term);
+        
+        // Handle variable substitution
+        if (tag == VAR || tag == CO0 || tag == CO1) {
+            Term deref = heap[val];
+            if (IS_SUB(deref)) {
+                term = deref & (~(0x1ULL << 63)); // Clear SUB bit
+                continue;
+            }
+            return term;
+        }
+        
+        // Application interactions
+        if (tag == APP) {
+            Term fun = whnf(heap[val]);
+            uint8_t fun_tag = GET_TAG(fun);
+            uint32_t fun_val = GET_VAL(fun);
+            
+            if (fun_tag == LAM) {
+                term = app_lam(val, fun_val);
+                continue;
+            } else if (fun_tag == SUP) {
+                term = app_sup(val, fun_val, GET_LAB(fun));
+                continue;
+            }
+            
+            // Update function in place
+            heap[val] = fun;
+            return term;
+        }
+        
+        // Collapser interactions (CO0/CO1)
+        if (tag == CO0 || tag == CO1) {
+            Term arg = whnf(heap[val]);
+            uint8_t arg_tag = GET_TAG(arg);
+            uint32_t arg_val = GET_VAL(arg);
+            
+            if (arg_tag == LAM) {
+                term = col_lam(val, arg_val, tag, GET_LAB(term));
+                continue;
+            } else if (arg_tag == SUP) {
+                term = col_sup(val, arg_val, tag, GET_LAB(term), GET_LAB(arg));
+                continue;
+            } else if (arg_tag == NIL || arg_tag == B_0 || arg_tag == B_1) {
+                // For constants, both branches get the same value
+                heap[val] = AS_SUB(arg);
+                return arg;
+            } else if (arg_tag == TUP) {
+                // Tuple collapse - similar to COL-TUP
+                uint32_t co0_loc = alloc(1);
+                uint32_t co1_loc = alloc(1);
+                uint32_t tup0_loc = alloc(2);
+                uint32_t tup1_loc = alloc(2);
+                
+                uint8_t label = GET_LAB(term);
+                
+                heap[co0_loc] = heap[arg_val];
+                heap[co1_loc] = heap[arg_val + 1];
+                
+                heap[tup0_loc] = MAKE_TERM(0, label, CO0, co0_loc);
+                heap[tup0_loc + 1] = MAKE_TERM(0, label, CO0, co1_loc);
+                
+                heap[tup1_loc] = MAKE_TERM(0, label, CO1, co0_loc);
+                heap[tup1_loc + 1] = MAKE_TERM(0, label, CO1, co1_loc);
+                
+                if (tag == CO0) {
+                    heap[val] = AS_SUB(MAKE_TERM(0, 0, TUP, tup1_loc));
+                    return MAKE_TERM(0, 0, TUP, tup0_loc);
+                } else {
+                    heap[val] = AS_SUB(MAKE_TERM(0, 0, TUP, tup0_loc));
+                    return MAKE_TERM(0, 0, TUP, tup1_loc);
+                }
+            }
+            
+            // Update argument in place
+            heap[val] = arg;
+            return term;
+        }
+        
+        // Unit eliminator
+        if (tag == USE) {
+            Term scrut = whnf(heap[val]);
+            uint8_t scrut_tag = GET_TAG(scrut);
+            uint32_t scrut_val = GET_VAL(scrut);
+            
+            if (scrut_tag == NIL) {
+                term = use_nil(val);
+                continue;
+            } else if (scrut_tag == SUP) {
+                // USE-SUP interaction
+                uint32_t co_loc = alloc(1);
+                uint32_t use0_loc = alloc(2);
+                uint32_t use1_loc = alloc(2);
+                uint32_t new_sup_loc = alloc(2);
+                
+                uint8_t label = GET_LAB(scrut);
+                
+                heap[use0_loc] = heap[scrut_val];
+                heap[use0_loc + 1] = MAKE_TERM(0, label, CO0, co_loc);
+                
+                heap[use1_loc] = heap[scrut_val + 1];
+                heap[use1_loc + 1] = MAKE_TERM(0, label, CO1, co_loc);
+                
+                heap[new_sup_loc] = MAKE_TERM(0, 0, USE, use0_loc);
+                heap[new_sup_loc + 1] = MAKE_TERM(0, 0, USE, use1_loc);
+                
+                heap[co_loc] = heap[val + 1];
+                
+                term = MAKE_TERM(0, label, SUP, new_sup_loc);
+                continue;
+            }
+            
+            heap[val] = scrut;
+            return term;
+        }
+        
+        // ITE eliminator
+        if (tag == ITE) {
+            Term cond = whnf(heap[val]);
+            uint8_t cond_tag = GET_TAG(cond);
+            uint32_t cond_val = GET_VAL(cond);
+            
+            if (cond_tag == B_0) {
+                term = ite_b_0(val);
+                continue;
+            } else if (cond_tag == B_1) {
+                term = ite_b_1(val);
+                continue;
+            } else if (cond_tag == SUP) {
+                // ITE-SUP interaction
+                uint32_t co_t_loc = alloc(1);
+                uint32_t co_f_loc = alloc(1);
+                uint32_t ite0_loc = alloc(3);
+                uint32_t ite1_loc = alloc(3);
+                uint32_t new_sup_loc = alloc(2);
+                
+                uint8_t label = GET_LAB(cond);
+                
+                heap[ite0_loc] = heap[cond_val];
+                heap[ite0_loc + 1] = MAKE_TERM(0, label, CO0, co_t_loc);
+                heap[ite0_loc + 2] = MAKE_TERM(0, label, CO0, co_f_loc);
+                
+                heap[ite1_loc] = heap[cond_val + 1];
+                heap[ite1_loc + 1] = MAKE_TERM(0, label, CO1, co_t_loc);
+                heap[ite1_loc + 2] = MAKE_TERM(0, label, CO1, co_f_loc);
+                
+                heap[new_sup_loc] = MAKE_TERM(0, 0, ITE, ite0_loc);
+                heap[new_sup_loc + 1] = MAKE_TERM(0, 0, ITE, ite1_loc);
+                
+                heap[co_t_loc] = heap[val + 1];
+                heap[co_f_loc] = heap[val + 2];
+                
+                term = MAKE_TERM(0, label, SUP, new_sup_loc);
+                continue;
+            }
+            
+            heap[val] = cond;
+            return term;
+        }
+        
+        // GET eliminator
+        if (tag == GET) {
+            Term pair = whnf(heap[val]);
+            uint8_t pair_tag = GET_TAG(pair);
+            uint32_t pair_val = GET_VAL(pair);
+            
+            if (pair_tag == TUP) {
+                term = get_tup(val, pair_val);
+                continue;
+            } else if (pair_tag == SUP) {
+                // GET-SUP interaction
+                uint32_t co_loc = alloc(1);
+                uint32_t get0_loc = alloc(2);
+                uint32_t get1_loc = alloc(2);
+                uint32_t new_sup_loc = alloc(2);
+                
+                uint8_t label = GET_LAB(pair);
+                
+                heap[get0_loc] = heap[pair_val];
+                heap[get0_loc + 1] = MAKE_TERM(0, label, CO0, co_loc);
+                
+                heap[get1_loc] = heap[pair_val + 1];
+                heap[get1_loc + 1] = MAKE_TERM(0, label, CO1, co_loc);
+                
+                heap[new_sup_loc] = MAKE_TERM(0, 0, GET, get0_loc);
+                heap[new_sup_loc + 1] = MAKE_TERM(0, 0, GET, get1_loc);
+                
+                heap[co_loc] = heap[val + 1];
+                
+                term = MAKE_TERM(0, label, SUP, new_sup_loc);
+                continue;
+            }
+            
+            heap[val] = pair;
+            return term;
+        }
+        
+        // RWT eliminator
+        if (tag == RWT) {
+            Term eq = whnf(heap[val]);
+            uint8_t eq_tag = GET_TAG(eq);
+            uint32_t eq_val = GET_VAL(eq);
+            
+            if (eq_tag == RFL) {
+                term = rwt_rfl(val);
+                continue;
+            } else if (eq_tag == SUP) {
+                // RWT-SUP interaction
+                uint32_t co_loc = alloc(1);
+                uint32_t rwt0_loc = alloc(2);
+                uint32_t rwt1_loc = alloc(2);
+                uint32_t new_sup_loc = alloc(2);
+                
+                uint8_t label = GET_LAB(eq);
+                
+                heap[rwt0_loc] = heap[eq_val];
+                heap[rwt0_loc + 1] = MAKE_TERM(0, label, CO0, co_loc);
+                
+                heap[rwt1_loc] = heap[eq_val + 1];
+                heap[rwt1_loc + 1] = MAKE_TERM(0, label, CO1, co_loc);
+                
+                heap[new_sup_loc] = MAKE_TERM(0, 0, RWT, rwt0_loc);
+                heap[new_sup_loc + 1] = MAKE_TERM(0, 0, RWT, rwt1_loc);
+                
+                heap[co_loc] = heap[val + 1];
+                
+                term = MAKE_TERM(0, label, SUP, new_sup_loc);
+                continue;
+            }
+            
+            heap[val] = eq;
+            return term;
+        }
+        
+        // No more reductions
+        return term;
+    }
+}
+
+// Compute normal form
+Term normal_form(Term term) {
+    term = whnf(term);
+    uint8_t tag = GET_TAG(term);
+    uint32_t val = GET_VAL(term);
+    
+    switch (tag) {
+        case LAM:
+            heap[val] = normal_form(heap[val]);
+            break;
+        case APP:
+            heap[val] = normal_form(heap[val]);
+            heap[val + 1] = normal_form(heap[val + 1]);
+            break;
+        case SUP:
+            heap[val] = normal_form(heap[val]);
+            heap[val + 1] = normal_form(heap[val + 1]);
+            break;
+        case TUP:
+            heap[val] = normal_form(heap[val]);
+            heap[val + 1] = normal_form(heap[val + 1]);
+            break;
+        case LET:
+        case USE:
+        case GET:
+        case RWT:
+        case EFQ:
+            heap[val] = normal_form(heap[val]);
+            heap[val + 1] = normal_form(heap[val + 1]);
+            break;
+        case ITE:
+            heap[val] = normal_form(heap[val]);
+            heap[val + 1] = normal_form(heap[val + 1]);
+            heap[val + 2] = normal_form(heap[val + 2]);
+            break;
+        case SIG:
+        case ALL:
+        case EQL:
+            heap[val] = normal_form(heap[val]);
+            heap[val + 1] = normal_form(heap[val + 1]);
+            break;
+    }
+    
+    return term;
+}
+
+// String representation of a term
+void term_to_string(Term term, char* buffer, int size) {
+    uint8_t tag = GET_TAG(term);
+    uint32_t val = GET_VAL(term);
+    
+    switch (tag) {
+        case VAR:
+            snprintf(buffer, size, "v%u", val);
+            break;
+        case LAM:
+            {
+                char body[512];
+                term_to_string(heap[val], body, sizeof(body));
+                snprintf(buffer, size, "\\v%u.%s", val, body);
+            }
+            break;
+        case APP:
+            {
+                char fun[512], arg[512];
+                term_to_string(heap[val], fun, sizeof(fun));
+                term_to_string(heap[val + 1], arg, sizeof(arg));
+                snprintf(buffer, size, "(%s %s)", fun, arg);
+            }
+            break;
+        case SUP:
+            {
+                char lft[512], rgt[512];
+                term_to_string(heap[val], lft, sizeof(lft));
+                term_to_string(heap[val + 1], rgt, sizeof(rgt));
+                snprintf(buffer, size, "&%u{%s,%s}", GET_LAB(term), lft, rgt);
+            }
+            break;
+        case CO0:
+            snprintf(buffer, size, "co0_%u", val);
+            break;
+        case CO1:
+            snprintf(buffer, size, "co1_%u", val);
+            break;
+        case B_0:
+            snprintf(buffer, size, "0");
+            break;
+        case B_1:
+            snprintf(buffer, size, "1");
+            break;
+        case NIL:
+            snprintf(buffer, size, "()");
+            break;
+        default:
+            snprintf(buffer, size, "<%u:%u>", tag, val);
+    }
+}
+
+// Parse a string
+Term parse_string(const char* input) {
+    Parser parser = {input, 0};
+    Term term = parse_term(&parser);
+    skip_whitespace(&parser);
+    if (parser.input[parser.pos] != '\0') {
+        parse_error(&parser, "Unexpected trailing characters");
+    }
+    return term;
+}
+
+int main() {
+    // Test term: ((λf.λx.!{f0,f1}=f;(f0 (f1 x)) λB.λT.λF.((B F) T)) λa.λb.a)
+    const char* test_term = "((\\f.\\x.!&1{f0,f1}=f;(f0 (f1 x)) \\B.\\T.\\F.((B F) T)) \\a.\\b.a)";
+    
+    // Parse and evaluate
+    Term term = parse_string(test_term);
+    printf("Term parsed successfully\n");
+    
+    Term result = normal_form(term);
+    
+    // Display result
+    char buffer[1024];
+    term_to_string(result, buffer, sizeof(buffer));
+    printf("Normal form: %s\n", buffer);
+    printf("Total interactions: %llu\n", interaction_count);
+    
+    return 0;
+}
+
