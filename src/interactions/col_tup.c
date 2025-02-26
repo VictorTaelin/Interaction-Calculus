@@ -1,9 +1,11 @@
+#include <stdio.h>
 #include "../whnf.h"
 #include "../memory.h"
 
 // Implementation of COL-TUP interaction:
 // !&L{x0,x1}=[a,b]; K -> x0<-[a0,b0]; x1<-[a1,b1]; !&L{a0,a1}=a; !&L{b0,b1}=b; K
 Term col_tup(Term col, Term tup) {
+  printf("col_tup\n");
   uint8_t col_lab = TERM_LAB(col);
   uint32_t col_loc = TERM_VAL(col);
   uint32_t tup_loc = TERM_VAL(tup);

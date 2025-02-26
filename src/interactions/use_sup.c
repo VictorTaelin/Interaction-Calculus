@@ -1,8 +1,10 @@
+#include <stdio.h>
 #include "../whnf.h"
 #include "../memory.h"
 
 // Implementation of USE-SUP interaction: -&L{a,b}; k -> !&L{k0,k1}=k; &L{-a;k0, -b;k1}
 Term use_sup(Term use, Term sup) {
+  printf("use_sup\n");
   uint32_t use_loc = TERM_VAL(use);
   uint32_t sup_loc = TERM_VAL(sup);
   uint8_t sup_lab = TERM_LAB(sup);

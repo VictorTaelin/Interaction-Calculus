@@ -25,16 +25,19 @@ void parse_col(Parser* parser, uint32_t loc) {
   expect(parser, "}", "after names in collapser");
   expect(parser, "=", "after names in collapser");
   
+  // Allocate a node specifically for the collapse value
   uint32_t col_node = alloc_term(1);
-  uint32_t val_loc = col_node;
   
-  Term co0_term = make_term(CO0, label, loc);
-  Term co1_term = make_term(CO1, label, loc);
+  // Create collapse variable terms that point to the col_node, NOT to the loc
+  Term co0_term = make_term(CO0, label, col_node);
+  Term co1_term = make_term(CO1, label, col_node);
   add_var_binding(parser, var1, co0_term);
   add_var_binding(parser, var2, co1_term);
   
-  parse_term(parser, val_loc);
+  // Parse the collapse value into col_node
+  parse_term(parser, col_node);
   expect(parser, ";", "after value in collapser");
   
+  // Parse the body of the collapse into loc
   parse_term(parser, loc);
 }

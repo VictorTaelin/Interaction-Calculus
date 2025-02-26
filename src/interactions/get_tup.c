@@ -1,8 +1,10 @@
+#include <stdio.h>
 #include "../whnf.h"
 #include "../memory.h"
 
 // Implementation of GET-TUP interaction: ![x,y]=[a,b]; t -> x<-a; y<-b; t
 Term get_tup(Term get, Term tup) {
+  printf("get_tup\n");
   uint32_t get_loc = TERM_VAL(get);
   uint32_t tup_loc = TERM_VAL(tup);
   

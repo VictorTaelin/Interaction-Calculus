@@ -1,9 +1,11 @@
+#include <stdio.h>
 #include "normal.h"
 #include "whnf.h"
 #include "memory.h"
 
 // Reduce a term to full normal form
 Term normal(Term term) {
+  printf("normal\n");
   // First reduce to WHNF
   term = whnf(term);
   

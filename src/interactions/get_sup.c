@@ -1,9 +1,11 @@
+#include <stdio.h>
 #include "../whnf.h"
 #include "../memory.h"
 
 // Implementation of GET-SUP interaction:
 // ![x,y]=&L{a,b}; k -> !&L{k0,k1}=k; &L{![x,y]=a;k0, ![x,y]=b;k1}
 Term get_sup(Term get, Term sup) {
+  printf("get_sup\n");
   uint32_t get_loc = TERM_VAL(get);
   uint32_t sup_loc = TERM_VAL(sup);
   uint8_t sup_lab = TERM_LAB(sup);

@@ -1,15 +1,17 @@
+#include <stdio.h>
 #include "../whnf.h"
 #include "../memory.h"
 
 // Implementation of COL-SUP interaction: !{x,y}={a,b}; K -> x<-a; y<-b; K
 Term col_sup(Term col, Term sup) {
+  printf("col_sup\n");
   uint8_t col_lab = TERM_LAB(col);
   uint8_t sup_lab = TERM_LAB(sup);
   uint32_t col_loc = TERM_VAL(col);
   uint32_t sup_loc = TERM_VAL(sup);
   
   // Get superposition parts
-  Term lft = heap[sup_loc];
+  Term lft = heap[sup_loc + 0];
   Term rgt = heap[sup_loc + 1];
   
   if (col_lab == sup_lab) {
@@ -38,15 +40,17 @@ Term col_sup(Term col, Term sup) {
     uint32_t sup1_loc = alloc(2);
     
     // Create superposition terms with the original label
-    heap[sup0_loc] = make_term(CO0, col_lab, a0_loc);
+    heap[sup0_loc + 0] = make_term(CO0, col_lab, a0_loc);
     heap[sup0_loc + 1] = make_term(CO0, col_lab, b0_loc);
     
-    heap[sup1_loc] = make_term(CO1, col_lab, a0_loc);
-    heap[sup1_loc + 1] = make_term(CO1, col_lab, b0_loc);
+    heap[sup1_loc + 0] = make_term(CO1, col_lab, a1_loc);
+    heap[sup1_loc + 1] = make_term(CO1, col_lab, b1_loc);
     
-    // Store superpositions as substitution targets
+    // Store original terms at new locations for the collapsers
     heap[a0_loc] = lft;
+    heap[a1_loc] = lft;
     heap[b0_loc] = rgt;
+    heap[b1_loc] = rgt;
     
     // Create the resulting superpositions
     Term su0 = make_term(SUP, sup_lab, sup0_loc);

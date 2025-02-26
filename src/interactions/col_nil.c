@@ -1,8 +1,10 @@
+#include <stdio.h>
 #include "../whnf.h"
 #include "../memory.h"
 
 // Implementation of COL-NIL interaction: !&L{x0,x1}=(); K -> x0<-(); x1<-(); K
 Term col_nil(Term col, Term nil) {
+  printf("col_nil\n");
   uint32_t col_loc = TERM_VAL(col);
   
   // Store () as substitution for the other half of the collapser

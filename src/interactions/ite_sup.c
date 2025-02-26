@@ -1,9 +1,11 @@
+#include <stdio.h>
 #include "../whnf.h"
 #include "../memory.h"
 
 // Implementation of ITE-SUP interaction:
 // ?&L{a,b}{t};{f} -> !&L{t0,t1}=t; !&L{f0,f1}=f; &L{?a{t0};{f0}, ?b{t1};{f1}}
 Term ite_sup(Term ite, Term sup) {
+  printf("ite_sup\n");
   uint32_t ite_loc = TERM_VAL(ite);
   uint32_t sup_loc = TERM_VAL(sup);
   uint8_t sup_lab = TERM_LAB(sup);

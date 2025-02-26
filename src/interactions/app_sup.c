@@ -1,8 +1,10 @@
+#include <stdio.h>
 #include "../whnf.h"
 #include "../memory.h"
 
 // Implementation of APP-SUP interaction: ({a,b} c) -> !{x0,x1}=c; {(a x0),(b x1)}
 Term app_sup(Term app, Term sup) {
+  printf("app_sup\n");
   uint32_t app_loc = TERM_VAL(app);
   uint32_t sup_loc = TERM_VAL(sup);
   uint32_t arg_loc = app_loc + 1;

@@ -1,9 +1,11 @@
+#include <stdio.h>
 #include "../whnf.h"
 #include "../memory.h"
 
 // Implementation of COL-LAM interaction:
 // !{r,s}=λx.f; K -> r<-λx0.f0; s<-λx1.f1; x<-{x0,x1}; !{f0,f1}=f; K
 Term col_lam(Term col, Term lam) {
+  printf("col_lam\n");
   uint8_t col_lab = TERM_LAB(col);
   uint32_t col_loc = TERM_VAL(col);
   uint32_t lam_loc = TERM_VAL(lam);
@@ -37,6 +39,7 @@ Term col_lam(Term col, Term lam) {
   
   // Set up collapser for f0,f1
   heap[f0_loc] = body;
+  heap[f1_loc] = body;
   
   // Store appropriate lambda in collapser location based on which col var we are
   if (TERM_TAG(col) == CO0) {
