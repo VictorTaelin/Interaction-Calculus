@@ -1,40 +1,53 @@
+//./../../suptt.md//
+//./../../old.c//
+//./../memory.h//
+//./../types.h//
+//./../whnf.h//
+//./app_lam.c//
+//./app_sup.c//
+//./col_lam.c//
+
+// TODO: rwt_sup.c
+
 #include <stdio.h>
 #include "../whnf.h"
 #include "../memory.h"
 
-// Implementation of RWT-SUP interaction: %&L{a,b}; k -> !&L{k0,k1}=k; &L{%a;k0, %b;k1}
+// % &L{a,b}; k
+// ---------------- RWT-SUP
+// ! &L{k0,k1} = k;
+// &L{%a;k0, %b;k1}
 Term rwt_sup(Term rwt, Term sup) {
   printf("rwt_sup\n");
   uint32_t rwt_loc = TERM_VAL(rwt);
   uint32_t sup_loc = TERM_VAL(sup);
-  uint8_t sup_lab = TERM_LAB(sup);
+  uint8_t  sup_lab = TERM_LAB(sup);
+
+  Term bod = heap[rwt_loc + 1]; // The body of the rewrite
+  Term lft = heap[sup_loc + 0]; // Left side of superposition
+  Term rgt = heap[sup_loc + 1]; // Right side of superposition
   
-  // Get components
-  Term body = heap[rwt_loc + 1];
-  Term lft = heap[sup_loc];
-  Term rgt = heap[sup_loc + 1];
+  // Create a collapser for the rewrite body
+  uint32_t col_loc = alloc(1);
+  heap[col_loc] = bod;
   
-  // Create locations for new terms
-  uint32_t k0_loc = alloc(1);
-  uint32_t k1_loc = alloc(1);
+  // Create the collapser variables
+  Term k0 = make_term(CO0, sup_lab, col_loc);
+  Term k1 = make_term(CO1, sup_lab, col_loc);
+  
+  // Create the new rewrites
   uint32_t rwt0_loc = alloc(2);
+  heap[rwt0_loc + 0] = lft;
+  heap[rwt0_loc + 1] = k0;
+  
   uint32_t rwt1_loc = alloc(2);
-  uint32_t new_sup_loc = alloc(2);
+  heap[rwt1_loc + 0] = rgt;
+  heap[rwt1_loc + 1] = k1;
   
-  // Set up collapsers for body
-  heap[k0_loc] = body;
+  // Create the resulting superposition
+  uint32_t sup_new_loc = alloc(2);
+  heap[sup_new_loc + 0] = make_term(RWT, 0, rwt0_loc);
+  heap[sup_new_loc + 1] = make_term(RWT, 0, rwt1_loc);
   
-  // Create new rwt expressions
-  heap[rwt0_loc] = lft;
-  heap[rwt0_loc + 1] = make_term(CO0, sup_lab, k0_loc);
-  
-  heap[rwt1_loc] = rgt;
-  heap[rwt1_loc + 1] = make_term(CO1, sup_lab, k0_loc);
-  
-  // Create superposition of rwt expressions
-  heap[new_sup_loc] = make_term(RWT, 0, rwt0_loc);
-  heap[new_sup_loc + 1] = make_term(RWT, 0, rwt1_loc);
-  
-  // Return the superposition
-  return make_term(SUP, sup_lab, new_sup_loc);
+  return make_term(SUP, sup_lab, sup_new_loc);
 }
