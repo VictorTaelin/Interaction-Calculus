@@ -617,4 +617,31 @@ def parse_col(loc):
   vars[co1] = Term(CO1, lab, loc)
 ```
 
+# Stringifying SupTT
 
+Converting SupTT terms to strings faces two challenges:
+
+First, SupTT terms and nodes don't store variable names. As such, 
+
+Second, on SupTT, Col Nodes aren't part of the main program's AST. Instead, they
+"float" on the heap, and are only reachable via CO0 and CO1 variables. Because
+of that, by stringifying a term naively, collapser nodes will be missing.
+
+To solve these, we proceed as follows:
+
+1. Before stringifying, we pass through the full term, and assign a id to each
+variable binder we find (on lam, let, col nodes, etc.)
+
+2. We also register every col node we found, avoiding duplicates (remember the
+same col node is pointed to by up to 2 variables, CO0 and CO1)
+
+Then, to stringify the term, we first stringify each COL node, and then we
+stringify the actual term. As such, the result will always be in the form:
+
+! &{x0 x1} = t0
+! &{x2 x3} = t1
+! &{x4 x5} = t2
+...
+term
+
+With no COL nodes inside the ASTs of t0, t1, t2 ... and term.
