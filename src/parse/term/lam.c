@@ -16,7 +16,7 @@ void parse_term_lam(Parser* parser, uint32_t loc) {
   uint32_t lam_node = alloc_term(1);
   
   Term var_term = make_term(VAR, 0, lam_node);
-  add_var_binding(parser, name, var_term);
+  bind_var(parser, name, var_term);
   
   parse_term(parser, lam_node);
   store_term(loc, LAM, 0, lam_node);

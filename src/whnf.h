@@ -3,6 +3,9 @@
 
 #include "types.h"
 
+// Global interaction counter
+extern uint64_t interaction_count;
+
 // Function declarations for interactions
 Term app_lam(Term app, Term lam);
 Term app_sup(Term app, Term sup);

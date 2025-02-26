@@ -21,7 +21,7 @@ void parse_term_sig(Parser* parser, uint32_t loc) {
   expect(parser, ".", "after first type in sigma type");
   
   Term var_term = make_term(VAR, 0, fst_loc);
-  add_var_binding(parser, name, var_term);
+  bind_var(parser, name, var_term);
   
   parse_term(parser, snd_loc);
   store_term(loc, SIG, 0, sig_node);

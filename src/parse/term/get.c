@@ -22,8 +22,8 @@ void parse_term_get(Parser* parser, uint32_t loc) {
   
   Term fst_var = make_term(VAR, 0, get_node + 2);
   Term snd_var = make_term(VAR, 0, get_node + 2);
-  add_var_binding(parser, name1, fst_var);
-  add_var_binding(parser, name2, snd_var);
+  bind_var(parser, name1, fst_var);
+  bind_var(parser, name2, snd_var);
   
   parse_term(parser, bod_loc);
   store_term(loc, GET, 0, get_node);

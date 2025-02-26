@@ -16,7 +16,7 @@ void parse_error(Parser* parser, const char* message);
 Term* lookup_var_binding(Parser* parser, const char* name);
 
 // Add a variable binding
-void add_var_binding(Parser* parser, const char* name, Term term) {
+void bind_var(Parser* parser, const char* name, Term term) {
   if (parser->vrs_count >= MAX_VARS) {
     parse_error(parser, "Too many variable bindings");
   }

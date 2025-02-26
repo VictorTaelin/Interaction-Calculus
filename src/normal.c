@@ -5,7 +5,7 @@
 
 // Reduce a term to full normal form
 Term normal(Term term) {
-  printf("normal\n");
+  //printf("normal\n");
 
   // First reduce to WHNF
   term = whnf(term);
@@ -24,21 +24,21 @@ Term normal(Term term) {
     case APP: {
       Term fun = normal(heap[val]);
       Term arg = normal(heap[val + 1]);
-      heap[val] = fun;
+      heap[val + 0] = fun;
       heap[val + 1] = arg;
       break;
     }
     case SUP: {
       Term left = normal(heap[val]);
       Term right = normal(heap[val + 1]);
-      heap[val] = left;
+      heap[val + 0] = left;
       heap[val + 1] = right;
       break;
     }
     case LET: {
       Term binding = normal(heap[val]);
       Term body = normal(heap[val + 1]);
-      heap[val] = binding;
+      heap[val + 0] = binding;
       heap[val + 1] = body;
       break;
     }
@@ -50,7 +50,7 @@ Term normal(Term term) {
     case USE: {
       Term arg = normal(heap[val]);
       Term body = normal(heap[val + 1]);
-      heap[val] = arg;
+      heap[val + 0] = arg;
       heap[val + 1] = body;
       break;
     }
@@ -58,7 +58,7 @@ Term normal(Term term) {
       Term cond = normal(heap[val]);
       Term then_branch = normal(heap[val + 1]);
       Term else_branch = normal(heap[val + 2]);
-      heap[val] = cond;
+      heap[val + 0] = cond;
       heap[val + 1] = then_branch;
       heap[val + 2] = else_branch;
       break;
@@ -66,14 +66,14 @@ Term normal(Term term) {
     case SIG: {
       Term arg = normal(heap[val]);
       Term body = normal(heap[val + 1]);
-      heap[val] = arg;
+      heap[val + 0] = arg;
       heap[val + 1] = body;
       break;
     }
     case TUP: {
       Term first = normal(heap[val]);
       Term second = normal(heap[val + 1]);
-      heap[val] = first;
+      heap[val + 0] = first;
       heap[val + 1] = second;
       break;
     }
@@ -87,21 +87,21 @@ Term normal(Term term) {
     case ALL: {
       Term arg = normal(heap[val]);
       Term body = normal(heap[val + 1]);
-      heap[val] = arg;
+      heap[val + 0] = arg;
       heap[val + 1] = body;
       break;
     }
     case EQL: {
       Term left = normal(heap[val]);
       Term right = normal(heap[val + 1]);
-      heap[val] = left;
+      heap[val + 0] = left;
       heap[val + 1] = right;
       break;
     }
     case RWT: {
       Term eq = normal(heap[val]);
       Term body = normal(heap[val + 1]);
-      heap[val] = eq;
+      heap[val + 0] = eq;
       heap[val + 1] = body;
       break;
     }

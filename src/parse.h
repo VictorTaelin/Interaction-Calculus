@@ -44,12 +44,13 @@ void init_parser(Parser* parser, const char* input);
 
 // Main parsing functions
 Term parse_string(const char* input);
+Term parse_file(const char* filename);
 uint32_t parse_term_alloc(Parser* parser);
 void parse_term(Parser* parser, uint32_t loc);
 
 // Variable management
 void add_var_use(Parser* parser, const char* name, uint32_t loc);
-void add_var_binding(Parser* parser, const char* name, Term term);
+void bind_var(Parser* parser, const char* name, Term term);
 Term* lookup_var_binding(Parser* parser, const char* name);
 void resolve_var_uses(Parser* parser);
 
