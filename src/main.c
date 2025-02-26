@@ -5,6 +5,7 @@
 #include "memory.h"
 #include "parse.h"
 #include "whnf.h"
+#include "normal.h"
 #include "show.h"
 
 // Default test term string
