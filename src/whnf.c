@@ -11,251 +11,103 @@
 // Global interaction counter
 uint64_t interaction_count = 0;
 
-// Maximum number of reductions to prevent infinite loops
-#define MAX_REDUCTIONS 2000
-
-static uint32_t reduction_count = 0;
-
 // Reduce a term to weak head normal form
 Term whnf(Term term) {
-  //printf("whnf ");
-  //show_term(stdout, term);
-  //printf("\n");
-
-  // Continue reducing until no more reductions are possible or max count reached
-  while (reduction_count < MAX_REDUCTIONS) {
-    reduction_count++;
-    // Get term tag
+  while (1) {
     TermTag tag = TERM_TAG(term);
 
-    // Handle variables with substitutions
-    if (tag == VAR) {
-      //printf("var\n");
-      uint32_t var_loc = TERM_VAL(term);
-      Term subst = heap[var_loc];
-      
-      // If there's a substitution, continue reduction with substituted term
-      if (TERM_SUB(subst)) {
-        term = subst;
-        continue;
-      } else {
-        // No substitution, term is in WHNF
+    switch (tag) {
+      case VAR: {
+        uint32_t var_loc = TERM_VAL(term);
+        Term subst = heap[var_loc];
+        if (TERM_SUB(subst)) {
+          term = subst;
+          continue;
+        }
         return term;
       }
-    }
-    
-    // Handle collapse variables (CO0, CO1)
-    else if (tag == CO0 || tag == CO1) {
-      uint32_t col_loc = TERM_VAL(term);
-      Term val = heap[col_loc];
       
-      // If there's a substitution, continue reduction with substituted term
-      if (TERM_SUB(val)) {
-        term = val;
-        continue;
+      case CO0:
+      case CO1: {
+        uint32_t col_loc = TERM_VAL(term);
+        Term val = heap[col_loc];
+        if (TERM_SUB(val)) {
+          term = val;
+          continue;
+        }
+        val = whnf(val);
+        heap[col_loc] = val;
+        switch (TERM_TAG(val)) {
+          case LAM: term = col_lam(term, val); continue;
+          case SUP: term = col_sup(term, val); continue;
+          case NIL: term = col_nil(term, val); continue;
+          case B_0: term = col_b_0(term, val); continue;
+          case B_1: term = col_b_1(term, val); continue;
+          case TUP: term = col_tup(term, val); continue;
+          default: return term;
+        }
       }
       
-      // If not a substitution, reduce the value at collapse location
-      val = whnf(val);
-      heap[col_loc] = val; // Store the reduced value back
+      case APP: {
+        uint32_t app_loc = TERM_VAL(term);
+        Term fun = whnf(heap[app_loc]);
+        heap[app_loc] = fun;
+        switch (TERM_TAG(fun)) {
+          case LAM: term = app_lam(term, fun); continue;
+          case SUP: term = app_sup(term, fun); continue;
+          default: return term;
+        }
+      }
       
-      TermTag val_tag = TERM_TAG(val);
+      case USE: {
+        uint32_t use_loc = TERM_VAL(term);
+        Term val = whnf(heap[use_loc]);
+        heap[use_loc] = val;
+        switch (TERM_TAG(val)) {
+          case NIL: term = use_nil(term, val); continue;
+          case SUP: term = use_sup(term, val); continue;
+          default: return term;
+        }
+      }
       
-      // Apply appropriate interactions based on the value's tag
-      if (val_tag == LAM) {
-        interaction_count++;
-        term = col_lam(term, val);
-        continue;
+      case ITE: {
+        uint32_t ite_loc = TERM_VAL(term);
+        Term cond = whnf(heap[ite_loc]);
+        heap[ite_loc] = cond;
+        switch (TERM_TAG(cond)) {
+          case B_0: term = ite_b_0(term, cond); continue;
+          case B_1: term = ite_b_1(term, cond); continue;
+          case SUP: term = ite_sup(term, cond); continue;
+          default: return term;
+        }
       }
-      else if (val_tag == SUP) {
-        interaction_count++;
-        term = col_sup(term, val);
-        continue;
+      
+      case GET: {
+        uint32_t get_loc = TERM_VAL(term);
+        Term val = whnf(heap[get_loc + 2]);
+        heap[get_loc + 2] = val;
+        switch (TERM_TAG(val)) {
+          case TUP: term = get_tup(term, val); continue;
+          case SUP: term = get_sup(term, val); continue;
+          default: return term;
+        }
       }
-      else if (val_tag == NIL) {
-        interaction_count++;
-        term = col_nil(term, val);
-        continue;
+      
+      case RWT: {
+        uint32_t rwt_loc = TERM_VAL(term);
+        Term val = whnf(heap[rwt_loc]);
+        heap[rwt_loc] = val;
+        switch (TERM_TAG(val)) {
+          case RFL: term = rwt_rfl(term, val); continue;
+          case SUP: term = rwt_sup(term, val); continue;
+          default: return term;
+        }
       }
-      else if (val_tag == B_0) {
-        interaction_count++;
-        term = col_b_0(term, val);
-        continue;
-      }
-      else if (val_tag == B_1) {
-        interaction_count++;
-        term = col_b_1(term, val);
-        continue;
-      }
-      else if (val_tag == TUP) {
-        interaction_count++;
-        term = col_tup(term, val);
-        continue;
-      }
-      else {
-        // No interaction available, term is in WHNF
+      
+      default:
         return term;
-      }
-    }
-    
-    // Handle application terms
-    else if (tag == APP) {
-      uint32_t app_loc = TERM_VAL(term);
-      Term fun = heap[app_loc];
-      
-      // Reduce the function part to WHNF
-      fun = whnf(fun);
-      heap[app_loc] = fun;
-      
-      TermTag fun_tag = TERM_TAG(fun);
-      
-      // Handle APP-LAM interaction
-      if (fun_tag == LAM) {
-        interaction_count++;
-        term = app_lam(term, fun);
-        continue;
-      }
-      // Handle APP-SUP interaction
-      else if (fun_tag == SUP) {
-        interaction_count++;
-        term = app_sup(term, fun);
-        continue;
-      }
-      else {
-        // No reduction, term is in WHNF
-        return term;
-      }
-    }
-    
-    // Handle use/elimination terms
-    else if (tag == USE) {
-      uint32_t use_loc = TERM_VAL(term);
-      Term val = heap[use_loc];
-      
-      // Reduce the value to WHNF
-      val = whnf(val);
-      heap[use_loc] = val;
-      
-      TermTag val_tag = TERM_TAG(val);
-      
-      // Handle USE-NIL interaction
-      if (val_tag == NIL) {
-        interaction_count++;
-        term = use_nil(term, val);
-        continue;
-      }
-      // Handle USE-SUP interaction
-      else if (val_tag == SUP) {
-        interaction_count++;
-        term = use_sup(term, val);
-        continue;
-      }
-      else {
-        // No reduction, term is in WHNF
-        return term;
-      }
-    }
-    
-    // Handle if-then-else terms
-    else if (tag == ITE) {
-      uint32_t ite_loc = TERM_VAL(term);
-      Term cond = heap[ite_loc];
-      
-      // Reduce the condition to WHNF
-      cond = whnf(cond);
-      heap[ite_loc] = cond;
-      
-      TermTag cond_tag = TERM_TAG(cond);
-      
-      // Handle ITE-B_0 interaction
-      if (cond_tag == B_0) {
-        interaction_count++;
-        term = ite_b_0(term, cond);
-        continue;
-      }
-      // Handle ITE-B_1 interaction
-      else if (cond_tag == B_1) {
-        interaction_count++;
-        term = ite_b_1(term, cond);
-        continue;
-      }
-      // Handle ITE-SUP interaction
-      else if (cond_tag == SUP) {
-        interaction_count++;
-        term = ite_sup(term, cond);
-        continue;
-      }
-      else {
-        // No reduction, term is in WHNF
-        return term;
-      }
-    }
-    
-    // Handle get/projection terms
-    else if (tag == GET) {
-      uint32_t get_loc = TERM_VAL(term);
-      Term val = heap[get_loc + 2]; // The pair value is at index 2
-      
-      // Reduce the value to WHNF
-      val = whnf(val);
-      heap[get_loc + 2] = val;
-      
-      TermTag val_tag = TERM_TAG(val);
-      
-      // Handle GET-TUP interaction
-      if (val_tag == TUP) {
-        interaction_count++;
-        term = get_tup(term, val);
-        continue;
-      }
-      // Handle GET-SUP interaction
-      else if (val_tag == SUP) {
-        interaction_count++;
-        term = get_sup(term, val);
-        continue;
-      }
-      else {
-        // No reduction, term is in WHNF
-        return term;
-      }
-    }
-    
-    // Handle rewrite terms
-    else if (tag == RWT) {
-      uint32_t rwt_loc = TERM_VAL(term);
-      Term val = heap[rwt_loc];
-      
-      // Reduce the value to WHNF
-      val = whnf(val);
-      heap[rwt_loc] = val;
-      
-      TermTag val_tag = TERM_TAG(val);
-      
-      // Handle RWT-RFL interaction
-      if (val_tag == RFL) {
-        interaction_count++;
-        term = rwt_rfl(term, val);
-        continue;
-      }
-      // Handle RWT-SUP interaction
-      else if (val_tag == SUP) {
-        interaction_count++;
-        term = rwt_sup(term, val);
-        continue;
-      }
-      else {
-        // No reduction, term is in WHNF
-        return term;
-      }
-    }
-    
-    // For all other terms, they are already in WHNF
-    else {
-      return term;
     }
   }
   
-  // If we've reached the maximum number of reductions, we likely have an infinite loop
-  fprintf(stderr, "Error: Maximum reduction count reached, possible infinite loop\n");
   return term;
 }

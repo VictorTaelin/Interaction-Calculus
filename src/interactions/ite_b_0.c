@@ -10,13 +10,17 @@
 // TODO: ite_b_0.c
 
 #include <stdio.h>
+#include "../types.h"
 #include "../whnf.h"
+#include "../types.h"
 #include "../memory.h"
+#include "../types.h"
 
 // ? 0 { t } ; { f }
 // ----------------- ITE-B_0
 // f
 Term ite_b_0(Term ite, Term b_0) {
+  interaction_count++;
   printf("ite_b_0\n");
   uint32_t ite_loc = TERM_VAL(ite);
   

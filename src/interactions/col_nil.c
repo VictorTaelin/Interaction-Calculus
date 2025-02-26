@@ -8,8 +8,11 @@
 //./col_lam.c//
 
 #include <stdio.h>
+#include "../types.h"
 #include "../whnf.h"
+#include "../types.h"
 #include "../memory.h"
+#include "../types.h"
 
 // ! &L{x0,x1} = (); K
 // ------------------- COL-NIL
@@ -17,6 +20,7 @@
 // x1 <- ()
 // K
 Term col_nil(Term col, Term nil) {
+  interaction_count++;
   printf("col_nil\n");
   uint32_t col_loc = TERM_VAL(col);
   

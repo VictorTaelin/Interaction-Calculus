@@ -1,12 +1,9 @@
 //./../../suptt.md//
-//./../../old.c//
-//./../memory.h//
-//./../types.h//
-//./../whnf.h//
 
 #include <stdio.h>
 #include "../whnf.h"
 #include "../memory.h"
+#include "../types.h"
 
 // ! &L{r,s} = λx.f;
 // K
@@ -17,6 +14,7 @@
 // ! &L{f0,f1} = f;
 // K
 Term col_lam(Term col, Term lam) {
+  interaction_count++;
   printf("col_lam\n");
   uint32_t col_loc = TERM_VAL(col);
   uint32_t lam_loc = TERM_VAL(lam);

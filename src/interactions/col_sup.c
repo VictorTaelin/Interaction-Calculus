@@ -8,8 +8,11 @@
 //./col_lam.c//
 
 #include "../memory.h"
+#include "../types.h"
 #include "../whnf.h"
+#include "../types.h"
 #include <stdio.h>
+#include "../types.h"
 
 // ! &L{x,y} = &L{a,b}; K  (if equal labels)
 // -------------------- COL-SUP
@@ -25,6 +28,7 @@
 // ! &L{b0,b1} = b
 // K
 Term col_sup(Term col, Term sup) {
+  interaction_count++;
   printf("col_sup\n");
   uint32_t col_loc = TERM_VAL(col);
   uint32_t sup_loc = TERM_VAL(sup);

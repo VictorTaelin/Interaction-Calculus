@@ -1,19 +1,16 @@
 //./../../suptt.md//
-//./../../old.c//
-//./../memory.h//
-//./../types.h//
-//./../whnf.h//
-//./app_lam.c//
 
 #include <stdio.h>
 #include "../whnf.h"
 #include "../memory.h"
+#include "../types.h"
 
 // ({a,b} c)
 // --------------- APP-SUP
 // ! {x0,x1} = c;
 // {(a x0),(b x1)}
 Term app_sup(Term app, Term sup) {
+  interaction_count++;
   printf("app_sup\n");
   uint32_t app_loc = TERM_VAL(app);
   uint32_t sup_loc = TERM_VAL(sup);

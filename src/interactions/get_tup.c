@@ -10,8 +10,11 @@
 // TODO: get_tup
 
 #include <stdio.h>
+#include "../types.h"
 #include "../whnf.h"
+#include "../types.h"
 #include "../memory.h"
+#include "../types.h"
 
 // ! [x,y] = [a,b]; t
 // ------------------ GET-TUP
@@ -19,6 +22,7 @@
 // y <- b
 // t
 Term get_tup(Term get, Term tup) {
+  interaction_count++;
   printf("get_tup\n");
   uint32_t get_loc = TERM_VAL(get);
   uint32_t tup_loc = TERM_VAL(tup);

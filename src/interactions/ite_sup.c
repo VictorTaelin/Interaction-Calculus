@@ -10,8 +10,11 @@
 // TODO: ite_sup.c
 
 #include <stdio.h>
+#include "../types.h"
 #include "../whnf.h"
+#include "../types.h"
 #include "../memory.h"
+#include "../types.h"
 
 // ? &L{a,b} {t} ; {f}
 // ---------------------------- ITE-SUP
@@ -19,6 +22,7 @@
 // ! &L{f0,f1} = f;
 // &L{?a{t0};{f0}, ?b{t1};{f1}}
 Term ite_sup(Term ite, Term sup) {
+  interaction_count++;
   printf("ite_sup\n");
   uint32_t ite_loc = TERM_VAL(ite);
   uint32_t sup_loc = TERM_VAL(sup);

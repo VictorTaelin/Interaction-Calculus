@@ -10,14 +10,18 @@
 // TODO: rwt_sup.c
 
 #include <stdio.h>
+#include "../types.h"
 #include "../whnf.h"
+#include "../types.h"
 #include "../memory.h"
+#include "../types.h"
 
 // % &L{a,b}; k
 // ---------------- RWT-SUP
 // ! &L{k0,k1} = k;
 // &L{%a;k0, %b;k1}
 Term rwt_sup(Term rwt, Term sup) {
+  interaction_count++;
   printf("rwt_sup\n");
   uint32_t rwt_loc = TERM_VAL(rwt);
   uint32_t sup_loc = TERM_VAL(sup);

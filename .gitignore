@@ -1,8 +1,6 @@
 .tmp/
-
-# Build directories
-suptt/bin/
-suptt/obj/
+bin/
+obj/
 
 # Compiled Object files
 *.o
@@ -28,7 +26,6 @@ suptt/obj/
 *.i*86
 *.x86_64
 *.hex
-suptt/bin/suptt
 
 # Debug files
 *.dSYM/
@@ -50,3 +47,5 @@ suptt/bin/suptt
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+old.c

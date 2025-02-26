@@ -10,13 +10,17 @@
 // TODO: rwt_rfl.c
 
 #include <stdio.h>
+#include "../types.h"
 #include "../whnf.h"
+#include "../types.h"
 #include "../memory.h"
+#include "../types.h"
 
 // % θ; t
 // ------ RWT-RFL
 // t
 Term rwt_rfl(Term rwt, Term rfl) {
+  interaction_count++;
   printf("rwt_rfl\n");
   uint32_t rwt_loc = TERM_VAL(rwt);
   

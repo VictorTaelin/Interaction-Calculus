@@ -8,8 +8,11 @@
 //./col_lam.c//
 
 #include <stdio.h>
+#include "../types.h"
 #include "../whnf.h"
+#include "../types.h"
 #include "../memory.h"
+#include "../types.h"
 
 // ! &L{x0,x1} = [a,b]; K
 // ---------------------- COL-TUP
@@ -19,6 +22,7 @@
 // ! &L{b0,b1} = b
 // K
 Term col_tup(Term col, Term tup) {
+  interaction_count++;
   printf("col_tup\n");
   uint32_t col_loc = TERM_VAL(col);
   uint32_t tup_loc = TERM_VAL(tup);

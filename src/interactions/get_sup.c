@@ -8,14 +8,18 @@
 //./col_lam.c//
 
 #include <stdio.h>
+#include "../types.h"
 #include "../whnf.h"
+#include "../types.h"
 #include "../memory.h"
+#include "../types.h"
 
 // ! [x,y] = &L{a,b}; k
 // ---------------------------- GET-SUP
 // ! &L{k0,k1} = k;
 // &L{![x,y]=a;k0, ![x,y]=b;k1}
 Term get_sup(Term get, Term sup) {
+  interaction_count++;
   printf("get_sup\n");
   uint32_t get_loc = TERM_VAL(get);
   uint32_t sup_loc = TERM_VAL(sup);

@@ -8,13 +8,17 @@
 //./col_lam.c//
 
 #include <stdio.h>
+#include "../types.h"
 #include "../whnf.h"
+#include "../types.h"
 #include "../memory.h"
+#include "../types.h"
 
 // - () t
 // ------ USE-NIL
 // t
 Term use_nil(Term use, Term nil) {
+  interaction_count++;
   printf("use_nil\n");
   uint32_t use_loc = TERM_VAL(use);
   

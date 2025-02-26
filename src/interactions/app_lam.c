@@ -3,12 +3,14 @@
 #include <stdio.h>
 #include "../whnf.h"
 #include "../memory.h"
+#include "../types.h"
 
-// (λx(body) a)
-// ------------ APP-LAM
+// (λx.f a)
+// -------- APP-LAM
 // x <- a
-// body
+// f
 Term app_lam(Term app, Term lam) {
+  interaction_count++;
   printf("app_lam\n");
   uint32_t app_loc = TERM_VAL(app);
   uint32_t lam_loc = TERM_VAL(lam);
