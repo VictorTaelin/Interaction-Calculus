@@ -3,7 +3,7 @@
 #include "../../memory.h"
 
 // Parse an equality type
-void parse_eql(Parser* parser, uint32_t loc) {
+void parse_term_eql(Parser* parser, uint32_t loc) {
   expect(parser, "<", "for equality type");
   
   uint32_t eql_node = alloc_term(2);

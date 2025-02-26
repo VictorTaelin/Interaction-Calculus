@@ -3,7 +3,7 @@
 #include "../../memory.h"
 
 // Parse a bool elimination
-void parse_ite(Parser* parser, uint32_t loc) {
+void parse_term_ite(Parser* parser, uint32_t loc) {
   expect(parser, "?", "for bool elimination");
   
   uint32_t ite_node = alloc_term(3);

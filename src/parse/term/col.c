@@ -4,7 +4,7 @@
 #include "../../memory.h"
 
 // Parse a collapser
-void parse_col(Parser* parser, uint32_t loc) {
+void parse_term_col(Parser* parser, uint32_t loc) {
   expect(parser, "!&", "for collapser");
   
   uint8_t label = parse_uint(parser) & 3;

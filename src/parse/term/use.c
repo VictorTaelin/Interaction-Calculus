@@ -3,7 +3,7 @@
 #include "../../memory.h"
 
 // Parse a unit elimination
-void parse_use(Parser* parser, uint32_t loc) {
+void parse_term_use(Parser* parser, uint32_t loc) {
   expect(parser, "-", "for unit elimination");
   
   uint32_t use_node = alloc_term(2);

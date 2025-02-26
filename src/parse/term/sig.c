@@ -3,7 +3,7 @@
 #include "../../memory.h"
 
 // Parse a sigma type
-void parse_sig(Parser* parser, uint32_t loc) {
+void parse_term_sig(Parser* parser, uint32_t loc) {
   if (check_utf8(parser, 0xCE, 0xA3)) {
     consume_utf8(parser, 2);
   } else if (!consume(parser, "Σ")) {

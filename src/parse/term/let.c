@@ -3,7 +3,7 @@
 #include "../../memory.h"
 
 // Parse a let binding
-void parse_let(Parser* parser, uint32_t loc) {
+void parse_term_let(Parser* parser, uint32_t loc) {
   expect(parser, "!", "for let binding");
   
   char* name = parse_name(parser);

@@ -3,7 +3,7 @@
 #include "../../memory.h"
 
 // Parse an equality elimination
-void parse_rwt(Parser* parser, uint32_t loc) {
+void parse_term_rwt(Parser* parser, uint32_t loc) {
   expect(parser, "%", "for equality elimination");
   
   uint32_t rwt_node = alloc_term(2);

@@ -3,7 +3,7 @@
 #include "../../memory.h"
 
 // Parse a superposition
-void parse_sup(Parser* parser, uint32_t loc) {
+void parse_term_sup(Parser* parser, uint32_t loc) {
   expect(parser, "&", "for superposition");
   
   uint8_t label = parse_uint(parser) & 3; // Ensure it fits in 2 bits

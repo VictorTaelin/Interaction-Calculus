@@ -3,7 +3,7 @@
 #include "../../memory.h"
 
 // Parse a sigma type elimination
-void parse_get(Parser* parser, uint32_t loc) {
+void parse_term_get(Parser* parser, uint32_t loc) {
   expect(parser, "![", "for sigma elimination");
   
   char* name1 = parse_name(parser);

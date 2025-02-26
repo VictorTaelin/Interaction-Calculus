@@ -3,7 +3,7 @@
 #include "../../memory.h"
 
 // Parse a tuple
-void parse_tup(Parser* parser, uint32_t loc) {
+void parse_term_tup(Parser* parser, uint32_t loc) {
   expect(parser, "[", "for tuple");
   
   uint32_t tup_node = alloc_term(2);

@@ -3,7 +3,7 @@
 #include "../../memory.h"
 
 // Parse a pi type
-void parse_all(Parser* parser, uint32_t loc) {
+void parse_term_all(Parser* parser, uint32_t loc) {
   if (check_utf8(parser, 0xCE, 0xA0)) {
     consume_utf8(parser, 2);
   } else if (!consume(parser, "Π")) {
