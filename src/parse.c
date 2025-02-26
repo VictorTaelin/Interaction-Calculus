@@ -4,6 +4,7 @@
 #include <ctype.h>
 #include "parse.h"
 #include "memory.h"
+#include "show.h"
 
 // Initialize a parser with the given input string
 void init_parser(Parser* parser, const char* input) {
@@ -77,6 +78,7 @@ Term* lookup_var_binding(Parser* parser, const char* name) {
 
 // Resolve all variable uses after parsing
 void resolve_var_uses(Parser* parser) {
+  // Now resolve each variable use
   for (size_t i = 0; i < parser->lcs_count; i++) {
     const char* name = parser->lcs[i].name;
     uint32_t loc = parser->lcs[i].loc;
@@ -499,14 +501,23 @@ void parse_col(Parser* parser, uint32_t loc) {
     parse_error(parser, "Expected '{' after label in collapser");
   }
   
-  // Parse the variable names
-  char* name1 = parse_name(parser);
+  // IMPORTANT: We need to make local copies of these immediately
+  static char var1[MAX_NAME_LEN];
+  static char var2[MAX_NAME_LEN];
+  
+  // Parse the first variable name and immediately make a copy
+  char* temp_name = parse_name(parser);
+  strncpy(var1, temp_name, MAX_NAME_LEN - 1);
+  var1[MAX_NAME_LEN - 1] = '\0';
   
   if (!consume(parser, ",")) {
     parse_error(parser, "Expected ',' between names in collapser");
   }
   
-  char* name2 = parse_name(parser);
+  // Parse the second variable name and immediately make a copy
+  temp_name = parse_name(parser);
+  strncpy(var2, temp_name, MAX_NAME_LEN - 1);
+  var2[MAX_NAME_LEN - 1] = '\0';
   
   if (!consume(parser, "}")) {
     parse_error(parser, "Expected '}' after names in collapser");
@@ -522,8 +533,8 @@ void parse_col(Parser* parser, uint32_t loc) {
   // Add variable bindings for the CO0 and CO1 terms
   Term co0_term = make_term(CO0, label, loc); // Point to the location where body will be stored
   Term co1_term = make_term(CO1, label, loc);
-  add_var_binding(parser, name1, co0_term);
-  add_var_binding(parser, name2, co1_term);
+  add_var_binding(parser, var1, co0_term);
+  add_var_binding(parser, var2, co1_term);
   
   // Parse the value being collapsed
   parse_term(parser, val_loc);
@@ -866,7 +877,7 @@ void parse_lam(Parser* parser, uint32_t loc) {
 }
 
 // Parse an application
-void parse_app(Parser* parser, uint32_t loc) {
+void parse_app(Parser* parser, uint32_t loc) {  
   if (!consume(parser, "(")) {
     parse_error(parser, "Expected '(' for application");
   }
