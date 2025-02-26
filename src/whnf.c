@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include "whnf.h"
 #include "memory.h"
+#include "interactions/interactions.h"
 
 // Initialize the interaction counter
 uint64_t interaction_count = 0;
@@ -276,92 +277,4 @@ Term normal(Term term) {
   }
   
   return term;
-}
-
-// Stub implementations for individual interactions
-// These will be implemented in separate files later
-
-Term app_lam(Term app, Term lam) {
-  // Placeholder - will be implemented later
-  return app;
-}
-
-Term app_sup(Term app, Term sup) {
-  // Placeholder - will be implemented later
-  return app;
-}
-
-Term col_sup(Term col, Term sup) {
-  // Placeholder - will be implemented later
-  return col;
-}
-
-Term col_lam(Term col, Term lam) {
-  // Placeholder - will be implemented later
-  return col;
-}
-
-Term col_nil(Term col, Term nil) {
-  // Placeholder - will be implemented later
-  return col;
-}
-
-Term col_b_0(Term col, Term b_0) {
-  // Placeholder - will be implemented later
-  return col;
-}
-
-Term col_b_1(Term col, Term b_1) {
-  // Placeholder - will be implemented later
-  return col;
-}
-
-Term col_tup(Term col, Term tup) {
-  // Placeholder - will be implemented later
-  return col;
-}
-
-Term use_nil(Term use, Term nil) {
-  // Placeholder - will be implemented later
-  return use;
-}
-
-Term use_sup(Term use, Term sup) {
-  // Placeholder - will be implemented later
-  return use;
-}
-
-Term ite_b0(Term ite, Term b_0) {
-  // Placeholder - will be implemented later
-  return ite;
-}
-
-Term ite_b1(Term ite, Term b_1) {
-  // Placeholder - will be implemented later
-  return ite;
-}
-
-Term ite_sup(Term ite, Term sup) {
-  // Placeholder - will be implemented later
-  return ite;
-}
-
-Term get_tup(Term get, Term tup) {
-  // Placeholder - will be implemented later
-  return get;
-}
-
-Term get_sup(Term get, Term sup) {
-  // Placeholder - will be implemented later
-  return get;
-}
-
-Term rwt_rfl(Term rwt, Term rfl) {
-  // Placeholder - will be implemented later
-  return rwt;
-}
-
-Term rwt_sup(Term rwt, Term sup) {
-  // Placeholder - will be implemented later
-  return rwt;
 }

@@ -1,0 +1,8 @@
+#include <stddef.h>
+#include "../../parse.h"
+
+// Parse a variable
+void parse_var(Parser* parser, uint32_t loc) {
+  char* name = parse_name(parser);
+  add_var_use(parser, name, loc);
+}

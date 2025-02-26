@@ -9,36 +9,52 @@ SRCS = $(SRC_DIR)/main.c \
        $(SRC_DIR)/memory.c \
        $(SRC_DIR)/parse.c \
        $(SRC_DIR)/show.c \
-       $(SRC_DIR)/whnf.c
+       $(SRC_DIR)/whnf.c \
+       $(SRC_DIR)/init_parser.c \
+       $(SRC_DIR)/parse_term_alloc.c \
+       $(SRC_DIR)/alloc_term.c \
+       $(SRC_DIR)/store_term.c
 
-# Interaction functions (will be implemented later)
-# INT_SRCS = $(wildcard $(SRC_DIR)/interactions/*.c)
+# Find all parser module files
+PARSE_SRCS = $(wildcard $(SRC_DIR)/parse/term/*.c) \
+             $(wildcard $(SRC_DIR)/parse/util/*.c) \
+             $(wildcard $(SRC_DIR)/parse/var/*.c)
+
+# Interaction functions
+INT_SRCS = $(SRC_DIR)/interactions/app_lam.c \
+           $(SRC_DIR)/interactions/app_sup.c \
+           $(SRC_DIR)/interactions/col_sup.c \
+           $(SRC_DIR)/interactions/col_lam.c \
+           $(SRC_DIR)/interactions/other_rules.c
 
 # Objects
 OBJS = $(SRCS:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
-# INT_OBJS = $(INT_SRCS:$(SRC_DIR)/interactions/%.c=$(OBJ_DIR)/interactions/%.o)
+PARSE_OBJS = $(PARSE_SRCS:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
+INT_OBJS = $(INT_SRCS:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
 
 # Executable
 TARGET = $(BIN_DIR)/main
+TARGET_LN = $(BIN_DIR)/suptt
 
 # Directories
-DIRS = $(OBJ_DIR) $(BIN_DIR) # $(OBJ_DIR)/interactions
+DIRS = $(OBJ_DIR) $(BIN_DIR) $(OBJ_DIR)/interactions $(OBJ_DIR)/parse \
+       $(OBJ_DIR)/parse/term $(OBJ_DIR)/parse/util $(OBJ_DIR)/parse/var
 
 .PHONY: all clean
 
-all: $(DIRS) $(TARGET)
+all: $(DIRS) $(TARGET) $(TARGET_LN)
 
 $(DIRS):
 	mkdir -p $@
 
-$(TARGET): $(OBJS) # $(INT_OBJS)
+$(TARGET): $(OBJS) $(PARSE_OBJS) $(INT_OBJS)
 	$(CC) $(CFLAGS) -o $@ $^
+
+$(TARGET_LN): $(TARGET)
+	ln -sf main $(TARGET_LN)
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
 	$(CC) $(CFLAGS) -c -o $@ $<
-
-# $(OBJ_DIR)/interactions/%.o: $(SRC_DIR)/interactions/%.c
-# 	$(CC) $(CFLAGS) -c -o $@ $<
 
 clean:
 	rm -rf $(OBJ_DIR) $(BIN_DIR)

@@ -31,7 +31,7 @@ typedef struct {
   size_t line;        // Current line number
   size_t col;         // Current column number
   
-  // Uses and bindings as described in suptt.md
+  // Uses and bindings for variable resolution
   VarUse lcs[MAX_USES];            // Array of unresolved variable uses
   size_t lcs_count;                // Number of uses
   
@@ -47,35 +47,32 @@ Term parse_string(const char* input);
 uint32_t parse_term_alloc(Parser* parser);
 void parse_term(Parser* parser, uint32_t loc);
 
-// Helper functions for parsing
+// Variable management
+void add_var_use(Parser* parser, const char* name, uint32_t loc);
+void add_var_binding(Parser* parser, const char* name, Term term);
+Term* lookup_var_binding(Parser* parser, const char* name);
+void resolve_var_uses(Parser* parser);
+
+// Helper parsing functions
 void parse_whitespace(Parser* parser);
 char peek_char(Parser* parser);
 char next_char(Parser* parser);
-bool consume(Parser* parser, const char* str);
-
-// Function to check if the next character is a specific character
 bool peek_is(Parser* parser, char c);
-
-// Parse a uint from the input
+bool consume(Parser* parser, const char* str);
+bool expect(Parser* parser, const char* token, const char* error_context);
 uint32_t parse_uint(Parser* parser);
-
-// Track a variable use to be resolved later
-void add_var_use(Parser* parser, const char* name, uint32_t loc);
-
-// Add a variable binding
-void add_var_binding(Parser* parser, const char* name, Term term);
-
-// Look up a variable binding by name
-Term* lookup_var_binding(Parser* parser, const char* name);
-
-// Resolve all variable uses after parsing
-void resolve_var_uses(Parser* parser);
-
-// Parse a name from the input
 char* parse_name(Parser* parser);
-
-// Error reporting
 void parse_error(Parser* parser, const char* message);
+
+// UTF-8 helpers
+bool check_utf8(Parser* parser, uint8_t b1, uint8_t b2);
+bool check_utf8_3bytes(Parser* parser, uint8_t b1, uint8_t b2, uint8_t b3);
+bool check_utf8_4bytes(Parser* parser, uint8_t b1, uint8_t b2, uint8_t b3, uint8_t b4);
+void consume_utf8(Parser* parser, int bytes);
+
+// Term creation helpers
+uint32_t alloc_term(uint32_t n);
+void store_term(uint32_t loc, TermTag tag, uint8_t label, uint32_t value);
 
 // Individual term parsers
 void parse_var(Parser* parser, uint32_t loc);
