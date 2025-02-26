@@ -6,6 +6,7 @@
 // Reduce a term to full normal form
 Term normal(Term term) {
   printf("normal\n");
+
   // First reduce to WHNF
   term = whnf(term);
   
@@ -16,13 +17,11 @@ Term normal(Term term) {
   // Recursively normalize subterms based on the term type
   switch (tag) {
     case LAM: {
-      // Normalize lambda body
       Term body = normal(heap[val]);
       heap[val] = body;
       break;
     }
     case APP: {
-      // Normalize function and argument
       Term fun = normal(heap[val]);
       Term arg = normal(heap[val + 1]);
       heap[val] = fun;
@@ -30,7 +29,6 @@ Term normal(Term term) {
       break;
     }
     case SUP: {
-      // Normalize both sides of superposition
       Term left = normal(heap[val]);
       Term right = normal(heap[val + 1]);
       heap[val] = left;
@@ -38,7 +36,6 @@ Term normal(Term term) {
       break;
     }
     case LET: {
-      // Normalize let binding and body
       Term binding = normal(heap[val]);
       Term body = normal(heap[val + 1]);
       heap[val] = binding;
@@ -46,13 +43,11 @@ Term normal(Term term) {
       break;
     }
     case EFQ: {
-      // Normalize argument of empty type elimination
       Term arg = normal(heap[val]);
       heap[val] = arg;
       break;
     }
     case USE: {
-      // Normalize unit elimination
       Term arg = normal(heap[val]);
       Term body = normal(heap[val + 1]);
       heap[val] = arg;
@@ -60,7 +55,6 @@ Term normal(Term term) {
       break;
     }
     case ITE: {
-      // Normalize if-then-else
       Term cond = normal(heap[val]);
       Term then_branch = normal(heap[val + 1]);
       Term else_branch = normal(heap[val + 2]);
@@ -70,7 +64,6 @@ Term normal(Term term) {
       break;
     }
     case SIG: {
-      // Normalize sigma type
       Term arg = normal(heap[val]);
       Term body = normal(heap[val + 1]);
       heap[val] = arg;
@@ -78,7 +71,6 @@ Term normal(Term term) {
       break;
     }
     case TUP: {
-      // Normalize tuple
       Term first = normal(heap[val]);
       Term second = normal(heap[val + 1]);
       heap[val] = first;
@@ -86,7 +78,6 @@ Term normal(Term term) {
       break;
     }
     case GET: {
-      // Normalize get operation
       Term pair = normal(heap[val + 2]);
       Term body = normal(heap[val + 3]);
       heap[val + 2] = pair;
@@ -94,7 +85,6 @@ Term normal(Term term) {
       break;
     }
     case ALL: {
-      // Normalize pi type
       Term arg = normal(heap[val]);
       Term body = normal(heap[val + 1]);
       heap[val] = arg;
@@ -102,7 +92,6 @@ Term normal(Term term) {
       break;
     }
     case EQL: {
-      // Normalize equality type
       Term left = normal(heap[val]);
       Term right = normal(heap[val + 1]);
       heap[val] = left;
@@ -110,14 +99,12 @@ Term normal(Term term) {
       break;
     }
     case RWT: {
-      // Normalize rewrite
       Term eq = normal(heap[val]);
       Term body = normal(heap[val + 1]);
       heap[val] = eq;
       heap[val + 1] = body;
       break;
     }
-    // For other terms (VAR, CO0, CO1, etc.), nothing to normalize
     default:
       break;
   }
