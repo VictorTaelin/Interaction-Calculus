@@ -12,15 +12,15 @@
 uint64_t interaction_count = 0;
 
 // Maximum number of reductions to prevent infinite loops
-#define MAX_REDUCTIONS 20
+#define MAX_REDUCTIONS 2000
 
 static uint32_t reduction_count = 0;
 
 // Reduce a term to weak head normal form
 Term whnf(Term term) {
-  printf("whnf ");
-  show_term(stdout, term);
-  printf("\n");
+  //printf("whnf ");
+  //show_term(stdout, term);
+  //printf("\n");
 
   // Continue reducing until no more reductions are possible or max count reached
   while (reduction_count < MAX_REDUCTIONS) {
@@ -30,7 +30,7 @@ Term whnf(Term term) {
 
     // Handle variables with substitutions
     if (tag == VAR) {
-      printf("var\n");
+      //printf("var\n");
       uint32_t var_loc = TERM_VAL(term);
       Term subst = heap[var_loc];
       
@@ -46,7 +46,6 @@ Term whnf(Term term) {
     
     // Handle collapse variables (CO0, CO1)
     else if (tag == CO0 || tag == CO1) {
-      printf("col\n");
       uint32_t col_loc = TERM_VAL(term);
       Term val = heap[col_loc];
       
@@ -101,7 +100,6 @@ Term whnf(Term term) {
     
     // Handle application terms
     else if (tag == APP) {
-      printf("app\n");
       uint32_t app_loc = TERM_VAL(term);
       Term fun = heap[app_loc];
       
@@ -113,14 +111,12 @@ Term whnf(Term term) {
       
       // Handle APP-LAM interaction
       if (fun_tag == LAM) {
-        printf("app_lam\n");
         interaction_count++;
         term = app_lam(term, fun);
         continue;
       }
       // Handle APP-SUP interaction
       else if (fun_tag == SUP) {
-        printf("app_sup\n");
         interaction_count++;
         term = app_sup(term, fun);
         continue;
@@ -133,7 +129,6 @@ Term whnf(Term term) {
     
     // Handle use/elimination terms
     else if (tag == USE) {
-      printf("use\n");
       uint32_t use_loc = TERM_VAL(term);
       Term val = heap[use_loc];
       
@@ -163,7 +158,6 @@ Term whnf(Term term) {
     
     // Handle if-then-else terms
     else if (tag == ITE) {
-      printf("ite\n");
       uint32_t ite_loc = TERM_VAL(term);
       Term cond = heap[ite_loc];
       
@@ -199,7 +193,6 @@ Term whnf(Term term) {
     
     // Handle get/projection terms
     else if (tag == GET) {
-      printf("get\n");
       uint32_t get_loc = TERM_VAL(term);
       Term val = heap[get_loc + 2]; // The pair value is at index 2
       
@@ -229,7 +222,6 @@ Term whnf(Term term) {
     
     // Handle rewrite terms
     else if (tag == RWT) {
-      printf("rwt\n");
       uint32_t rwt_loc = TERM_VAL(term);
       Term val = heap[rwt_loc];
       
@@ -259,7 +251,6 @@ Term whnf(Term term) {
     
     // For all other terms, they are already in WHNF
     else {
-      printf("done\n");
       return term;
     }
   }

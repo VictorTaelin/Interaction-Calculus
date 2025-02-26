@@ -9,8 +9,7 @@
 #include "show.h"
 
 // Default test term string
-// A slightly more complex term with application in SupTT syntax
-const char* DEFAULT_TEST_TERM = "(λf.λx.!&0{f0,f1}=f;(f0 (f1 x)) λk.k)";
+const char* DEFAULT_TEST_TERM = "((λf.λx.!&0{f0,f1}=f;(f0 (f1 x)) λB.λT.λF.((B F) T)) λa.λb.a)";
 
 // Test the parser by parsing and showing the default test term
 void test_parser() {
