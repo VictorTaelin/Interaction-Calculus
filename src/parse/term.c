@@ -57,9 +57,9 @@ void parse_term(Parser* parser, uint32_t loc) {
             (unsigned char)parser->input[parser->pos + 3] == 0xB9) {
     parse_bit(parser, loc);
   } else if (c == '0') {
-    parse_b_0(parser, loc);
+    parse_bt0(parser, loc);
   } else if (c == '1') {
-    parse_b_1(parser, loc);
+    parse_bt1(parser, loc);
   } else if (c == '?') {
     parse_ite(parser, loc);
   } else if (c == 0xCE) {

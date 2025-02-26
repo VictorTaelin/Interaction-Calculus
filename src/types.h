@@ -18,8 +18,8 @@ typedef enum {
   NIL, // Unit value
   USE, // Unit elimination
   BIT, // Bool type
-  B_0, // False value
-  B_1, // True value
+  BT0, // False value
+  BT1, // True value
   ITE, // Bool elimination
   SIG, // Sigma type
   TUP, // Tuple (pair)

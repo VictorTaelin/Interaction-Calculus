@@ -241,7 +241,7 @@ void assign_var_ids(Term term, VarNameTable* var_table, ColTable* col_table) {
       break;
     }
     
-    // No need to process leaf nodes (SET, EMP, UNI, NIL, BIT, B_0, B_1, RFL)
+    // No need to process leaf nodes (SET, EMP, UNI, NIL, BIT, BT0, BT1, RFL)
     default:
       break;
   }
@@ -349,11 +349,11 @@ void stringify_term(Term term, VarNameTable* var_table, char* buffer, int* pos, 
       *pos += snprintf(buffer + *pos, max_len - *pos, "𝔹");
       break;
       
-    case B_0:
+    case BT0:
       *pos += snprintf(buffer + *pos, max_len - *pos, "0");
       break;
       
-    case B_1:
+    case BT1:
       *pos += snprintf(buffer + *pos, max_len - *pos, "1");
       break;
       

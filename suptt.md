@@ -269,8 +269,8 @@ Term ::=
   | USE: "-" Term ";" Term
   -- Bool Type
   | BIT: "𝔹"
-  | B_0: "0"
-  | B_1: "1"
+  | BT0: "0"
+  | BT1: "1"
   | ITE: "?" Term "{" Term "}" ";" "{" Term "}"
   -- Sigma Type
   | SIG: "Σ" Name ":" Term "." Term
@@ -318,11 +318,11 @@ Constructors interact with their eliminators, as expected:
 t
 
 ? 0 { t } ; { f }
------------------ ITE-B_0
+----------------- ITE-BT0
 f
 
 ? 1 { t } ; { f }
------------------ ITE-B_1
+----------------- ITE-BT1
 t
 
 ! [x,y] = [a,b]; t
@@ -351,13 +351,13 @@ x1 <- ()
 K
 
 ! &L{x0,x1} = 0; K
------------------- COL-B_0
+------------------ COL-BT0
 x0 <- 0
 x1 <- 0
 K
 
 ! &L{x0,x1} = 1; K
------------------- COL-B_1
+------------------ COL-BT1
 x0 <- 1
 x1 <- 1
 K
@@ -455,8 +455,8 @@ The tag field can be:
 - `NIL`
 - `USE`
 - `BIT`
-- `B_0`
-- `B_1`
+- `BT0`
+- `BT1`
 - `ITE`
 - `SIG`
 - `TUP`
@@ -483,8 +483,8 @@ The val field depends on the label:
 - `NIL`: unused
 - `USE`: points to a Use Node ({val: Term, bod: Term})
 - `BIT`: unused
-- `B_0`: unused
-- `B_1`: unused
+- `BT0`: unused
+- `BT1`: unused
 - `ITE`: points to a Ite Node ({cnd: Term, thn: Term, els: Term})
 - `SIG`: points to a Sig Node ({fst: Term, snd: Term})
 - `TUP`: points to a Tup Node ({fst: Term, snd: Term})

@@ -17,9 +17,9 @@
 #include "../types.h"
 
 // ? 0 { t } ; { f }
-// ----------------- ITE-B_0
+// ----------------- ITE-BT0
 // f
-Term ite_b_0(Term ite, Term b_0) {
+Term ite_b_0(Term ite, Term bt0) {
   interaction_count++;
   printf("ite_b_0\n");
   uint32_t ite_loc = TERM_VAL(ite);

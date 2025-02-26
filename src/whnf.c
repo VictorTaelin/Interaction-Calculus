@@ -41,8 +41,8 @@ Term whnf(Term term) {
           case LAM: term = col_lam(term, val); continue;
           case SUP: term = col_sup(term, val); continue;
           case NIL: term = col_nil(term, val); continue;
-          case B_0: term = col_b_0(term, val); continue;
-          case B_1: term = col_b_1(term, val); continue;
+          case BT0: term = col_b_0(term, val); continue;
+          case BT1: term = col_b_1(term, val); continue;
           case TUP: term = col_tup(term, val); continue;
           default: return term;
         }
@@ -75,8 +75,8 @@ Term whnf(Term term) {
         Term cond = whnf(heap[ite_loc]);
         heap[ite_loc] = cond;
         switch (TERM_TAG(cond)) {
-          case B_0: term = ite_b_0(term, cond); continue;
-          case B_1: term = ite_b_1(term, cond); continue;
+          case BT0: term = ite_b_0(term, cond); continue;
+          case BT1: term = ite_b_1(term, cond); continue;
           case SUP: term = ite_sup(term, cond); continue;
           default: return term;
         }
