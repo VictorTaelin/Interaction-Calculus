@@ -1,5 +1,5 @@
 #include <stddef.h>
-#include "parse.h"
+#include "../../parse.h"
 
 // Initialize a parser with the given input string
 void init_parser(Parser* parser, const char* input) {
