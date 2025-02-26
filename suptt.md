@@ -430,6 +430,15 @@ y <- &R{a1,b1}
 K
 ```
 
+Finally, LET interacts with anything:
+
+```
+! x = t; body
+------------- LET
+x <- t
+body
+```
+
 # SupTT's Runtime (32-Bit)
 
 SupTT-32 is implemented in portable C.

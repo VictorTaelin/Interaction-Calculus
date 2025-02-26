@@ -24,6 +24,7 @@ Term rwt_rfl(Term rwt, Term rfl);
 Term rwt_sup(Term rwt, Term sup);
 Term use_nil(Term use, Term nil);
 Term use_sup(Term use, Term sup);
+Term let_red(Term let);
 
 // Reduce a term to weak head normal form
 Term whnf(Term term);

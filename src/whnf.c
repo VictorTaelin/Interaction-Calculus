@@ -21,10 +21,15 @@ Term whnf(Term term) {
         uint32_t var_loc = TERM_VAL(term);
         Term subst = heap[var_loc];
         if (TERM_SUB(subst)) {
-          term = subst;
+          term = clear_sub(subst);
           continue;
         }
         return term;
+      }
+      
+      case LET: {
+        term = let_red(term);
+        continue;
       }
       
       case CO0:
@@ -32,7 +37,7 @@ Term whnf(Term term) {
         uint32_t col_loc = TERM_VAL(term);
         Term val = heap[col_loc];
         if (TERM_SUB(val)) {
-          term = val;
+          term = clear_sub(val);
           continue;
         }
         val = whnf(val);

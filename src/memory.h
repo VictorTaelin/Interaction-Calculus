@@ -21,6 +21,9 @@ Term make_term(TermTag tag, uint8_t lab, uint32_t val);
 // Create a substitution term
 Term make_sub(Term term);
 
+// Remove the substitution bit from a term
+Term clear_sub(Term term);
+
 // Check if a term has a substitution
 bool has_sub(Term term);
 

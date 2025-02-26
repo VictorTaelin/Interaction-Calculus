@@ -18,37 +18,7 @@ Hints:
 
 Below is the planned structure of this repo:
 
-suptt/
-├── src/
-│   ├── main.c
-│   ├── types.h
-│   ├── memory.h
-│   ├── memory.c
-│   ├── parse.h
-│   ├── parse.c
-│   ├── show.h
-│   ├── show.c
-│   ├── whnf.h
-│   ├── whnf.c
-│   └── interactions/
-│       ├── app_lam.c
-│       ├── app_sup.c
-│       ├── col_sup.c
-│       ├── col_lam.c
-│       ├── col_nil.c
-│       ├── col_bt0.c
-│       ├── col_bt1.c
-│       ├── col_tup.c
-│       ├── use_nil.c
-│       ├── use_sup.c
-│       ├── ite_bt0.c
-│       ├── ite_bt1.c
-│       ├── ite_sup.c
-│       ├── get_tup.c
-│       ├── get_sup.c
-│       ├── rwt_rfl.c
-│       └── rwt_sup.c
-└── Makefile
+...
 
 implement SupTT now, *except* for the parser and the individual interactions.
 Implement all other files, including the MakeFile. Note: Since we don't have a

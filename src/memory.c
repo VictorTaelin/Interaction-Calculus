@@ -38,6 +38,11 @@ Term make_sub(Term term) {
   return MAKE_TERM(true, TERM_TAG(term), TERM_LAB(term), TERM_VAL(term));
 }
 
+// Remove the substitution bit from a term
+Term clear_sub(Term term) {
+  return MAKE_TERM(false, TERM_TAG(term), TERM_LAB(term), TERM_VAL(term));
+}
+
 // Check if a term is a substitution
 bool has_sub(Term term) {
   return TERM_SUB(term);

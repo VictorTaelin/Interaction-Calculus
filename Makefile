@@ -33,7 +33,8 @@ INT_SRCS = $(SRC_DIR)/interactions/app_lam.c \
            $(SRC_DIR)/interactions/get_tup.c \
            $(SRC_DIR)/interactions/get_sup.c \
            $(SRC_DIR)/interactions/rwt_rfl.c \
-           $(SRC_DIR)/interactions/rwt_sup.c
+           $(SRC_DIR)/interactions/rwt_sup.c \
+           $(SRC_DIR)/interactions/let_red.c
 
 # Objects
 OBJS = $(SRCS:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
