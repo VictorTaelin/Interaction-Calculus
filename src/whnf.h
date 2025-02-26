@@ -25,8 +25,8 @@ Term use_sup(Term use, Term sup);
 // Bool Type interactions
 Term col_b_0(Term col, Term b_0);
 Term col_b_1(Term col, Term b_1);
-Term ite_b0(Term ite, Term b_0);
-Term ite_b1(Term ite, Term b_1);
+Term ite_b_0(Term ite, Term b_0);
+Term ite_b_1(Term ite, Term b_1);
 Term ite_sup(Term ite, Term sup);
 
 // Sigma Type interactions

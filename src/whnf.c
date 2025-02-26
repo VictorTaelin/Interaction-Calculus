@@ -100,11 +100,11 @@ Term whnf(Term term) {
       if (TERM_TAG(cond) == B_0) {
         // False case
         interaction_count++;
-        term = ite_b0(term, cond);
+        term = ite_b_0(term, cond);
       } else if (TERM_TAG(cond) == B_1) {
         // True case
         interaction_count++;
-        term = ite_b1(term, cond);
+        term = ite_b_1(term, cond);
       } else if (TERM_TAG(cond) == SUP) {
         // Superposed condition
         interaction_count++;

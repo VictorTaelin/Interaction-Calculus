@@ -26,8 +26,8 @@ INT_SRCS = $(SRC_DIR)/interactions/app_lam.c \
            $(SRC_DIR)/interactions/col_tup.c \
            $(SRC_DIR)/interactions/use_nil.c \
            $(SRC_DIR)/interactions/use_sup.c \
-           $(SRC_DIR)/interactions/ite_b0.c \
-           $(SRC_DIR)/interactions/ite_b1.c \
+           $(SRC_DIR)/interactions/ite_b_0.c \
+           $(SRC_DIR)/interactions/ite_b_1.c \
            $(SRC_DIR)/interactions/ite_sup.c \
            $(SRC_DIR)/interactions/get_tup.c \
            $(SRC_DIR)/interactions/get_sup.c \
