@@ -16,7 +16,7 @@ void parse_term_app(Parser* parser, uint32_t loc) {
   if (!isspace(parser->input[parser->pos])) {
     parse_error(parser, "Expected whitespace between function and argument in application");
   }
-  parse_whitespace(parser);
+  skip(parser);
   
   parse_term(parser, arg_loc);
   expect(parser, ")", "after application");

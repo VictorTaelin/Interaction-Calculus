@@ -55,7 +55,7 @@ Term* lookup_var_binding(Parser* parser, const char* name);
 void resolve_var_uses(Parser* parser);
 
 // Helper parsing functions
-void parse_whitespace(Parser* parser);
+void skip(Parser* parser);
 char peek_char(Parser* parser);
 char next_char(Parser* parser);
 bool peek_is(Parser* parser, char c);

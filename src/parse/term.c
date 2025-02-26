@@ -7,7 +7,7 @@
 
 // Main term parser - dispatcher for specific term types
 void parse_term(Parser* parser, uint32_t loc) {
-  parse_whitespace(parser);
+  skip(parser);
   
   if (parser->input[parser->pos] == '\0') {
     parse_error(parser, "Unexpected end of input");

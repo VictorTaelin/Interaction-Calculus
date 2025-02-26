@@ -8,7 +8,7 @@
 // Forward declarations for internal functions
 uint32_t parse_term_alloc(Parser* parser);
 void parse_term(Parser* parser, uint32_t loc);
-void parse_whitespace(Parser* parser);
+void skip(Parser* parser);
 char peek_char(Parser* parser);
 char next_char(Parser* parser);
 bool peek_is(Parser* parser, char c);
@@ -76,6 +76,7 @@ void consume_utf8(Parser* parser, int bytes) {
 bool consume(Parser* parser, const char* str) {
   size_t len = strlen(str);
   
+  skip(parser);
   if (strncmp(parser->input + parser->pos, str, len) == 0) {
     for (size_t i = 0; i < len; i++) {
       next_char(parser);
@@ -236,7 +237,7 @@ uint32_t parse_uint(Parser* parser) {
 }
 
 // Skip over whitespace and comments
-void parse_whitespace(Parser* parser) {
+void skip(Parser* parser) {
   while (1) {
     char c = peek_char(parser);
     
