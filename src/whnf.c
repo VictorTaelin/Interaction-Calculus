@@ -1,156 +1,199 @@
-#include <stdio.h>
 #include "whnf.h"
 #include "memory.h"
+#include <stdio.h>
 
-// Initialize the interaction counter
+// Global interaction counter
 uint64_t interaction_count = 0;
 
 // Reduce a term to weak head normal form
 Term whnf(Term term) {
+  // Continue reducing until no more reductions are possible
   while (1) {
-    // Check term tag
+    // Get term tag
     TermTag tag = TERM_TAG(term);
-    uint32_t val = TERM_VAL(term);
 
-    // Handle variables by following substitutions
-    if (tag == VAR || tag == CO0 || tag == CO1) {
-      uint32_t loc = val;
-      // Check if there's a substitution at the location
-      if (loc < HEAP_SIZE && TERM_SUB(heap[loc])) {
-        // Follow the substitution
-        term = heap[loc];
-        // Clear the substitution bit
-        term = MAKE_TERM(false, TERM_TAG(term), TERM_LAB(term), TERM_VAL(term));
+    // Handle variables with substitutions
+    if (tag == VAR) {
+      uint32_t var_loc = TERM_VAL(term);
+      Term subst = heap[var_loc];
+      
+      // If there's a substitution, continue reduction with substituted term
+      if (TERM_SUB(subst)) {
+        term = subst;
+        continue;
       } else {
-        // No substitution, we're done
+        // No substitution, term is in WHNF
         return term;
       }
     }
-    // Handle applications
+    
+    // Handle collapse variables (CO0, CO1)
+    else if (tag == CO0 || tag == CO1) {
+      uint32_t col_loc = TERM_VAL(term);
+      Term val = heap[col_loc];
+      
+      // If there's a substitution, continue reduction with substituted term
+      if (TERM_SUB(val)) {
+        term = val;
+        continue;
+      }
+      
+      // Otherwise, return the CO term as is
+      return term;
+    }
+    
+    // Handle application terms
     else if (tag == APP) {
-      // Get the function and argument
-      Term fun = heap[val];
-      Term arg = heap[val + 1];
+      uint32_t app_loc = TERM_VAL(term);
+      Term fun = heap[app_loc];
       
-      // Evaluate the function to WHNF
+      // Reduce the function part to WHNF
       fun = whnf(fun);
+      heap[app_loc] = fun;
       
-      // Store the updated function
-      heap[val] = fun;
-      
-      // Check what kind of term the function is
       TermTag fun_tag = TERM_TAG(fun);
       
+      // Handle APP-LAM interaction
       if (fun_tag == LAM) {
-        // Function is a lambda, perform beta-reduction
         interaction_count++;
         term = app_lam(term, fun);
-      } else if (fun_tag == SUP) {
-        // Function is a superposition, perform overlap
+        continue;
+      }
+      // Handle APP-SUP interaction
+      else if (fun_tag == SUP) {
         interaction_count++;
         term = app_sup(term, fun);
-      } else {
-        // Function doesn't reduce further, return the application
+        continue;
+      }
+      else {
+        // No reduction, term is in WHNF
         return term;
       }
     }
-    // Handle collapsers
-    else if (tag == CO0 || tag == CO1) {
-      // Determine which collapse variable we are
-      uint32_t loc = val;
-      // If there's no substitution at the location, we're done
-      if (loc >= HEAP_SIZE || !TERM_SUB(heap[loc])) {
-        return term;
-      }
-      // Follow the substitution
-      term = heap[loc];
-      // Clear the substitution bit
-      term = MAKE_TERM(false, TERM_TAG(term), TERM_LAB(term), TERM_VAL(term));
-    }
-    // Handle LET terms
-    else if (tag == LET) {
-      Term let_val = heap[val];
-      Term let_bod = heap[val + 1];
-      // Just continue with the body
-      term = let_bod;
-    }
-    // Handle unit type elimination
+    
+    // Handle use/elimination terms
     else if (tag == USE) {
-      Term val_term = whnf(heap[val]);
-      heap[val] = val_term;
+      uint32_t use_loc = TERM_VAL(term);
+      Term val = heap[use_loc];
       
-      if (TERM_TAG(val_term) == NIL) {
-        // Eliminate unit value
+      // Reduce the value to WHNF
+      val = whnf(val);
+      heap[use_loc] = val;
+      
+      TermTag val_tag = TERM_TAG(val);
+      
+      // Handle USE-NIL interaction
+      if (val_tag == NIL) {
         interaction_count++;
-        term = use_nil(term, val_term);
-      } else if (TERM_TAG(val_term) == SUP) {
-        // Handle superposed unit elimination
+        term = use_nil(term, val);
+        continue;
+      }
+      // Handle USE-SUP interaction
+      else if (val_tag == SUP) {
         interaction_count++;
-        term = use_sup(term, val_term);
-      } else {
-        // Can't reduce further
+        term = use_sup(term, val);
+        continue;
+      }
+      else {
+        // No reduction, term is in WHNF
         return term;
       }
     }
-    // Handle bool type elimination
+    
+    // Handle if-then-else terms
     else if (tag == ITE) {
-      Term cond = whnf(heap[val]);
-      heap[val] = cond;
+      uint32_t ite_loc = TERM_VAL(term);
+      Term cond = heap[ite_loc];
       
-      if (TERM_TAG(cond) == B_0) {
-        // False case
+      // Reduce the condition to WHNF
+      cond = whnf(cond);
+      heap[ite_loc] = cond;
+      
+      TermTag cond_tag = TERM_TAG(cond);
+      
+      // Handle ITE-B_0 interaction
+      if (cond_tag == B_0) {
         interaction_count++;
         term = ite_b_0(term, cond);
-      } else if (TERM_TAG(cond) == B_1) {
-        // True case
+        continue;
+      }
+      // Handle ITE-B_1 interaction
+      else if (cond_tag == B_1) {
         interaction_count++;
         term = ite_b_1(term, cond);
-      } else if (TERM_TAG(cond) == SUP) {
-        // Superposed condition
+        continue;
+      }
+      // Handle ITE-SUP interaction
+      else if (cond_tag == SUP) {
         interaction_count++;
         term = ite_sup(term, cond);
-      } else {
-        // Can't reduce further
+        continue;
+      }
+      else {
+        // No reduction, term is in WHNF
         return term;
       }
     }
-    // Handle sigma type elimination
+    
+    // Handle get/projection terms
     else if (tag == GET) {
-      Term pair = whnf(heap[val + 2]);
-      heap[val + 2] = pair;
+      uint32_t get_loc = TERM_VAL(term);
+      Term val = heap[get_loc + 2]; // The pair value is at index 2
       
-      if (TERM_TAG(pair) == TUP) {
-        // Pair projection
+      // Reduce the value to WHNF
+      val = whnf(val);
+      heap[get_loc + 2] = val;
+      
+      TermTag val_tag = TERM_TAG(val);
+      
+      // Handle GET-TUP interaction
+      if (val_tag == TUP) {
         interaction_count++;
-        term = get_tup(term, pair);
-      } else if (TERM_TAG(pair) == SUP) {
-        // Superposed pair
+        term = get_tup(term, val);
+        continue;
+      }
+      // Handle GET-SUP interaction
+      else if (val_tag == SUP) {
         interaction_count++;
-        term = get_sup(term, pair);
-      } else {
-        // Can't reduce further
+        term = get_sup(term, val);
+        continue;
+      }
+      else {
+        // No reduction, term is in WHNF
         return term;
       }
     }
-    // Handle equality type elimination
+    
+    // Handle rewrite terms
     else if (tag == RWT) {
-      Term eq = whnf(heap[val]);
-      heap[val] = eq;
+      uint32_t rwt_loc = TERM_VAL(term);
+      Term val = heap[rwt_loc];
       
-      if (TERM_TAG(eq) == RFL) {
-        // Reflexivity
+      // Reduce the value to WHNF
+      val = whnf(val);
+      heap[rwt_loc] = val;
+      
+      TermTag val_tag = TERM_TAG(val);
+      
+      // Handle RWT-RFL interaction
+      if (val_tag == RFL) {
         interaction_count++;
-        term = rwt_rfl(term, eq);
-      } else if (TERM_TAG(eq) == SUP) {
-        // Superposed equality
+        term = rwt_rfl(term, val);
+        continue;
+      }
+      // Handle RWT-SUP interaction
+      else if (val_tag == SUP) {
         interaction_count++;
-        term = rwt_sup(term, eq);
-      } else {
-        // Can't reduce further
+        term = rwt_sup(term, val);
+        continue;
+      }
+      else {
+        // No reduction, term is in WHNF
         return term;
       }
     }
-    // For any other term, we're already in WHNF
+    
+    // For all other terms, they are already in WHNF
     else {
       return term;
     }
