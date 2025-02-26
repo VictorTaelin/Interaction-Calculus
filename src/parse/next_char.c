@@ -1,5 +1,5 @@
 #include <stddef.h>
-#include "../../parse.h"
+#include "../parse.h"
 
 // Consume the next character
 char next_char(Parser* parser) {

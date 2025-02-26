@@ -7,18 +7,12 @@ BIN_DIR = bin
 # Main source files
 SRCS = $(SRC_DIR)/main.c \
        $(SRC_DIR)/memory.c \
-       $(SRC_DIR)/parse.c \
        $(SRC_DIR)/show.c \
-       $(SRC_DIR)/whnf.c \
-       $(SRC_DIR)/init_parser.c \
-       $(SRC_DIR)/parse_term_alloc.c \
-       $(SRC_DIR)/alloc_term.c \
-       $(SRC_DIR)/store_term.c
+       $(SRC_DIR)/whnf.c
 
-# Find all parser module files
-PARSE_SRCS = $(wildcard $(SRC_DIR)/parse/term/*.c) \
-             $(wildcard $(SRC_DIR)/parse/util/*.c) \
-             $(wildcard $(SRC_DIR)/parse/var/*.c)
+# All parser source files - updated for new structure
+PARSE_SRCS = $(wildcard $(SRC_DIR)/parse/*.c) \
+             $(wildcard $(SRC_DIR)/parse/term/*.c)
 
 # Interaction functions
 INT_SRCS = $(SRC_DIR)/interactions/app_lam.c \
@@ -38,7 +32,7 @@ TARGET_LN = $(BIN_DIR)/suptt
 
 # Directories
 DIRS = $(OBJ_DIR) $(BIN_DIR) $(OBJ_DIR)/interactions $(OBJ_DIR)/parse \
-       $(OBJ_DIR)/parse/term $(OBJ_DIR)/parse/util $(OBJ_DIR)/parse/var
+       $(OBJ_DIR)/parse/term
 
 .PHONY: all clean
 

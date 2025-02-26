@@ -2,22 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
-#include "parse.h"
-#include "memory.h"
-#include "show.h"
-
-// Parse a string into a term
-Term parse_string(const char* input) {
-  init_memory();
-  
-  Parser parser;
-  init_parser(&parser, input);
-  
-  uint32_t loc = parse_term_alloc(&parser);
-  resolve_var_uses(&parser);
-  
-  return heap[loc];
-}
+#include "../parse.h"
+#include "../memory.h"
 
 // Main term parser - dispatcher for specific term types
 void parse_term(Parser* parser, uint32_t loc) {

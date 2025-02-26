@@ -1,5 +1,5 @@
 #include <stddef.h>
-#include "../../parse.h"
+#include "../parse.h"
 
 // Helper function to check if the current position has a specific 2-byte UTF-8 character
 bool check_utf8(Parser* parser, uint8_t b1, uint8_t b2) {

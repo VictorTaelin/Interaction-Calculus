@@ -1,6 +1,6 @@
 #include <string.h>
 #include <stddef.h>
-#include "../../parse.h"
+#include "../parse.h"
 
 // Track a variable use to be resolved later
 void add_var_use(Parser* parser, const char* name, uint32_t loc) {

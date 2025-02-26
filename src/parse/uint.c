@@ -1,6 +1,6 @@
 #include <ctype.h>
 #include <stddef.h>
-#include "../../parse.h"
+#include "../parse.h"
 
 // Parse an unsigned integer
 uint32_t parse_uint(Parser* parser) {

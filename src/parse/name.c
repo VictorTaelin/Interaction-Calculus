@@ -1,6 +1,6 @@
 #include <ctype.h>
 #include <stddef.h>
-#include "../../parse.h"
+#include "../parse.h"
 
 // Parse a name (identifier)
 // Returns a pointer to a static buffer - results must be copied if needed

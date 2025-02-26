@@ -1,7 +1,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <stddef.h>
-#include "../../parse.h"
+#include "../parse.h"
 
 // Try to consume a specific string
 bool consume(Parser* parser, const char* str) {

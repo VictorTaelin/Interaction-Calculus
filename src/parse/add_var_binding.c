@@ -1,6 +1,6 @@
 #include <string.h>
 #include <stddef.h>
-#include "../../parse.h"
+#include "../parse.h"
 
 // Add a variable binding
 void add_var_binding(Parser* parser, const char* name, Term term) {

@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stddef.h>
-#include "../../parse.h"
+#include "../parse.h"
 
 // Error reporting
 void parse_error(Parser* parser, const char* message) {

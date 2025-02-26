@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <stddef.h>
-#include "../../parse.h"
+#include "../parse.h"
 
 // Consume specified token or report specific error
 bool expect(Parser* parser, const char* token, const char* error_context) {

@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stddef.h>
-#include "../../parse.h"
-#include "../../memory.h"
+#include "../parse.h"
+#include "../memory.h"
 
 // Resolve all variable uses after parsing
 void resolve_var_uses(Parser* parser) {

@@ -1,6 +1,6 @@
 #include <string.h>
 #include <stddef.h>
-#include "../../parse.h"
+#include "../parse.h"
 
 // Look up a variable binding by name
 Term* lookup_var_binding(Parser* parser, const char* name) {
