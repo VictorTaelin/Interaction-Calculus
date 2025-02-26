@@ -9,7 +9,8 @@ SRCS = $(SRC_DIR)/main.c \
        $(SRC_DIR)/memory.c \
        $(SRC_DIR)/show.c \
        $(SRC_DIR)/whnf.c \
-       $(SRC_DIR)/normal.c
+       $(SRC_DIR)/normal.c \
+       $(SRC_DIR)/parse.c
 
 # All parser source files - updated for new structure
 PARSE_SRCS = $(wildcard $(SRC_DIR)/parse/*.c) \
