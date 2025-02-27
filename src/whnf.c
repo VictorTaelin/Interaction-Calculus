@@ -13,7 +13,7 @@
 uint64_t interaction_count = 0;
 
 // Manual stack for WHNF reduction
-#define STACK_SIZE (1 << 24)
+#define STACK_SIZE (1 << 26)
 Term stack[STACK_SIZE];
 uint64_t sp = 0;
 

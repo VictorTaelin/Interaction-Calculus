@@ -110,47 +110,49 @@ int main(int argc, char* argv[]) {
   // Initialize memory
   init_memory();
 
+  int result = 0;
+
   // Check if no arguments provided
   if (argc < 2) {
     test(); // Run with default test term
-    return 0;
-  }
-
-  // Get command
-  const char* command = argv[1];
-
-  // Handle commands
-  if (strcmp(command, "run") == 0) {
-    // Check if filename is provided
-    if (argc < 3) {
-      fprintf(stderr, "Error: No file specified\n");
-      print_usage();
-      return 1;
-    }
-
-    // Parse and process the file
-    const char* filename = argv[2];
-    Term term = parse_file(filename);
-    process_term(term);
-
-  } else if (strcmp(command, "eval") == 0) {
-    // Check if expression is provided
-    if (argc < 3) {
-      fprintf(stderr, "Error: No expression specified\n");
-      print_usage();
-      return 1;
-    }
-
-    // Parse and process the expression
-    const char* expression = argv[2];
-    Term term = parse_string(expression);
-    process_term(term);
-
   } else {
-    fprintf(stderr, "Error: Unknown command '%s'\n", command);
-    print_usage();
-    return 1;
+    // Get command
+    const char* command = argv[1];
+
+    // Handle commands
+    if (strcmp(command, "run") == 0) {
+      // Check if filename is provided
+      if (argc < 3) {
+        fprintf(stderr, "Error: No file specified\n");
+        print_usage();
+        result = 1;
+      } else {
+        // Parse and process the file
+        const char* filename = argv[2];
+        Term term = parse_file(filename);
+        process_term(term);
+      }
+    } else if (strcmp(command, "eval") == 0) {
+      // Check if expression is provided
+      if (argc < 3) {
+        fprintf(stderr, "Error: No expression specified\n");
+        print_usage();
+        result = 1;
+      } else {
+        // Parse and process the expression
+        const char* expression = argv[2];
+        Term term = parse_string(expression);
+        process_term(term);
+      }
+    } else {
+      fprintf(stderr, "Error: Unknown command '%s'\n", command);
+      print_usage();
+      result = 1;
+    }
   }
 
-  return 0;
+  // Clean up memory before exiting
+  cleanup_memory();
+
+  return result;
 }

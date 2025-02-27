@@ -54,9 +54,6 @@ typedef uint64_t Term;
    (((uint64_t)(lab) << 40) & TERM_LAB_MASK) | \
    ((uint64_t)(val) & TERM_VAL_MASK))
 
-// Max heap size
-#define HEAP_SIZE (1ULL << 26)
-
 // Interaction counter
 extern uint64_t interaction_count;
 
