@@ -16,8 +16,7 @@ Term whnf(Term term) {
   while (1) {
     //printf("%d\n", interaction_count);
     //if (interaction_count >= 1) return term;
-    //TermTag tag = TERM_TAG(term);
-
+    TermTag tag = TERM_TAG(term);
     switch (tag) {
       case VAR: {
         uint32_t var_loc = TERM_VAL(term);
