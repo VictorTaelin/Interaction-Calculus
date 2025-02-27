@@ -23,10 +23,10 @@ Term ite_b_1(Term ite, Term bt1) {
   interaction_count++;
   printf("ite_b_1\n");
   uint32_t ite_loc = TERM_VAL(ite);
-  
+
   // ITE structure: {cnd, thn, els}
   // We need to return the then branch
   Term thn = heap[ite_loc + 1];
-  
+
   return thn;
 }

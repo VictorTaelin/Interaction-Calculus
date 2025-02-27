@@ -9,6 +9,6 @@ void parse_term_bit(Parser* parser, uint32_t loc) {
   } else if (!consume(parser, "𝔹")) {
     parse_error(parser, "Expected '𝔹' for bool type");
   }
-  
+
   store_term(loc, BIT, 0, 0);
 }

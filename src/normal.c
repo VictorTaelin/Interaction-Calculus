@@ -9,11 +9,11 @@ Term normal(Term term) {
 
   // First reduce to WHNF
   term = whnf(term);
-  
+
   // Get term details
   TermTag tag = TERM_TAG(term);
   uint32_t val = TERM_VAL(term);
-  
+
   // Recursively normalize subterms based on the term type
   switch (tag) {
     case LAM: {
@@ -108,6 +108,6 @@ Term normal(Term term) {
     default:
       break;
   }
-  
+
   return term;
 }

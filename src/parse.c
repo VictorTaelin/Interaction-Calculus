@@ -20,7 +20,7 @@ void bind_var(Parser* parser, const char* name, Term term) {
   if (parser->vrs_count >= MAX_VARS) {
     parse_error(parser, "Too many variable bindings");
   }
-  
+
   strncpy(parser->vrs[parser->vrs_count].name, name, MAX_NAME_LEN - 1);
   parser->vrs[parser->vrs_count].name[MAX_NAME_LEN - 1] = '\0';
   parser->vrs[parser->vrs_count].term = term;
@@ -32,7 +32,7 @@ void add_var_use(Parser* parser, const char* name, uint32_t loc) {
   if (parser->lcs_count >= MAX_USES) {
     parse_error(parser, "Too many variable uses");
   }
-  
+
   strncpy(parser->lcs[parser->lcs_count].name, name, MAX_NAME_LEN - 1);
   parser->lcs[parser->lcs_count].name[MAX_NAME_LEN - 1] = '\0';
   parser->lcs[parser->lcs_count].loc = loc;
@@ -75,7 +75,7 @@ void consume_utf8(Parser* parser, int bytes) {
 // Try to consume a string, returning whether it matched
 bool consume(Parser* parser, const char* str) {
   size_t len = strlen(str);
-  
+
   skip(parser);
   if (strncmp(parser->input + parser->pos, str, len) == 0) {
     for (size_t i = 0; i < len; i++) {
@@ -83,7 +83,7 @@ bool consume(Parser* parser, const char* str) {
     }
     return true;
   }
-  
+
   return false;
 }
 
@@ -92,14 +92,14 @@ void parse_error(Parser* parser, const char* message) {
   fprintf(stderr, "Parse error at line %zu, column %zu: %s\n", 
           parser->line, parser->col, message);
   fprintf(stderr, "Input: %s\n", parser->input);
-  
+
   // Create a pointer to the error location
   fprintf(stderr, "        ");
   for (size_t i = 0; i < parser->pos && i < 40; i++) {
     fprintf(stderr, " ");
   }
   fprintf(stderr, "^\n");
-  
+
   exit(1);
 }
 
@@ -138,11 +138,11 @@ Term* lookup_var_binding(Parser* parser, const char* name) {
 char* parse_name(Parser* parser) {
   static char name[MAX_NAME_LEN];
   size_t i = 0;
-  
+
   if (!isalpha(peek_char(parser)) && peek_char(parser) != '_') {
     parse_error(parser, "Expected name starting with letter or underscore");
   }
-  
+
   while (isalnum(peek_char(parser)) || peek_char(parser) == '_') {
     if (i < MAX_NAME_LEN - 1) {
       name[i++] = next_char(parser);
@@ -150,7 +150,7 @@ char* parse_name(Parser* parser) {
       parse_error(parser, "Name too long");
     }
   }
-  
+
   name[i] = '\0';
   return name;
 }
@@ -158,14 +158,14 @@ char* parse_name(Parser* parser) {
 // Get the next character and advance position
 char next_char(Parser* parser) {
   char c = parser->input[parser->pos++];
-  
+
   if (c == '\n') {
     parser->line++;
     parser->col = 1;
   } else {
     parser->col++;
   }
-  
+
   return c;
 }
 
@@ -183,13 +183,13 @@ bool peek_is(Parser* parser, char c) {
 void resolve_var_uses(Parser* parser) {
   for (size_t i = 0; i < parser->lcs_count; i++) {
     Term* binding = lookup_var_binding(parser, parser->lcs[i].name);
-    
+
     if (binding == NULL) {
       char error[MAX_NAME_LEN + 50];
       snprintf(error, sizeof(error), "Undefined variable: %s", parser->lcs[i].name);
       parse_error(parser, error);
     }
-    
+
     heap[parser->lcs[i].loc] = *binding;
   }
 }
@@ -203,12 +203,12 @@ void store_term(uint32_t loc, TermTag tag, uint8_t label, uint32_t value) {
 Term parse_string(const char* input) {
   Parser parser;
   init_parser(&parser, input);
-  
+
   uint32_t term_loc = parse_term_alloc(&parser);
-  
+
   // Resolve variable references
   resolve_var_uses(&parser);
-  
+
   return heap[term_loc];
 }
 
@@ -223,16 +223,16 @@ uint32_t parse_term_alloc(Parser* parser) {
 uint32_t parse_uint(Parser* parser) {
   uint32_t value = 0;
   bool has_digit = false;
-  
+
   while (isdigit(peek_char(parser))) {
     value = value * 10 + (next_char(parser) - '0');
     has_digit = true;
   }
-  
+
   if (!has_digit) {
     parse_error(parser, "Expected digit");
   }
-  
+
   return value;
 }
 
@@ -240,18 +240,18 @@ uint32_t parse_uint(Parser* parser) {
 void skip(Parser* parser) {
   while (1) {
     char c = peek_char(parser);
-    
+
     if (isspace(c)) {
       next_char(parser);
     } else if (c == '/' && parser->input[parser->pos + 1] == '/') {
       // Skip line comment
       next_char(parser); // Skip '/'
       next_char(parser); // Skip '/'
-      
+
       while (peek_char(parser) != '\0' && peek_char(parser) != '\n') {
         next_char(parser);
       }
-      
+
       if (peek_char(parser) == '\n') {
         next_char(parser);
       }

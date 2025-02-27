@@ -14,6 +14,8 @@ uint64_t interaction_count = 0;
 // Reduce a term to weak head normal form
 Term whnf(Term term) {
   while (1) {
+    printf("%d\n", interaction_count);
+    if (interaction_count >= 1) return term;
     TermTag tag = TERM_TAG(term);
 
     switch (tag) {
@@ -26,12 +28,12 @@ Term whnf(Term term) {
         }
         return term;
       }
-      
+
       case LET: {
         term = let_red(term);
         continue;
       }
-      
+
       case CO0:
       case CO1: {
         uint32_t col_loc = TERM_VAL(term);
@@ -52,7 +54,7 @@ Term whnf(Term term) {
           default: return term;
         }
       }
-      
+
       case APP: {
         uint32_t app_loc = TERM_VAL(term);
         Term fun = whnf(heap[app_loc]);
@@ -63,7 +65,7 @@ Term whnf(Term term) {
           default: return term;
         }
       }
-      
+
       case USE: {
         uint32_t use_loc = TERM_VAL(term);
         Term val = whnf(heap[use_loc]);
@@ -74,7 +76,7 @@ Term whnf(Term term) {
           default: return term;
         }
       }
-      
+
       case ITE: {
         uint32_t ite_loc = TERM_VAL(term);
         Term cond = whnf(heap[ite_loc]);
@@ -86,7 +88,7 @@ Term whnf(Term term) {
           default: return term;
         }
       }
-      
+
       case GET: {
         uint32_t get_loc = TERM_VAL(term);
         Term val = whnf(heap[get_loc + 2]);
@@ -97,7 +99,7 @@ Term whnf(Term term) {
           default: return term;
         }
       }
-      
+
       case RWT: {
         uint32_t rwt_loc = TERM_VAL(term);
         Term val = whnf(heap[rwt_loc]);
@@ -108,11 +110,11 @@ Term whnf(Term term) {
           default: return term;
         }
       }
-      
+
       default:
         return term;
     }
   }
-  
+
   return term;
 }

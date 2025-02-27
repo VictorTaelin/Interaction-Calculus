@@ -22,7 +22,7 @@ uint32_t alloc(uint32_t n) {
     fprintf(stderr, "Error: Out of memory\n");
     exit(1);
   }
-  
+
   uint32_t ptr = heap_ptr;
   heap_ptr += n;
   return ptr;

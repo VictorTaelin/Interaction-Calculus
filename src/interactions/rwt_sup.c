@@ -30,28 +30,28 @@ Term rwt_sup(Term rwt, Term sup) {
   Term bod = heap[rwt_loc + 1]; // The body of the rewrite
   Term lft = heap[sup_loc + 0]; // Left side of superposition
   Term rgt = heap[sup_loc + 1]; // Right side of superposition
-  
+
   // Create a collapser for the rewrite body
   uint32_t col_loc = alloc(1);
   heap[col_loc] = bod;
-  
+
   // Create the collapser variables
   Term k0 = make_term(CO0, sup_lab, col_loc);
   Term k1 = make_term(CO1, sup_lab, col_loc);
-  
+
   // Create the new rewrites
   uint32_t rwt0_loc = alloc(2);
   heap[rwt0_loc + 0] = lft;
   heap[rwt0_loc + 1] = k0;
-  
+
   uint32_t rwt1_loc = alloc(2);
   heap[rwt1_loc + 0] = rgt;
   heap[rwt1_loc + 1] = k1;
-  
+
   // Create the resulting superposition
   uint32_t sup_new_loc = alloc(2);
   heap[sup_new_loc + 0] = make_term(RWT, 0, rwt0_loc);
   heap[sup_new_loc + 1] = make_term(RWT, 0, rwt1_loc);
-  
+
   return make_term(SUP, sup_lab, sup_new_loc);
 }

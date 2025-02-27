@@ -608,7 +608,7 @@ def parse_sup(loc):
   rgt = parse_term(sup + 1)
   consume("}")
   heap[loc] = Term(SUP, lab, sup)
-  
+
 def parse_col(loc):
   col = alloc(1)
   consume("!")

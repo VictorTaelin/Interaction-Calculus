@@ -8,20 +8,20 @@
 // Main term parser - dispatcher for specific term types
 void parse_term(Parser* parser, uint32_t loc) {
   skip(parser);
-  
+
   if (parser->input[parser->pos] == '\0') {
     parse_error(parser, "Unexpected end of input");
   }
-  
+
   unsigned char c = (unsigned char)parser->input[parser->pos];
-  
+
   if (isalpha(c) || c == '_') {
     parse_term_var(parser, loc);
   } else if (c == '!') {
     parser->pos++; // Peek ahead
     char next = peek_char(parser);
     parser->pos--; // Restore position
-    
+
     if (next == '&') {
       parse_term_col(parser, loc);
     } else if (next == '[') {
@@ -64,7 +64,7 @@ void parse_term(Parser* parser, uint32_t loc) {
     parse_term_ite(parser, loc);
   } else if (c == 0xCE) {
     unsigned char next_byte = (unsigned char)parser->input[parser->pos + 1];
-    
+
     if (next_byte == 0xA3) {
       parse_term_sig(parser, loc);
     } else if (next_byte == 0xA0) {

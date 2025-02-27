@@ -30,11 +30,11 @@ typedef struct {
   size_t pos;         // Current position
   size_t line;        // Current line number
   size_t col;         // Current column number
-  
+
   // Uses and bindings for variable resolution
   VarUse lcs[MAX_USES];            // Array of unresolved variable uses
   size_t lcs_count;                // Number of uses
-  
+
   VarBinding vrs[MAX_VARS];        // Map from names to variable terms
   size_t vrs_count;                // Number of bindings
 } Parser;

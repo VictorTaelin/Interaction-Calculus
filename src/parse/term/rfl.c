@@ -9,6 +9,6 @@ void parse_term_rfl(Parser* parser, uint32_t loc) {
   } else if (!consume(parser, "θ")) {
     parse_error(parser, "Expected 'θ' for reflexivity");
   }
-  
+
   store_term(loc, RFL, 0, 0);
 }

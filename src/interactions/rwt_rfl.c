@@ -23,8 +23,8 @@ Term rwt_rfl(Term rwt, Term rfl) {
   interaction_count++;
   printf("rwt_rfl\n");
   uint32_t rwt_loc = TERM_VAL(rwt);
-  
+
   Term body = heap[rwt_loc + 1];
-  
+
   return body;
 }
