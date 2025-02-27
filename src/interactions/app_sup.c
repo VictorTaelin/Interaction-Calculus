@@ -11,7 +11,7 @@
 // {(a x0),(b x1)}
 Term app_sup(Term app, Term sup) {
   interaction_count++;
-  printf("app_sup\n");
+  //printf("app_sup\n");
   uint32_t app_loc = TERM_VAL(app);
   uint32_t sup_loc = TERM_VAL(sup);
   uint8_t  sup_lab = TERM_LAB(sup);

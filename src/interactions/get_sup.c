@@ -20,7 +20,7 @@
 // &L{![x,y]=a;k0, ![x,y]=b;k1}
 Term get_sup(Term get, Term sup) {
   interaction_count++;
-  printf("get_sup\n");
+  //printf("get_sup\n");
   uint32_t get_loc = TERM_VAL(get);
   uint32_t sup_loc = TERM_VAL(sup);
   uint8_t sup_lab = TERM_LAB(sup);

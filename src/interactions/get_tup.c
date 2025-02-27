@@ -23,7 +23,7 @@
 // t
 Term get_tup(Term get, Term tup) {
   interaction_count++;
-  printf("get_tup\n");
+  //printf("get_tup\n");
   uint32_t get_loc = TERM_VAL(get);
   uint32_t tup_loc = TERM_VAL(tup);
 

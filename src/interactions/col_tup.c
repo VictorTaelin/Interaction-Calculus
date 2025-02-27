@@ -23,7 +23,7 @@
 // K
 Term col_tup(Term col, Term tup) {
   interaction_count++;
-  printf("col_tup\n");
+  //printf("col_tup\n");
   uint32_t col_loc = TERM_VAL(col);
   uint32_t tup_loc = TERM_VAL(tup);
   uint8_t col_lab = TERM_LAB(col);

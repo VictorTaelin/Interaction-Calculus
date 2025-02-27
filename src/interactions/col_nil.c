@@ -21,7 +21,7 @@
 // K
 Term col_nil(Term col, Term nil) {
   interaction_count++;
-  printf("col_nil\n");
+  //printf("col_nil\n");
   uint32_t col_loc = TERM_VAL(col);
 
   // Create the nil term to be returned and for substitution

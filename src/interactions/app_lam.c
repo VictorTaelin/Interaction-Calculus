@@ -11,7 +11,7 @@
 // f
 Term app_lam(Term app, Term lam) {
   interaction_count++;
-  printf("app_lam\n");
+  //printf("app_lam\n");
   uint32_t app_loc = TERM_VAL(app);
   uint32_t lam_loc = TERM_VAL(lam);
   uint32_t arg_loc = app_loc + 1;

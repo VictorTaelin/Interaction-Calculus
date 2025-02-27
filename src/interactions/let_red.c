@@ -11,7 +11,7 @@
 // body
 Term let_red(Term let) {
   interaction_count++;
-  printf("let_red\n");
+  //printf("let_red\n");
   uint32_t let_loc = TERM_VAL(let);
 
   uint32_t val_loc = let_loc;

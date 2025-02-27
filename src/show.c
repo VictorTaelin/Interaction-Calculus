@@ -397,9 +397,7 @@ void stringify_term(Term term, VarNameTable* var_table, char* buffer, int* pos, 
       break;
 
     case GET:
-      *pos += snprintf(buffer + *pos, max_len - *pos, "![%s,%s] = ", 
-              get_var_name(var_table, val, VAR), 
-              get_var_name(var_table, val + 1, VAR));
+      *pos += snprintf(buffer + *pos, max_len - *pos, "![%s,%s] = ", get_var_name(var_table, val, VAR), get_var_name(var_table, val + 1, VAR));
       stringify_term(heap[val + 2], var_table, buffer, pos, max_len);
       *pos += snprintf(buffer + *pos, max_len - *pos, "; ");
       stringify_term(heap[val + 3], var_table, buffer, pos, max_len);
@@ -482,4 +480,3 @@ void show_term(FILE* stream, Term term) {
 
 //your goal is to rewrite the WHOLE file above to fix this issue.
 //keep all else the same
-

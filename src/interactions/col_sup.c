@@ -29,7 +29,7 @@
 // K
 Term col_sup(Term col, Term sup) {
   interaction_count++;
-  printf("col_sup\n");
+  //printf("col_sup\n");
   uint32_t col_loc = TERM_VAL(col);
   uint32_t sup_loc = TERM_VAL(sup);
   uint8_t col_lab = TERM_LAB(col);

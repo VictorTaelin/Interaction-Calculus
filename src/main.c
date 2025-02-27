@@ -23,11 +23,12 @@ void process_term(Term term) {
   // Normalize the term
   term = normal(term);
 
+  printf("Total interactions: %llu\n", interaction_count);
+
   printf("Normal form:\n");
   show_term(stdout, term);
   printf("\n\n");
 
-  printf("Total interactions: %llu\n", interaction_count);
 }
 
 // Test function with the default term

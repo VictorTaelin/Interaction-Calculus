@@ -20,7 +20,7 @@
 // &L{-a;k0, -b;k1}
 Term use_sup(Term use, Term sup) {
   interaction_count++;
-  printf("use_sup\n");
+  //printf("use_sup\n");
   uint32_t use_loc = TERM_VAL(use);
   uint32_t sup_loc = TERM_VAL(sup);
   uint8_t  sup_lab = TERM_LAB(sup);

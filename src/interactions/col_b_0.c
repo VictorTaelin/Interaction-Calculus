@@ -12,7 +12,7 @@
 // K
 Term col_b_0(Term col, Term bt0) {
   interaction_count++;
-  printf("col_b_0\n");
+  //printf("col_b_0\n");
   uint32_t col_loc = TERM_VAL(col);
 
   heap[col_loc] = make_sub(bt0);

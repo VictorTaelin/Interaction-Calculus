@@ -23,7 +23,7 @@
 // &L{?a{t0};{f0}, ?b{t1};{f1}}
 Term ite_sup(Term ite, Term sup) {
   interaction_count++;
-  printf("ite_sup\n");
+  //printf("ite_sup\n");
   uint32_t ite_loc = TERM_VAL(ite);
   uint32_t sup_loc = TERM_VAL(sup);
   uint8_t  sup_lab = TERM_LAB(sup);

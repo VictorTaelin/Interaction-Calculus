@@ -15,7 +15,7 @@
 // K
 Term col_lam(Term col, Term lam) {
   interaction_count++;
-  printf("col_lam\n");
+  //printf("col_lam\n");
   uint32_t col_loc = TERM_VAL(col);
   uint32_t lam_loc = TERM_VAL(lam);
   uint8_t col_lab = TERM_LAB(col);

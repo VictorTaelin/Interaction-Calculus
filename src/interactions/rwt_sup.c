@@ -22,7 +22,7 @@
 // &L{%a;k0, %b;k1}
 Term rwt_sup(Term rwt, Term sup) {
   interaction_count++;
-  printf("rwt_sup\n");
+  //printf("rwt_sup\n");
   uint32_t rwt_loc = TERM_VAL(rwt);
   uint32_t sup_loc = TERM_VAL(sup);
   uint8_t  sup_lab = TERM_LAB(sup);
