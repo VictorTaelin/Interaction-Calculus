@@ -14,9 +14,9 @@ uint64_t interaction_count = 0;
 // Reduce a term to weak head normal form
 Term whnf(Term term) {
   while (1) {
-    printf("%d\n", interaction_count);
-    if (interaction_count >= 1) return term;
-    TermTag tag = TERM_TAG(term);
+    //printf("%d\n", interaction_count);
+    //if (interaction_count >= 1) return term;
+    //TermTag tag = TERM_TAG(term);
 
     switch (tag) {
       case VAR: {
