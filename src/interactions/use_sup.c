@@ -33,17 +33,17 @@ Term use_sup(Term use, Term sup) {
   uint64_t col_loc = alloc(1);
   heap[col_loc] = k;
 
-  // Create new USE nodes for each branch
-  uint64_t use_a_loc = alloc(2);
-  heap[use_a_loc + 0] = a;
+  // Reuse sup_loc for the first USE node
+  uint64_t use_a_loc = sup_loc;
+  // a is already at heap[use_a_loc + 0]
   heap[use_a_loc + 1] = make_term(CO0, sup_lab, col_loc);
 
   uint64_t use_b_loc = alloc(2);
   heap[use_b_loc + 0] = b;
   heap[use_b_loc + 1] = make_term(CO1, sup_lab, col_loc);
 
-  // Create new superposition with the USE nodes
-  uint64_t new_sup_loc = alloc(2);
+  // Reuse use_loc for the new superposition
+  uint64_t new_sup_loc = use_loc;
   heap[new_sup_loc + 0] = make_term(USE, 0, use_a_loc);
   heap[new_sup_loc + 1] = make_term(USE, 0, use_b_loc);
 

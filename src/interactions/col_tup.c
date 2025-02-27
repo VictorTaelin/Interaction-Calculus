@@ -29,14 +29,9 @@ Term col_tup(Term col, Term tup) {
   uint8_t col_lab = TERM_LAB(col);
   uint8_t is_co0 = TERM_TAG(col) == CO0;
 
-  Term fst = heap[tup_loc + 0];
-  Term snd = heap[tup_loc + 1];
-
-  // Create new collapsers for fst and snd
-  uint64_t col_fst_loc = alloc(1);
-  uint64_t col_snd_loc = alloc(1);
-  heap[col_fst_loc] = fst;
-  heap[col_snd_loc] = snd;
+  // Use the tuple locations directly instead of copying
+  uint64_t col_fst_loc = tup_loc + 0;
+  uint64_t col_snd_loc = tup_loc + 1;
 
   // Create new variables for the collapsers
   Term a0 = make_term(CO0, col_lab, col_fst_loc);
@@ -44,11 +39,15 @@ Term col_tup(Term col, Term tup) {
   Term b0 = make_term(CO0, col_lab, col_snd_loc);
   Term b1 = make_term(CO1, col_lab, col_snd_loc);
 
-  // Create two new tuples
-  uint64_t tup0_loc = alloc(2);
+  // Reuse tup_loc for one of the tuples
+  uint64_t tup0_loc = tup_loc;
   uint64_t tup1_loc = alloc(2);
+  
+  // Store a0, b0 in first tuple (reusing original tuple memory)
   heap[tup0_loc + 0] = a0;
   heap[tup0_loc + 1] = b0;
+  
+  // Store a1, b1 in second tuple
   heap[tup1_loc + 0] = a1;
   heap[tup1_loc + 1] = b1;
 

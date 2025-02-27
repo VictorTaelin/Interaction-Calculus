@@ -45,8 +45,8 @@ Term ite_sup(Term ite, Term sup) {
   Term f0 = make_term(CO0, sup_lab, col_els_loc);
   Term f1 = make_term(CO1, sup_lab, col_els_loc);
 
-  // Create new ITE terms for each side of the superposition
-  uint64_t ite0_loc = alloc(3);
+  // Reuse ite_loc for the first ITE (it's already sized correctly for ITE)
+  uint64_t ite0_loc = ite_loc;
   heap[ite0_loc + 0] = lft;
   heap[ite0_loc + 1] = t0;
   heap[ite0_loc + 2] = f0;
@@ -56,8 +56,8 @@ Term ite_sup(Term ite, Term sup) {
   heap[ite1_loc + 1] = t1;
   heap[ite1_loc + 2] = f1;
 
-  // Create new superposition with the two ITEs
-  uint64_t sup_new_loc = alloc(2);
+  // Reuse sup_loc for the new superposition
+  uint64_t sup_new_loc = sup_loc;
   heap[sup_new_loc + 0] = make_term(ITE, 0, ite0_loc);
   heap[sup_new_loc + 1] = make_term(ITE, 0, ite1_loc);
 

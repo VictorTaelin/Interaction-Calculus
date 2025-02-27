@@ -50,11 +50,14 @@ Term col_sup(Term col, Term sup) {
     }
   } else {
     // Labels don't match: create nested collapsers
-    uint64_t col_lft_loc = alloc(1);
-    uint64_t col_rgt_loc = alloc(1);
+    // Instead of allocating new memory for collapser locations,
+    // directly use the values at sup_loc + 0 and sup_loc + 1
+    // The values at these locations (lft and rgt) are already loaded
+    uint64_t col_lft_loc = sup_loc + 0;
+    uint64_t col_rgt_loc = sup_loc + 1;
 
-    heap[col_lft_loc] = lft;
-    heap[col_rgt_loc] = rgt;
+    // We don't need to set heap[col_lft_loc] = lft and heap[col_rgt_loc] = rgt
+    // because lft is already at sup_loc + 0 and rgt is already at sup_loc + 1
 
     uint64_t sup0_loc = alloc(2);
     heap[sup0_loc + 0] = make_term(CO0, col_lab, col_lft_loc);

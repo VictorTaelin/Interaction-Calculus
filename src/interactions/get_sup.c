@@ -37,17 +37,17 @@ Term get_sup(Term get, Term sup) {
   Term k0 = make_term(CO0, sup_lab, col_loc);
   Term k1 = make_term(CO1, sup_lab, col_loc);
 
-  // Create two new GET eliminators
-  uint64_t get0_loc = alloc(2);
-  heap[get0_loc + 0] = a;
+  // Reuse sup_loc for the first GET
+  uint64_t get0_loc = sup_loc;
+  // a is already at heap[get0_loc + 0]
   heap[get0_loc + 1] = k0;
 
   uint64_t get1_loc = alloc(2);
   heap[get1_loc + 0] = b;
   heap[get1_loc + 1] = k1;
 
-  // Create a new superposition
-  uint64_t new_sup_loc = alloc(2);
+  // Reuse get_loc for the superposition
+  uint64_t new_sup_loc = get_loc;
   heap[new_sup_loc + 0] = make_term(GET, 0, get0_loc);
   heap[new_sup_loc + 1] = make_term(GET, 0, get1_loc);
 
