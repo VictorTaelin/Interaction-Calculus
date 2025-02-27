@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include "types.h"
 #include "memory.h"
 #include "parse.h"
@@ -20,15 +21,34 @@ void process_term(Term term) {
   // Reset interaction counter
   interaction_count = 0;
 
+  // Record start time
+  clock_t start = clock();
+
   // Normalize the term
   term = normal(term);
 
-  printf("Total interactions: %llu\n", interaction_count);
+  // Record end time
+  clock_t end = clock();
+
+  // Calculate time in seconds
+  double time_seconds = (double)(end - start) / CLOCKS_PER_SEC;
+
+  // Get heap size (the number of allocated nodes)
+  size_t size = heap_ptr;
+
+  // Calculate PERF, avoiding division by zero
+  double perf = time_seconds > 0 ? (interaction_count / time_seconds) / 1000000.0 : 0.0;
+
+  // Print statistics
+  printf("WORK: %llu interactions\n", interaction_count);
+  printf("TIME: %.7f seconds\n", time_seconds);
+  printf("SIZE: %zu nodes\n", size);
+  printf("PERF: %.3f MIPS\n", perf);
+  printf("\n");
 
   printf("Normal form:\n");
   show_term(stdout, term);
   printf("\n\n");
-
 }
 
 // Test function with the default term

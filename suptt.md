@@ -439,16 +439,16 @@ x <- t
 body
 ```
 
-# SupTT's Runtime (32-Bit)
+# SupTT's Runtime (64-Bit)
 
-SupTT-32 is implemented in portable C.
+SupTT-64 is implemented in portable C.
 
-It represents terms with u32-pointers, which store 3 fields:
+It represents terms with u64-pointers, which store 3 fields:
 
 - sub (1-bit): true if this is a substitution
-- tag (5-bit): the term tag
-- lab (2-bit): the label (optionally)
-- val (24-bit): the value of this pointer
+- tag (7-bit): the term tag
+- lab (16-bit): the label (optionally)
+- val (40-bit): the value of this pointer
 
 The tag field can be:
 
