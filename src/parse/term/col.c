@@ -4,7 +4,7 @@
 #include "../../memory.h"
 
 // Parse a collapser
-void parse_term_col(Parser* parser, uint32_t loc) {
+void parse_term_col(Parser* parser, uint64_t loc) {
   expect(parser, "!&", "for collapser");
 
   uint8_t label = parse_uint(parser) & 3;
@@ -26,7 +26,7 @@ void parse_term_col(Parser* parser, uint32_t loc) {
   expect(parser, "=", "after names in collapser");
 
   // Allocate a node specifically for the collapse value
-  uint32_t col_node = alloc_term(1);
+  uint64_t col_node = alloc_term(1);
 
   // Create collapse variable terms that point to the col_node, NOT to the loc
   Term co0_term = make_term(CO0, label, col_node);

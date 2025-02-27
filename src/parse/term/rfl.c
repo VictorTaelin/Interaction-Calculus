@@ -3,7 +3,7 @@
 #include "../../memory.h"
 
 // Parse a reflexivity proof
-void parse_term_rfl(Parser* parser, uint32_t loc) {
+void parse_term_rfl(Parser* parser, uint64_t loc) {
   if (check_utf8(parser, 0xCE, 0xB8)) {
     consume_utf8(parser, 2);
   } else if (!consume(parser, "θ")) {

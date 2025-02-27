@@ -22,7 +22,7 @@
 Term ite_b_1(Term ite, Term bt1) {
   interaction_count++;
   //printf("ite_b_1\n");
-  uint32_t ite_loc = TERM_VAL(ite);
+  uint64_t ite_loc = TERM_VAL(ite);
 
   // ITE structure: {cnd, thn, els}
   // We need to return the then branch

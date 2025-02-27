@@ -12,10 +12,10 @@
 Term let_red(Term let) {
   interaction_count++;
   //printf("let_red\n");
-  uint32_t let_loc = TERM_VAL(let);
+  uint64_t let_loc = TERM_VAL(let);
 
-  uint32_t val_loc = let_loc;
-  uint32_t bod_loc = let_loc + 1;
+  uint64_t val_loc = let_loc;
+  uint64_t bod_loc = let_loc + 1;
 
   Term val = heap[val_loc];
   Term bod = heap[bod_loc];

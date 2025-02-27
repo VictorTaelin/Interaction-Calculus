@@ -112,8 +112,8 @@ int main(int argc, char* argv[]) {
 
   // Check if no arguments provided
   if (argc < 2) {
-    print_usage();
-    return 1;
+    test(); // Run with default test term
+    return 0;
   }
 
   // Get command

@@ -24,8 +24,8 @@
 Term col_tup(Term col, Term tup) {
   interaction_count++;
   //printf("col_tup\n");
-  uint32_t col_loc = TERM_VAL(col);
-  uint32_t tup_loc = TERM_VAL(tup);
+  uint64_t col_loc = TERM_VAL(col);
+  uint64_t tup_loc = TERM_VAL(tup);
   uint8_t col_lab = TERM_LAB(col);
   uint8_t is_co0 = TERM_TAG(col) == CO0;
 
@@ -33,8 +33,8 @@ Term col_tup(Term col, Term tup) {
   Term snd = heap[tup_loc + 1];
 
   // Create new collapsers for fst and snd
-  uint32_t col_fst_loc = alloc(1);
-  uint32_t col_snd_loc = alloc(1);
+  uint64_t col_fst_loc = alloc(1);
+  uint64_t col_snd_loc = alloc(1);
   heap[col_fst_loc] = fst;
   heap[col_snd_loc] = snd;
 
@@ -45,8 +45,8 @@ Term col_tup(Term col, Term tup) {
   Term b1 = make_term(CO1, col_lab, col_snd_loc);
 
   // Create two new tuples
-  uint32_t tup0_loc = alloc(2);
-  uint32_t tup1_loc = alloc(2);
+  uint64_t tup0_loc = alloc(2);
+  uint64_t tup1_loc = alloc(2);
   heap[tup0_loc + 0] = a0;
   heap[tup0_loc + 1] = b0;
   heap[tup1_loc + 0] = a1;

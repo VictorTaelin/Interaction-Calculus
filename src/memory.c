@@ -6,30 +6,30 @@
 Term heap[HEAP_SIZE];
 
 // The current allocation pointer
-uint32_t heap_ptr = 0;
+uint64_t heap_ptr = 0;
 
 // Initialize the memory system
 void init_memory() {
   heap_ptr = 0;
-  for (uint32_t i = 0; i < HEAP_SIZE; i++) {
+  for (uint64_t i = 0; i < HEAP_SIZE; i++) {
     heap[i] = 0;
   }
 }
 
 // Allocate n consecutive terms in memory
-uint32_t alloc(uint32_t n) {
+uint64_t alloc(uint64_t n) {
   if (heap_ptr + n >= HEAP_SIZE) {
     fprintf(stderr, "Error: Out of memory\n");
     exit(1);
   }
 
-  uint32_t ptr = heap_ptr;
+  uint64_t ptr = heap_ptr;
   heap_ptr += n;
   return ptr;
 }
 
 // Create a term with the given tag and value
-Term make_term(TermTag tag, uint8_t lab, uint32_t val) {
+Term make_term(TermTag tag, uint16_t lab, uint64_t val) {
   return MAKE_TERM(false, tag, lab, val);
 }
 

@@ -12,7 +12,7 @@ Term normal(Term term) {
 
   // Get term details
   TermTag tag = TERM_TAG(term);
-  uint32_t val = TERM_VAL(term);
+  uint64_t val = TERM_VAL(term);
 
   // Recursively normalize subterms based on the term type
   switch (tag) {

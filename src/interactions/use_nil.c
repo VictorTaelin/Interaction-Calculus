@@ -20,7 +20,7 @@
 Term use_nil(Term use, Term nil) {
   interaction_count++;
   //printf("use_nil\n");
-  uint32_t use_loc = TERM_VAL(use);
+  uint64_t use_loc = TERM_VAL(use);
 
   // The body is the second term in the Use Node
   Term body = heap[use_loc + 1];

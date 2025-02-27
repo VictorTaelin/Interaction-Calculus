@@ -7,16 +7,16 @@
 extern Term heap[HEAP_SIZE];
 
 // The current allocation pointer
-extern uint32_t heap_ptr;
+extern uint64_t heap_ptr;
 
 // Initialize the memory system
 void init_memory();
 
 // Allocate n consecutive terms in memory
-uint32_t alloc(uint32_t n);
+uint64_t alloc(uint64_t n);
 
 // Create a term with the given tag and value
-Term make_term(TermTag tag, uint8_t lab, uint32_t val);
+Term make_term(TermTag tag, uint16_t lab, uint64_t val);
 
 // Create a substitution term
 Term make_sub(Term term);

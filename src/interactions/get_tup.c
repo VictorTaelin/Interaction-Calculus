@@ -24,8 +24,8 @@
 Term get_tup(Term get, Term tup) {
   interaction_count++;
   //printf("get_tup\n");
-  uint32_t get_loc = TERM_VAL(get);
-  uint32_t tup_loc = TERM_VAL(tup);
+  uint64_t get_loc = TERM_VAL(get);
+  uint64_t tup_loc = TERM_VAL(tup);
 
   // Extract tuple values
   Term a = heap[tup_loc + 0];

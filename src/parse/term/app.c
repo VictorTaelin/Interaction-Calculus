@@ -4,12 +4,12 @@
 #include "../../memory.h"
 
 // Parse an application
-void parse_term_app(Parser* parser, uint32_t loc) {
+void parse_term_app(Parser* parser, uint64_t loc) {
   expect(parser, "(", "for application");
 
-  uint32_t app_node = alloc_term(2);
-  uint32_t fun_loc = app_node;
-  uint32_t arg_loc = app_node + 1;
+  uint64_t app_node = alloc_term(2);
+  uint64_t fun_loc = app_node;
+  uint64_t arg_loc = app_node + 1;
 
   parse_term(parser, fun_loc);
 

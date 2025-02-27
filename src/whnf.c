@@ -15,7 +15,7 @@ uint64_t interaction_count = 0;
 // Manual stack for WHNF reduction
 #define STACK_SIZE (1 << 24)
 Term stack[STACK_SIZE];
-uint32_t sp = 0;
+uint64_t sp = 0;
 
 // Helper functions for stack operations
 void spush(Term term) {
@@ -37,7 +37,7 @@ Term spop() {
 // Reduce a term to weak head normal form using a manual stack
 Term whnf(Term term) {
   // Save initial stack position to track when our stack frame is empty
-  uint32_t stop = sp;
+  uint64_t stop = sp;
   Term next = term;
 
   while (1) {
@@ -47,7 +47,7 @@ Term whnf(Term term) {
     switch (tag) {
       // Variables: follow substitutions if present
       case VAR: {
-        uint32_t var_loc = TERM_VAL(next);
+        uint64_t var_loc = TERM_VAL(next);
         Term subst = heap[var_loc];
         if (TERM_SUB(subst)) {
           next = clear_sub(subst);
@@ -65,7 +65,7 @@ Term whnf(Term term) {
       // Collapsers (CO0, CO1): handle substitutions or push and reduce value
       case CO0:
       case CO1: {
-        uint32_t col_loc = TERM_VAL(next);
+        uint64_t col_loc = TERM_VAL(next);
         Term val = heap[col_loc];
         if (TERM_SUB(val)) {
           next = clear_sub(val);
@@ -79,7 +79,7 @@ Term whnf(Term term) {
 
       // Application: push and reduce function part
       case APP: {
-        uint32_t app_loc = TERM_VAL(next);
+        uint64_t app_loc = TERM_VAL(next);
         spush(next);
         next = heap[app_loc];
         continue;
@@ -87,7 +87,7 @@ Term whnf(Term term) {
 
       // Unit elimination: push and reduce value
       case USE: {
-        uint32_t use_loc = TERM_VAL(next);
+        uint64_t use_loc = TERM_VAL(next);
         spush(next);
         next = heap[use_loc];
         continue;
@@ -95,7 +95,7 @@ Term whnf(Term term) {
 
       // If-then-else: push and reduce condition
       case ITE: {
-        uint32_t ite_loc = TERM_VAL(next);
+        uint64_t ite_loc = TERM_VAL(next);
         spush(next);
         next = heap[ite_loc];
         continue;
@@ -103,7 +103,7 @@ Term whnf(Term term) {
 
       // Sigma elimination: push and reduce value
       case GET: {
-        uint32_t get_loc = TERM_VAL(next);
+        uint64_t get_loc = TERM_VAL(next);
         spush(next);
         next = heap[get_loc + 2];
         continue;
@@ -111,7 +111,7 @@ Term whnf(Term term) {
 
       // Equality elimination: push and reduce proof
       case RWT: {
-        uint32_t rwt_loc = TERM_VAL(next);
+        uint64_t rwt_loc = TERM_VAL(next);
         spush(next);
         next = heap[rwt_loc];
         continue;
@@ -190,7 +190,7 @@ Term whnf(Term term) {
       while (sp > stop) {
         Term host = spop();
         TermTag htag = TERM_TAG(host);
-        uint32_t hloc = TERM_VAL(host);
+        uint64_t hloc = TERM_VAL(host);
         switch (htag) {
           case APP: heap[hloc] = next; break;
           case CO0:

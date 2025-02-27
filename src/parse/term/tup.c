@@ -3,12 +3,12 @@
 #include "../../memory.h"
 
 // Parse a tuple
-void parse_term_tup(Parser* parser, uint32_t loc) {
+void parse_term_tup(Parser* parser, uint64_t loc) {
   expect(parser, "[", "for tuple");
 
-  uint32_t tup_node = alloc_term(2);
-  uint32_t fst_loc = tup_node;
-  uint32_t snd_loc = tup_node + 1;
+  uint64_t tup_node = alloc_term(2);
+  uint64_t fst_loc = tup_node;
+  uint64_t snd_loc = tup_node + 1;
 
   parse_term(parser, fst_loc);
   expect(parser, ",", "between elements in tuple");

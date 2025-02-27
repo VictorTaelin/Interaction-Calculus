@@ -24,8 +24,8 @@
 Term ite_sup(Term ite, Term sup) {
   interaction_count++;
   //printf("ite_sup\n");
-  uint32_t ite_loc = TERM_VAL(ite);
-  uint32_t sup_loc = TERM_VAL(sup);
+  uint64_t ite_loc = TERM_VAL(ite);
+  uint64_t sup_loc = TERM_VAL(sup);
   uint8_t  sup_lab = TERM_LAB(sup);
 
   Term thn = heap[ite_loc + 1];
@@ -34,8 +34,8 @@ Term ite_sup(Term ite, Term sup) {
   Term rgt = heap[sup_loc + 1];
 
   // Create collapsers for then and else branches
-  uint32_t col_thn_loc = alloc(1);
-  uint32_t col_els_loc = alloc(1);
+  uint64_t col_thn_loc = alloc(1);
+  uint64_t col_els_loc = alloc(1);
   heap[col_thn_loc] = thn;
   heap[col_els_loc] = els;
 
@@ -46,18 +46,18 @@ Term ite_sup(Term ite, Term sup) {
   Term f1 = make_term(CO1, sup_lab, col_els_loc);
 
   // Create new ITE terms for each side of the superposition
-  uint32_t ite0_loc = alloc(3);
+  uint64_t ite0_loc = alloc(3);
   heap[ite0_loc + 0] = lft;
   heap[ite0_loc + 1] = t0;
   heap[ite0_loc + 2] = f0;
 
-  uint32_t ite1_loc = alloc(3);
+  uint64_t ite1_loc = alloc(3);
   heap[ite1_loc + 0] = rgt;
   heap[ite1_loc + 1] = t1;
   heap[ite1_loc + 2] = f1;
 
   // Create new superposition with the two ITEs
-  uint32_t sup_new_loc = alloc(2);
+  uint64_t sup_new_loc = alloc(2);
   heap[sup_new_loc + 0] = make_term(ITE, 0, ite0_loc);
   heap[sup_new_loc + 1] = make_term(ITE, 0, ite1_loc);
 
