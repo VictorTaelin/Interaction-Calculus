@@ -91,7 +91,7 @@ bool consume(Parser* parser, const char* str) {
 void parse_error(Parser* parser, const char* message) {
   fprintf(stderr, "Parse error at line %zu, column %zu: %s\n", 
           parser->line, parser->col, message);
-  fprintf(stderr, "Input: %s\n", parser->input);
+  fprintf(stderr, "Input:\n%s\n", parser->input);
 
   // Create a pointer to the error location
   fprintf(stderr, "        ");

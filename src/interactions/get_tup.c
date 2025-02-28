@@ -35,8 +35,8 @@ Term get_tup(Term get, Term tup) {
   Term bod = heap[get_loc + 1];
 
   // Update locations for GET variables with substitutions
-  heap[get_loc + 2] = make_sub(a); // Substitute a for x
-  heap[get_loc + 3] = make_sub(b); // Substitute b for y
+  heap[get_loc + 0] = make_sub(a); // Substitute a for x
+  heap[get_loc + 1] = make_sub(b); // Substitute b for y
 
   return bod;
 }

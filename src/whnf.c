@@ -105,7 +105,7 @@ Term whnf(Term term) {
       case GET: {
         uint64_t get_loc = TERM_VAL(next);
         spush(next);
-        next = heap[get_loc + 2];
+        next = heap[get_loc + 0]; // Continue with the value to eliminate
         continue;
       }
 
@@ -197,7 +197,7 @@ Term whnf(Term term) {
           case CO1: heap[hloc] = next; break;
           case USE: heap[hloc] = next; break;
           case ITE: heap[hloc] = next; break;
-          case GET: heap[hloc + 2] = next; break;
+          case GET: heap[hloc] = next; break;
           case RWT: heap[hloc] = next; break;
         }
         next = host;

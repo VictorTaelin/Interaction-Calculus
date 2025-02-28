@@ -93,8 +93,8 @@ Term normal(Term term) {
         normal_push(val + 1); // Push second location
         break;
       case GET:
-        normal_push(val + 2); // Push pair location
-        normal_push(val + 3); // Push body location
+        normal_push(val + 0); // Push value location
+        normal_push(val + 1); // Push body location
         break;
       case ALL:
         normal_push(val);     // Push argument location
