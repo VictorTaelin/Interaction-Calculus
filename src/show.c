@@ -115,7 +115,7 @@ void stringify_collapsers(ColTable* col_table, VarNameTable* var_table, char* bu
 
 // Register a collapser in the table
 bool register_collapser(ColTable* table, uint64_t location) {
-  // Check if the collapser is already in the table
+// Check if the collapser is already in the table
   for (uint64_t i = 0; i < table->count; i++) {
     if (table->locations[i] == location) {
       return false; // Already registered
@@ -217,10 +217,10 @@ void assign_var_ids(Term term, VarNameTable* var_table, ColTable* col_table) {
 
     case GET: {
       uint64_t get_loc = val;
-      add_variable(var_table, get_loc, VAR);    // First var
+      add_variable(var_table, get_loc, VAR);     // First var
       add_variable(var_table, get_loc + 1, VAR); // Second var
-      assign_var_ids(heap[get_loc + 2], var_table, col_table);
-      assign_var_ids(heap[get_loc + 3], var_table, col_table);
+      assign_var_ids(heap[get_loc + 0], var_table, col_table);
+      assign_var_ids(heap[get_loc + 1], var_table, col_table);
       break;
     }
 
@@ -398,9 +398,9 @@ void stringify_term(Term term, VarNameTable* var_table, char* buffer, int* pos, 
 
     case GET:
       *pos += snprintf(buffer + *pos, max_len - *pos, "![%s,%s] = ", get_var_name(var_table, val, VAR), get_var_name(var_table, val + 1, VAR));
-      stringify_term(heap[val + 2], var_table, buffer, pos, max_len);
+      stringify_term(heap[val + 0], var_table, buffer, pos, max_len);
       *pos += snprintf(buffer + *pos, max_len - *pos, "; ");
-      stringify_term(heap[val + 3], var_table, buffer, pos, max_len);
+      stringify_term(heap[val + 1], var_table, buffer, pos, max_len);
       break;
 
     case ALL:
