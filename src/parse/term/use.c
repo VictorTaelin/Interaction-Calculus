@@ -6,7 +6,7 @@
 void parse_term_use(Parser* parser, uint64_t loc) {
   expect(parser, "-", "for unit elimination");
 
-  uint64_t use_node = alloc_term(2);
+  uint64_t use_node = alloc(2);
   uint64_t val_loc = use_node;
   uint64_t bod_loc = use_node + 1;
 

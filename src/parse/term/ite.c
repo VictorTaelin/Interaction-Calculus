@@ -6,7 +6,7 @@
 void parse_term_ite(Parser* parser, uint64_t loc) {
   expect(parser, "?", "for bool elimination");
 
-  uint64_t ite_node = alloc_term(3);
+  uint64_t ite_node = alloc(3);
   uint64_t cnd_loc = ite_node;
   uint64_t thn_loc = ite_node + 1;
   uint64_t els_loc = ite_node + 2;

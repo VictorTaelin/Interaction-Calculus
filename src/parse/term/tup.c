@@ -6,7 +6,7 @@
 void parse_term_tup(Parser* parser, uint64_t loc) {
   expect(parser, "[", "for tuple");
 
-  uint64_t tup_node = alloc_term(2);
+  uint64_t tup_node = alloc(2);
   uint64_t fst_loc = tup_node;
   uint64_t snd_loc = tup_node + 1;
 

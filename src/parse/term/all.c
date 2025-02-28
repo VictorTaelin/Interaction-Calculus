@@ -13,7 +13,7 @@ void parse_term_all(Parser* parser, uint64_t loc) {
   char* name = parse_name(parser);
   expect(parser, ":", "after name in pi type");
 
-  uint64_t all_node = alloc_term(2);
+  uint64_t all_node = alloc(2);
   uint64_t inp_loc = all_node;
   uint64_t out_loc = all_node + 1;
 

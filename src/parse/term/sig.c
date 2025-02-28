@@ -13,7 +13,7 @@ void parse_term_sig(Parser* parser, uint64_t loc) {
   char* name = parse_name(parser);
   expect(parser, ":", "after name in sigma type");
 
-  uint64_t sig_node = alloc_term(2);
+  uint64_t sig_node = alloc(2);
   uint64_t fst_loc = sig_node;
   uint64_t snd_loc = sig_node + 1;
 

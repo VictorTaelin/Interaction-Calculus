@@ -6,7 +6,7 @@
 void parse_term_get(Parser* parser, uint64_t loc) {
   expect(parser, "![", "for sigma elimination");
 
-  uint64_t get_node = alloc_term(2);
+  uint64_t get_node = alloc(2);
   uint64_t val_loc = get_node;
   uint64_t bod_loc = get_node + 1;
 

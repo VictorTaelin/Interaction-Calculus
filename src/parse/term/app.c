@@ -7,7 +7,7 @@
 void parse_term_app(Parser* parser, uint64_t loc) {
   expect(parser, "(", "for application");
 
-  uint64_t app_node = alloc_term(2);
+  uint64_t app_node = alloc(2);
   uint64_t fun_loc = app_node;
   uint64_t arg_loc = app_node + 1;
 

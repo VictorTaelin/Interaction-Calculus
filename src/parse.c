@@ -39,10 +39,6 @@ void add_var_use(Parser* parser, const char* name, uint64_t loc) {
   parser->lcs_count++;
 }
 
-// Allocate memory for a term of size n
-uint64_t alloc_term(uint64_t n) {
-  return alloc(n);
-}
 
 // Check if the next bytes match the specified UTF-8 bytes
 bool check_utf8(Parser* parser, uint8_t b1, uint8_t b2) {

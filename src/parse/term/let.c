@@ -9,7 +9,7 @@ void parse_term_let(Parser* parser, uint64_t loc) {
   char* name = parse_name(parser);
   expect(parser, "=", "after name in let binding");
 
-  uint64_t let_node = alloc_term(2);
+  uint64_t let_node = alloc(2);
   uint64_t val_loc = let_node;
   uint64_t bod_loc = let_node + 1;
 

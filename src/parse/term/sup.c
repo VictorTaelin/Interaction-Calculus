@@ -9,7 +9,7 @@ void parse_term_sup(Parser* parser, uint64_t loc) {
   uint8_t label = parse_uint(parser) & 3; // Ensure it fits in 2 bits
   expect(parser, "{", "after label in superposition");
 
-  uint64_t sup_node = alloc_term(2);
+  uint64_t sup_node = alloc(2);
   uint64_t lft_loc = sup_node;
   uint64_t rgt_loc = sup_node + 1;
 

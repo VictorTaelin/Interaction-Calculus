@@ -72,7 +72,6 @@ bool check_utf8_4bytes(Parser* parser, uint8_t b1, uint8_t b2, uint8_t b3, uint8
 void consume_utf8(Parser* parser, int bytes);
 
 // Term creation helpers
-uint64_t alloc_term(uint64_t n);
 void store_term(uint64_t loc, TermTag tag, uint16_t label, uint64_t value);
 
 // Individual term parsers

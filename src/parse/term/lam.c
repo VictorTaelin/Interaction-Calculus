@@ -13,7 +13,7 @@ void parse_term_lam(Parser* parser, uint64_t loc) {
   char* name = parse_name(parser);
   expect(parser, ".", "after name in lambda");
 
-  uint64_t lam_node = alloc_term(1);
+  uint64_t lam_node = alloc(1);
 
   Term var_term = make_term(VAR, 0, lam_node);
   bind_var(parser, name, var_term);

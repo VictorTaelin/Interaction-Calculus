@@ -6,7 +6,7 @@
 void parse_term_eql(Parser* parser, uint64_t loc) {
   expect(parser, "<", "for equality type");
 
-  uint64_t eql_node = alloc_term(2);
+  uint64_t eql_node = alloc(2);
   uint64_t lft_loc = eql_node;
   uint64_t rgt_loc = eql_node + 1;
 

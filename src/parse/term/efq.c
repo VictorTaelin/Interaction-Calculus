@@ -7,7 +7,7 @@ void parse_term_efq(Parser* parser, uint64_t loc) {
   if (check_utf8(parser, 0xC2, 0xAC)) {
     consume_utf8(parser, 2);
 
-    uint64_t efq_node = alloc_term(1);
+    uint64_t efq_node = alloc(1);
     parse_term(parser, efq_node);
 
     store_term(loc, EFQ, 0, efq_node);
