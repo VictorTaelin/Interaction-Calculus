@@ -1,5 +1,3 @@
-//./../InteractionCalculus.md//
-
 #ifndef IC_H
 #define IC_H
 
@@ -21,16 +19,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+// Default heap and stack sizes
+#define IC_DEFAULT_HEAP_SIZE (1 << 28) // 256M terms
+#define IC_DEFAULT_STACK_SIZE (1 << 24) // 16M terms
+
 // CUDA compatibility macros
 #ifdef __CUDACC__
 #define IC_DEVICE __device__
 #else
 #define IC_DEVICE
 #endif
-
-// Default heap and stack sizes
-#define IC_DEFAULT_HEAP_SIZE (1 << 28) // 256M terms
-#define IC_DEFAULT_STACK_SIZE (1 << 24) // 16M terms
 
 // -----------------------------------------------------------------------------
 // Core Types and Constants
@@ -692,8 +690,7 @@ static inline Term ic_copy_term(IC* ic, Term term, Term* src_heap, uint32_t src_
   return result;
 }
 
-// These are defined at the top of the file
-// #define IC_DEFAULT_HEAP_SIZE (1 << 28) // 256M terms
-// #define IC_DEFAULT_STACK_SIZE (1 << 24) // 16M terms
+// These constants are defined at the top of the file
+// IC_DEFAULT_HEAP_SIZE and IC_DEFAULT_STACK_SIZE
 
 #endif // IC_H
