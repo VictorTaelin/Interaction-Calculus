@@ -1,6 +1,11 @@
 #ifndef IC_H
 #define IC_H
 
+// Use GCC-specific attributes for improved optimization
+#define ALWAYS_INLINE __attribute__((always_inline))
+#define HOT_FUNCTION __attribute__((hot))
+#define FLATTEN_FUNCTION __attribute__((flatten))
+
 /**
  * Interaction Calculus (IC) - Core header-only implementation
  * 
@@ -18,6 +23,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 // Default heap and stack sizes
 #define IC_DEFAULT_HEAP_SIZE (1 << 28) // 256M terms
@@ -29,6 +35,10 @@
 #else
 #define IC_DEVICE
 #endif
+
+// Optimization macros
+#define likely(x)   __builtin_expect(!!(x), 1)
+#define unlikely(x) __builtin_expect(!!(x), 0)
 
 // -----------------------------------------------------------------------------
 // Core Types and Constants
@@ -53,17 +63,17 @@ typedef uint32_t Term;
 #define TERM_LAB_MASK 0x0C000000UL // 2-bits: Label for superpositions
 #define TERM_VAL_MASK 0x03FFFFFFUL // 26-bits: Value/pointer
 
-// Term manipulation macros
+// Optimized term manipulation macros
 #define TERM_SUB(term) (((term) & TERM_SUB_MASK) != 0)
 #define TERM_TAG(term) (((term) & TERM_TAG_MASK) >> 28)
 #define TERM_LAB(term) (((term) & TERM_LAB_MASK) >> 26)
 #define TERM_VAL(term) ((term) & TERM_VAL_MASK)
 
-// Term creation macro
+// Optimized term creation macro
 #define MAKE_TERM(sub, tag, lab, val) \
  (((sub) ? TERM_SUB_MASK : 0) | \
-  (((uint32_t)(tag) << 28) & TERM_TAG_MASK) | \
-  (((uint32_t)(lab) << 26) & TERM_LAB_MASK) | \
+  (((uint32_t)(tag) << 28)) | \
+  (((uint32_t)(lab) << 26)) | \
   ((uint32_t)(val) & TERM_VAL_MASK))
 
 // -----------------------------------------------------------------------------
@@ -112,7 +122,7 @@ static inline IC* ic_new(uint32_t heap_size, uint32_t stack_size) {
   ic->stack_pos = 0;
   
   // Allocate heap
-  ic->heap = (Term*)malloc(heap_size * sizeof(Term));
+  ic->heap = (Term*)calloc(heap_size, sizeof(Term));
   if (!ic->heap) {
     free(ic);
     return NULL;
@@ -124,11 +134,6 @@ static inline IC* ic_new(uint32_t heap_size, uint32_t stack_size) {
     free(ic->heap);
     free(ic);
     return NULL;
-  }
-  
-  // Clear memory
-  for (uint32_t i = 0; i < heap_size; i++) {
-    ic->heap[i] = 0;
   }
   
   return ic;
@@ -153,7 +158,7 @@ static inline void ic_free(IC* ic) {
  * @return Location in the heap
  */
 static inline uint32_t ic_alloc(IC* ic, uint32_t n) {
-  if (ic->heap_pos + n >= ic->heap_size) {
+  if (unlikely(ic->heap_pos + n >= ic->heap_size)) {
     fprintf(stderr, "Error: Out of memory (tried to allocate %u terms, %u/%u used)\n", n, ic->heap_pos, ic->heap_size);
     exit(1);
   }
@@ -184,7 +189,7 @@ static inline Term ic_make_term(TermTag tag, uint8_t lab, uint32_t val) {
  * @return The term with its substitution bit set
  */
 static inline Term ic_make_sub(Term term) {
-  return MAKE_TERM(true, TERM_TAG(term), TERM_LAB(term), TERM_VAL(term));
+  return term | TERM_SUB_MASK; // Optimized version - just set the high bit
 }
 
 /**
@@ -193,16 +198,7 @@ static inline Term ic_make_sub(Term term) {
  * @return The term with its substitution bit cleared
  */
 static inline Term ic_clear_sub(Term term) {
-  return MAKE_TERM(false, TERM_TAG(term), TERM_LAB(term), TERM_VAL(term));
-}
-
-/**
- * Check if a term is a substitution.
- * @param term The term to check
- * @return true if the term is a substitution, false otherwise
- */
-static inline bool ic_has_sub(Term term) {
-  return TERM_SUB(term);
+  return term & ~TERM_SUB_MASK; // Optimized version - just clear the high bit
 }
 
 // -----------------------------------------------------------------------------
@@ -215,7 +211,7 @@ static inline bool ic_has_sub(Term term) {
  * @param term The term to push
  */
 static inline void ic_stack_push(IC* ic, Term term) {
-  if (ic->stack_pos >= ic->stack_size) {
+  if (unlikely(ic->stack_pos >= ic->stack_size)) {
     fprintf(stderr, "Stack overflow in term evaluation\n");
     exit(1);
   }
@@ -228,7 +224,7 @@ static inline void ic_stack_push(IC* ic, Term term) {
  * @return The popped term
  */
 static inline Term ic_stack_pop(IC* ic) {
-  if (ic->stack_pos == 0) {
+  if (unlikely(ic->stack_pos == 0)) {
     fprintf(stderr, "Stack underflow in term evaluation\n");
     exit(1);
   }
@@ -248,10 +244,9 @@ static inline Term ic_app_lam(IC* ic, Term app, Term lam) {
   
   uint32_t app_loc = TERM_VAL(app);
   uint32_t lam_loc = TERM_VAL(lam);
-  uint32_t arg_loc = app_loc + 1;
-
-  Term arg = ic->heap[arg_loc + 0];
-  Term bod = ic->heap[lam_loc + 0];
+  
+  Term arg = ic->heap[app_loc + 1]; // Directly access arg at app_loc + 1
+  Term bod = ic->heap[lam_loc + 0]; // Directly access bod at lam_loc
 
   // Create substitution for the lambda variable
   ic->heap[lam_loc] = ic_make_sub(arg);
@@ -274,27 +269,29 @@ static inline Term ic_app_sup(IC* ic, Term app, Term sup) {
   Term lft = ic->heap[sup_loc + 0];
   Term rgt = ic->heap[sup_loc + 1];
 
+  // Allocate only what's necessary
   uint32_t col_loc = ic_alloc(ic, 1);
+  uint32_t app1_loc = ic_alloc(ic, 2);
+  
+  // Store the arg in the collapser location
   ic->heap[col_loc] = arg;
 
+  // Create CO0 and CO1 terms
   Term x0 = ic_make_term(CO0, sup_lab, col_loc);
   Term x1 = ic_make_term(CO1, sup_lab, col_loc);
 
-  // Instead of allocating new memory for app0, reuse sup_loc
-  uint32_t app0_loc = sup_loc;
-  // lft is already in heap[app0_loc + 0]
-  ic->heap[app0_loc + 1] = x0;
+  // Reuse sup_loc for app0
+  ic->heap[sup_loc + 1] = x0; // lft is already in heap[sup_loc + 0]
 
-  uint32_t app1_loc = ic_alloc(ic, 2);
+  // Set up app1
   ic->heap[app1_loc + 0] = rgt;
   ic->heap[app1_loc + 1] = x1;
 
-  // Instead of allocating new memory for sup_new, reuse app_loc
-  uint32_t sup_new_loc = app_loc;
-  ic->heap[sup_new_loc + 0] = ic_make_term(APP, 0, app0_loc);
-  ic->heap[sup_new_loc + 1] = ic_make_term(APP, 0, app1_loc);
+  // Reuse app_loc for the result superposition
+  ic->heap[app_loc + 0] = ic_make_term(APP, 0, sup_loc);
+  ic->heap[app_loc + 1] = ic_make_term(APP, 0, app1_loc);
 
-  return ic_make_term(SUP, sup_lab, sup_new_loc);
+  return ic_make_term(SUP, sup_lab, app_loc);
 }
 
 //! &L{r,s} = λx.f;
@@ -315,20 +312,21 @@ static inline Term ic_col_lam(IC* ic, Term col, Term lam) {
 
   Term bod = ic->heap[lam_loc + 0];
 
-  // Create new lambda variables
-  uint32_t lam0_loc = ic_alloc(ic, 1);
-  uint32_t lam1_loc = ic_alloc(ic, 1);
+  // Batch allocate memory for efficiency
+  uint32_t alloc_start = ic_alloc(ic, 5); // 1 + 1 + 2 + 1 = 5 locations total
+  uint32_t lam0_loc = alloc_start;
+  uint32_t lam1_loc = alloc_start + 1;
+  uint32_t sup_loc = alloc_start + 2; // 2 locations
+  uint32_t col_new_loc = alloc_start + 4;
 
-  // Create a superposition for lambda's variable
-  uint32_t sup_loc = ic_alloc(ic, 2);
+  // Set up the superposition
   ic->heap[sup_loc + 0] = ic_make_term(VAR, 0, lam0_loc);
   ic->heap[sup_loc + 1] = ic_make_term(VAR, 0, lam1_loc);
 
   // Replace lambda's variable with the superposition
   ic->heap[lam_loc] = ic_make_sub(ic_make_term(SUP, col_lab, sup_loc));
 
-  // Create a collapser for lambda's body
-  uint32_t col_new_loc = ic_alloc(ic, 1);
+  // Set up the new collapser
   ic->heap[col_new_loc] = bod;
 
   // Set up new lambda bodies
@@ -336,16 +334,13 @@ static inline Term ic_col_lam(IC* ic, Term col, Term lam) {
   ic->heap[lam1_loc] = ic_make_term(CO1, col_lab, col_new_loc);
 
   // Create and return the appropriate lambda
-  Term new_lam;
   if (is_co0) {
     ic->heap[col_loc] = ic_make_sub(ic_make_term(LAM, 0, lam1_loc));
-    new_lam = ic_make_term(LAM, 0, lam0_loc);
+    return ic_make_term(LAM, 0, lam0_loc);
   } else {
     ic->heap[col_loc] = ic_make_sub(ic_make_term(LAM, 0, lam0_loc));
-    new_lam = ic_make_term(LAM, 0, lam1_loc);
+    return ic_make_term(LAM, 0, lam1_loc);
   }
-
-  return new_lam;
 }
 
 //! &L{x,y} = &L{a,b};
@@ -375,8 +370,8 @@ static inline Term ic_col_sup(IC* ic, Term col, Term sup) {
   Term lft = ic->heap[sup_loc + 0];
   Term rgt = ic->heap[sup_loc + 1];
 
-  if (col_lab == sup_lab) {
-    // Labels match: simple substitution
+  if (likely(col_lab == sup_lab)) {
+    // Labels match: simple substitution (more common case)
     if (is_co0) {
       ic->heap[col_loc] = ic_make_sub(rgt);
       return lft;
@@ -386,16 +381,26 @@ static inline Term ic_col_sup(IC* ic, Term col, Term sup) {
     }
   } else {
     // Labels don't match: create nested collapsers
-    uint32_t col_lft_loc = sup_loc + 0; // Reuse memory locations to avoid alloc
-    uint32_t col_rgt_loc = sup_loc + 1; // lft/rgt already at these locations
+    // Batch allocate space for both superpositions
+    uint32_t sup_start = ic_alloc(ic, 4); // 2 sups with 2 terms each
+    uint32_t sup0_loc = sup_start;
+    uint32_t sup1_loc = sup_start + 2;
 
-    uint32_t sup0_loc = ic_alloc(ic, 2);
+    // Use existing locations as collapser locations
+    uint32_t col_lft_loc = sup_loc + 0;
+    uint32_t col_rgt_loc = sup_loc + 1;
+    
+    // Set up the first superposition (for CO0)
     ic->heap[sup0_loc + 0] = ic_make_term(CO0, col_lab, col_lft_loc);
     ic->heap[sup0_loc + 1] = ic_make_term(CO0, col_lab, col_rgt_loc);
-
-    uint32_t sup1_loc = ic_alloc(ic, 2);
+    
+    // Set up the second superposition (for CO1)
     ic->heap[sup1_loc + 0] = ic_make_term(CO1, col_lab, col_lft_loc);
     ic->heap[sup1_loc + 1] = ic_make_term(CO1, col_lab, col_rgt_loc);
+    
+    // Set up original collapsers to point to lft and rgt
+    ic->heap[col_lft_loc] = lft;
+    ic->heap[col_rgt_loc] = rgt;
 
     if (is_co0) {
       ic->heap[col_loc] = ic_make_sub(ic_make_term(SUP, sup_lab, sup1_loc));
@@ -420,17 +425,30 @@ static inline Term ic_col_sup(IC* ic, Term col, Term sup) {
  * @param term The term to reduce
  * @return The term in WHNF
  */
-static inline Term ic_whnf(IC* ic, Term term) {
-  uint32_t stop = ic->stack_pos;
-  Term next = term;
+static inline ALWAYS_INLINE HOT_FUNCTION FLATTEN_FUNCTION Term ic_whnf(IC* ic, Term term) {
+  register uint32_t stop = ic->stack_pos;
+  register Term next = term;
+  register Term* heap = ic->heap; // Cache heap pointer for faster access
+  register Term* stack = ic->stack; // Cache stack pointer
+  register uint32_t stack_pos = stop;
+  register uint64_t* interactions_ptr = &ic->interactions;
+
+  #define STACK_PUSH(t) \
+    if (unlikely(stack_pos >= ic->stack_size)) { \
+      fprintf(stderr, "Stack overflow in term evaluation\n"); \
+      exit(1); \
+    } \
+    stack[stack_pos++] = (t)
+
+  #define STACK_POP() stack[--stack_pos]
 
   while (1) {
-    TermTag tag = TERM_TAG(next);
+    register TermTag tag = TERM_TAG(next);
 
     switch (tag) {
       case VAR: {
-        uint32_t var_loc = TERM_VAL(next);
-        Term subst = ic->heap[var_loc];
+        register uint32_t var_loc = TERM_VAL(next);
+        register Term subst = heap[var_loc];
         if (TERM_SUB(subst)) {
           next = ic_clear_sub(subst);
           continue;
@@ -440,74 +458,121 @@ static inline Term ic_whnf(IC* ic, Term term) {
 
       case CO0:
       case CO1: {
-        uint32_t col_loc = TERM_VAL(next);
-        Term val = ic->heap[col_loc];
+        register uint32_t col_loc = TERM_VAL(next);
+        register Term val = heap[col_loc];
         if (TERM_SUB(val)) {
           next = ic_clear_sub(val);
           continue;
         } else {
-          ic_stack_push(ic, next);
+          STACK_PUSH(next);
           next = val;
           continue;
         }
       }
 
       case APP: {
-        uint32_t app_loc = TERM_VAL(next);
-        ic_stack_push(ic, next);
-        next = ic->heap[app_loc]; // Reduce the function part
+        register uint32_t app_loc = TERM_VAL(next);
+        STACK_PUSH(next);
+        next = heap[app_loc]; // Reduce the function part
         continue;
       }
 
       default: { // SUP, LAM
-        if (ic->stack_pos == stop) {
+        if (stack_pos == stop) {
+          ic->stack_pos = stack_pos; // Update stack position before return
           return next; // Stack empty, term is in WHNF
         } else {
-          Term prev = ic_stack_pop(ic);
-          TermTag ptag = TERM_TAG(prev);
+          register Term prev = STACK_POP();
+          register TermTag ptag = TERM_TAG(prev);
           
-          switch (ptag) {
-            case APP: {
-              switch (tag) {
-                case LAM: next = ic_app_lam(ic, prev, next); continue;
-                case SUP: next = ic_app_sup(ic, prev, next); continue;
+          // Directly handle the most common reduction patterns
+          // APP-LAM interaction
+          if (ptag == APP && tag == LAM) {
+            (*interactions_ptr)++; // Count interaction
+            
+            register uint32_t app_loc = TERM_VAL(prev);
+            register uint32_t lam_loc = TERM_VAL(next);
+            
+            register Term arg = heap[app_loc + 1];
+            register Term bod = heap[lam_loc + 0];
+
+            // Create substitution for the lambda variable
+            heap[lam_loc] = arg | TERM_SUB_MASK; // ic_make_sub inlined
+
+            next = bod;
+            continue;
+          } 
+          // APP-SUP interaction
+          else if (ptag == APP && tag == SUP) {
+            // Call the function directly to avoid register spills
+            next = ic_app_sup(ic, prev, next); 
+            continue;
+          }
+          // COL-LAM interaction
+          else if ((ptag == CO0 || ptag == CO1) && tag == LAM) {
+            next = ic_col_lam(ic, prev, next);
+            continue;
+          }
+          // COL-SUP interaction (most common case with matching labels)
+          else if ((ptag == CO0 || ptag == CO1) && tag == SUP) {
+            register uint32_t col_loc = TERM_VAL(prev);
+            register uint32_t sup_loc = TERM_VAL(next);
+            register uint8_t col_lab = TERM_LAB(prev);
+            register uint8_t sup_lab = TERM_LAB(next);
+            register uint8_t is_co0 = ptag == CO0;
+
+            // Fast path for matching labels (most common case)
+            if (likely(col_lab == sup_lab)) {
+              (*interactions_ptr)++; // Count interaction
+              
+              register Term lft = heap[sup_loc + 0];
+              register Term rgt = heap[sup_loc + 1];
+
+              if (is_co0) {
+                heap[col_loc] = rgt | TERM_SUB_MASK; // ic_make_sub inlined
+                next = lft;
+              } else {
+                heap[col_loc] = lft | TERM_SUB_MASK; // ic_make_sub inlined
+                next = rgt;
               }
-              break;
-            }
-            case CO0:
-            case CO1: {
-              switch (tag) {
-                case LAM: next = ic_col_lam(ic, prev, next); continue;
-                case SUP: next = ic_col_sup(ic, prev, next); continue;
-              }
-              break;
+              continue;
+            } else {
+              // Call the slower function for the less common case
+              next = ic_col_sup(ic, prev, next);
+              continue;
             }
           }
+          
           // No interaction found, proceed to stack traversal
+          STACK_PUSH(prev);
           break;
         }
       }
     }
 
     // After processing, check stack and update heap if needed
-    if (ic->stack_pos == stop) {
+    if (stack_pos == stop) {
+      ic->stack_pos = stack_pos; // Update stack position before return
       return next; // Stack empty, return WHNF
     } else {
-      while (ic->stack_pos > stop) {
-        Term host = ic_stack_pop(ic);
-        TermTag htag = TERM_TAG(host);
-        uint32_t hloc = TERM_VAL(host);
+      while (stack_pos > stop) {
+        register Term host = STACK_POP();
+        register TermTag htag = TERM_TAG(host);
+        register uint32_t hloc = TERM_VAL(host);
         
-        switch (htag) {
-          case APP: ic->heap[hloc] = next; break;
-          case CO0:
-          case CO1: ic->heap[hloc] = next; break;
+        // Fast path for common cases
+        if (htag == APP || htag == CO0 || htag == CO1) {
+          heap[hloc] = next;
         }
         next = host;
       }
+      ic->stack_pos = stack_pos; // Update stack position before return
       return next; // Return updated original term
     }
   }
+  
+  #undef STACK_PUSH
+  #undef STACK_POP
 }
 
 /**
@@ -518,56 +583,76 @@ static inline Term ic_whnf(IC* ic, Term term) {
  * @param term The term to normalize
  * @return The fully normalized term
  */
-static inline Term ic_normal(IC* ic, Term term) {
+static inline HOT_FUNCTION FLATTEN_FUNCTION Term ic_normal(IC* ic, Term term) {
   // Reset stack
   ic->stack_pos = 0;
+  register Term* heap = ic->heap; // Cache heap pointer
+  register Term* stack = ic->stack; // Cache stack pointer
+  register uint32_t stack_pos = 0;
+
+  #define STACK_PUSH(t) \
+    if (unlikely(stack_pos >= ic->stack_size)) { \
+      fprintf(stderr, "Stack overflow in term normalization\n"); \
+      exit(1); \
+    } \
+    stack[stack_pos++] = (t)
+
+  #define STACK_POP() stack[--stack_pos]
 
   // Allocate a new node for the initial term
   uint32_t root_loc = ic_alloc(ic, 1);
-  ic->heap[root_loc] = term;
+  heap[root_loc] = term;
 
   // Push initial location to stack as a "location"
-  // We're using the same stack but with a different meaning for values
-  ic_stack_push(ic, ic_make_term(0, 0, root_loc)); // Not a real term, just using it to store location
+  STACK_PUSH(MAKE_TERM(false, 0, 0, root_loc));
 
-  while (ic->stack_pos > 0) {
+  // Pre-allocate tag and val registers for loop optimization
+  register TermTag tag;
+  register uint32_t val;
+
+  while (stack_pos > 0) {
     // Pop current location from stack
-    uint32_t loc = TERM_VAL(ic_stack_pop(ic));
+    register uint32_t loc = TERM_VAL(STACK_POP());
 
     // Get term at this location
-    Term current = ic->heap[loc];
+    register Term current = heap[loc];
 
     // Reduce to WHNF
+    ic->stack_pos = stack_pos; // Update for ic_whnf
     current = ic_whnf(ic, current);
+    stack_pos = ic->stack_pos; // Get updated stack position after whnf
 
     // Store the WHNF term back to the heap
-    ic->heap[loc] = current;
+    heap[loc] = current;
 
     // Get term details
-    TermTag tag = TERM_TAG(current);
-    uint32_t val = TERM_VAL(current);
+    tag = TERM_TAG(current);
+    val = TERM_VAL(current);
 
-    // Push subterm locations based on term type
-    switch (tag) {
-      case LAM:
-        ic_stack_push(ic, ic_make_term(0, 0, val)); // Push body location
-        break;
-      case APP:
-        ic_stack_push(ic, ic_make_term(0, 0, val));   // Push function location
-        ic_stack_push(ic, ic_make_term(0, 0, val + 1)); // Push argument location
-        break;
-      case SUP:
-        ic_stack_push(ic, ic_make_term(0, 0, val));   // Push left location
-        ic_stack_push(ic, ic_make_term(0, 0, val + 1)); // Push right location
-        break;
-      default:
-        // No subterms to process for VAR, CO0, CO1
-        break;
+    // Push subterm locations based on term type with optimized branching
+    // First handle common cases directly
+    if (tag == LAM) {
+      STACK_PUSH(MAKE_TERM(false, 0, 0, val));
     }
+    else if (tag == APP || tag == SUP) {
+      // Combine common cases for APP and SUP which both need to push two locations
+      if (unlikely(stack_pos + 2 > ic->stack_size)) {
+        fprintf(stderr, "Stack overflow in term normalization\n");
+        exit(1);
+      }
+      stack[stack_pos++] = MAKE_TERM(false, 0, 0, val);
+      stack[stack_pos++] = MAKE_TERM(false, 0, 0, val + 1);
+    }
+    // No else needed - other tags have no subterms to process
   }
 
   // Get the fully normalized term
-  return ic->heap[root_loc];
+  ic->stack_pos = stack_pos; // Update before return
+  
+  #undef STACK_PUSH
+  #undef STACK_POP
+  
+  return heap[root_loc];
 }
 
 /**
@@ -590,102 +675,100 @@ static inline IC* ic_default_new() {
  */
 static inline Term ic_copy_term(IC* ic, Term term, Term* src_heap, uint32_t src_heap_size) {
   // Create a mapping from source locations to target locations
-  // We'll use a limited map that can only handle src_heap_size entries
-  uint32_t* loc_map = (uint32_t*)calloc(src_heap_size + 1, sizeof(uint32_t));
+  register uint32_t* loc_map = (uint32_t*)calloc(src_heap_size + 1, sizeof(uint32_t));
   if (!loc_map) {
     fprintf(stderr, "Error: Failed to allocate location map\n");
     exit(1);
   }
   
-  // Stack for tracking terms to copy
-  uint32_t copy_stack[IC_DEFAULT_STACK_SIZE];
-  uint32_t stack_pos = 0;
+  // Use a pre-allocated stack buffer for small copy operations
+  uint32_t stack_buffer[1024]; // Stack buffer for small operations
+  register uint32_t* copy_stack = stack_buffer;
+  bool dynamic_stack = false;
+  
+  if (unlikely(src_heap_size > 1024)) {
+    copy_stack = (uint32_t*)malloc(src_heap_size * sizeof(uint32_t));
+    if (!copy_stack) {
+      fprintf(stderr, "Error: Failed to allocate copy stack\n");
+      free(loc_map);
+      exit(1);
+    }
+    dynamic_stack = true;
+  }
+  
+  register uint32_t stack_pos = 0;
   
   // Initialize with the root term
-  copy_stack[stack_pos++] = TERM_VAL(term);
-  uint32_t root_loc = ic_alloc(ic, 1);
-  loc_map[TERM_VAL(term)] = root_loc;
+  register uint32_t root_val = TERM_VAL(term);
+  copy_stack[stack_pos++] = root_val;
+  register uint32_t root_loc = ic_alloc(ic, 1);
+  loc_map[root_val] = root_loc;
+  
+  register Term* heap = ic->heap; // Cache heap pointer
+  register Term* src = src_heap; // Cache source heap pointer
   
   // Process each term in the stack
   while (stack_pos > 0) {
-    uint32_t src_loc = copy_stack[--stack_pos];
-    uint32_t dst_loc = loc_map[src_loc];
+    register uint32_t src_loc = copy_stack[--stack_pos];
+    register uint32_t dst_loc = loc_map[src_loc];
     
     // Get source term
-    Term src_term = src_heap[src_loc];
-    TermTag tag = TERM_TAG(src_term);
+    register Term src_term = src[src_loc];
+    register TermTag tag = TERM_TAG(src_term);
+    register uint8_t lab = TERM_LAB(src_term);
     
-    // Process based on term type
-    switch (tag) {
-      case LAM: {
-        // Allocate space for the lambda body
-        uint32_t body_loc = ic_alloc(ic, 1);
-        
-        // Get source location of the body (which is just the next element)
-        uint32_t src_body_loc = src_loc;
-        
-        // Add body to copy queue
-        copy_stack[stack_pos++] = src_body_loc;
-        loc_map[src_body_loc] = body_loc;
-        
-        // Store LAM term pointing to the allocated space
-        ic->heap[dst_loc] = ic_make_term(LAM, TERM_LAB(src_term), body_loc);
-        break;
-      }
+    // Process based on term type with fast paths for common cases
+    if (tag == LAM) {
+      // Allocate space for the lambda body
+      register uint32_t body_loc = ic_alloc(ic, 1);
       
-      case APP: {
-        // Allocate space for function and argument
-        uint32_t app_loc = ic_alloc(ic, 2);
+      // Add body to copy queue
+      copy_stack[stack_pos++] = src_loc;
+      loc_map[src_loc] = body_loc;
+      
+      // Store LAM term pointing to the allocated space
+      heap[dst_loc] = MAKE_TERM(false, LAM, lab, body_loc);
+    }
+    else if (tag == APP) {
+      // Allocate space for function and argument
+      register uint32_t app_loc = ic_alloc(ic, 2);
 
-        // Get source locations
-        uint32_t src_fun_loc = src_loc;
-        uint32_t src_arg_loc = src_loc + 1;
-        
-        // Add function and argument to copy queue
-        copy_stack[stack_pos++] = src_fun_loc;
-        copy_stack[stack_pos++] = src_arg_loc;
-        loc_map[src_fun_loc] = app_loc;
-        loc_map[src_arg_loc] = app_loc + 1;
-        
-        // Store APP term pointing to the allocated space
-        ic->heap[dst_loc] = ic_make_term(APP, TERM_LAB(src_term), app_loc);
-        break;
-      }
+      // Add function and argument to copy queue
+      copy_stack[stack_pos++] = src_loc;
+      copy_stack[stack_pos++] = src_loc + 1;
+      loc_map[src_loc] = app_loc;
+      loc_map[src_loc + 1] = app_loc + 1;
       
-      case SUP: {
-        // Allocate space for left and right terms
-        uint32_t sup_loc = ic_alloc(ic, 2);
+      // Store APP term pointing to the allocated space
+      heap[dst_loc] = MAKE_TERM(false, APP, lab, app_loc);
+    }
+    else if (tag == SUP) {
+      // Allocate space for left and right terms
+      register uint32_t sup_loc = ic_alloc(ic, 2);
 
-        // Get source locations
-        uint32_t src_lft_loc = src_loc;
-        uint32_t src_rgt_loc = src_loc + 1;
-        
-        // Add left and right to copy queue
-        copy_stack[stack_pos++] = src_lft_loc;
-        copy_stack[stack_pos++] = src_rgt_loc;
-        loc_map[src_lft_loc] = sup_loc;
-        loc_map[src_rgt_loc] = sup_loc + 1;
-        
-        // Store SUP term pointing to the allocated space
-        ic->heap[dst_loc] = ic_make_term(SUP, TERM_LAB(src_term), sup_loc);
-        break;
-      }
+      // Add left and right to copy queue
+      copy_stack[stack_pos++] = src_loc;
+      copy_stack[stack_pos++] = src_loc + 1;
+      loc_map[src_loc] = sup_loc;
+      loc_map[src_loc + 1] = sup_loc + 1;
       
-      case VAR:
-      case CO0:
-      case CO1: {
-        // These are simple pointers, just copy
-        ic->heap[dst_loc] = src_term;
-        break;
-      }
+      // Store SUP term pointing to the allocated space
+      heap[dst_loc] = MAKE_TERM(false, SUP, lab, sup_loc);
+    }
+    else {
+      // VAR, CO0, CO1 are simple pointers, just copy
+      heap[dst_loc] = src_term;
     }
   }
   
   // Create the result term
-  Term result = ic_make_term(TERM_TAG(term), TERM_LAB(term), root_loc);
+  Term result = MAKE_TERM(false, TERM_TAG(term), TERM_LAB(term), root_loc);
   
   // Clean up
   free(loc_map);
+  if (dynamic_stack) {
+    free(copy_stack);
+  }
   
   return result;
 }
