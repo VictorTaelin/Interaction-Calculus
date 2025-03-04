@@ -107,60 +107,60 @@ void benchmark_term(Term term) {
     fprintf(stderr, "Error: Memory allocation failed for heap snapshot\n");
     return;
   }
-  
+
   // Copy the initial heap state
   memcpy(original_heap_state, heap, original_heap_ptr * sizeof(Term));
-  
+
   // Get a snapshot of the term as it might get modified during normalization
   Term original_term = term;
-  
+
   // Normalize once and show the result
   Term result = normal(term);
   printf("Normal form:\n");
   show_term(stdout, result);
   printf("\n\n");
-  
+
   // Reset for benchmarking
   uint64_t total_interactions = 0;
   uint32_t iterations = 0;
-  
+
   // Start timing
   struct timeval start_time, current_time;
   gettimeofday(&start_time, NULL);
   double elapsed_seconds = 0;
-  
+
   // Run normalization in a loop until 1 second has passed
   while (elapsed_seconds < 1.0) {
     // Reset heap state to original
     heap_ptr = original_heap_ptr;
     memcpy(heap, original_heap_state, original_heap_ptr * sizeof(Term));
-    
+
     // Reset interaction counter
     interaction_count = 0;
-    
+
     // Normalize the term again
     normal(original_term);
-    
+
     // Accumulate interactions
     total_interactions += interaction_count;
     iterations++;
-    
+
     // Check elapsed time
     gettimeofday(&current_time, NULL);
     elapsed_seconds = (current_time.tv_sec - start_time.tv_sec) + 
                       (current_time.tv_usec - start_time.tv_usec) / 1000000.0;
   }
-  
+
   // Calculate MIPS (Million Interactions Per Second)
   double mips = (total_interactions / elapsed_seconds) / 1000000.0;
-  
+
   // Print benchmark results
   printf("BENCHMARK:\n");
   printf("- LOOP: %u\n", iterations);
   printf("- WORK: %llu\n", total_interactions);
   printf("- TIME: %.3f seconds\n", elapsed_seconds);
   printf("- PERF: %.3f MIPS\n", mips);
-  
+
   // Clean up
   free(original_heap_state);
 }

@@ -39,7 +39,6 @@ void add_var_use(Parser* parser, const char* name, uint32_t loc) {
   parser->lcs_count++;
 }
 
-
 // Check if the next bytes match the specified UTF-8 bytes
 bool check_utf8(Parser* parser, uint8_t b1, uint8_t b2) {
   return (unsigned char)parser->input[parser->pos] == b1 &&

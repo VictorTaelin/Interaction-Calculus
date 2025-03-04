@@ -34,31 +34,31 @@ uint32_t normal_pop() {
 Term normal(Term term) {
   // Reset stack
   normal_sp = 0;
-  
+
   // Allocate a new node for the initial term
   uint32_t root_loc = alloc(1);
   heap[root_loc] = term;
-  
+
   // Push initial location to stack
   normal_push(root_loc);
-  
+
   while (normal_sp > 0) {
     // Pop current location from stack
     uint32_t loc = normal_pop();
-    
+
     // Get term at this location
     Term current = heap[loc];
-    
+
     // Reduce to WHNF
     current = whnf(current);
-    
+
     // Store the WHNF term back to the heap
     heap[loc] = current;
-    
+
     // Get term details
     TermTag tag = TERM_TAG(current);
     uint32_t val = TERM_VAL(current);
-    
+
     // Push subterm locations based on term type
     switch (tag) {
       case LAM:
@@ -77,12 +77,12 @@ Term normal(Term term) {
         break;
     }
   }
-  
+
   // Get the fully normalized term
   Term result = heap[root_loc];
-  
+
   // Free the temporary root node
   // Note: Not freeing here as memory management is handled elsewhere
-  
+
   return result;
 }

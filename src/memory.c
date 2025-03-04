@@ -16,7 +16,7 @@ void init_memory() {
     fprintf(stderr, "Error: Could not allocate memory heap of size %llu terms\n", (unsigned long long)HEAP_SIZE);
     exit(1);
   }
-  
+
   // Initialize the heap
   heap_ptr = 0;
   for (uint64_t i = 0; i < HEAP_SIZE; i++) {
