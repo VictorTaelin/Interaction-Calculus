@@ -19,6 +19,9 @@ obj/
 *.lai
 *.lib
 
+# Backups
+*.bak
+
 # Executables
 *.exe
 *.out
