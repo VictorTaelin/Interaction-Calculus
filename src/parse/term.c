@@ -28,8 +28,10 @@ void parse_term(Parser* parser, uint64_t loc) {
 
     if (next == '&') {
       parse_term_col(parser, loc);
+    } else if (isalpha(next) || next == '_') {
+      parse_term_let(parser, loc);
     } else {
-      parse_error(parser, "Expected '&' after '!' for collapser");
+      parse_error(parser, "Expected '&' or name after '!' for collapser or let");
     }
   } else if (c == '&') {
     parse_term_sup(parser, loc);

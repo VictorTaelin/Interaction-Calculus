@@ -80,5 +80,6 @@ void parse_term_sup(Parser* parser, uint64_t loc);
 void parse_term_col(Parser* parser, uint64_t loc);
 void parse_term_lam(Parser* parser, uint64_t loc);
 void parse_term_app(Parser* parser, uint64_t loc);
+void parse_term_let(Parser* parser, uint64_t loc);
 
 #endif // PARSE_H

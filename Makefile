@@ -16,25 +16,11 @@ SRCS = $(SRC_DIR)/main.c \
 PARSE_SRCS = $(wildcard $(SRC_DIR)/parse/*.c) \
              $(wildcard $(SRC_DIR)/parse/term/*.c)
 
-# Interaction functions
+# Interaction functions - simplified for IC
 INT_SRCS = $(SRC_DIR)/interactions/app_lam.c \
            $(SRC_DIR)/interactions/app_sup.c \
            $(SRC_DIR)/interactions/col_sup.c \
-           $(SRC_DIR)/interactions/col_lam.c \
-           $(SRC_DIR)/interactions/col_nil.c \
-           $(SRC_DIR)/interactions/col_b_0.c \
-           $(SRC_DIR)/interactions/col_b_1.c \
-           $(SRC_DIR)/interactions/col_tup.c \
-           $(SRC_DIR)/interactions/use_nil.c \
-           $(SRC_DIR)/interactions/use_sup.c \
-           $(SRC_DIR)/interactions/ite_b_0.c \
-           $(SRC_DIR)/interactions/ite_b_1.c \
-           $(SRC_DIR)/interactions/ite_sup.c \
-           $(SRC_DIR)/interactions/get_tup.c \
-           $(SRC_DIR)/interactions/get_sup.c \
-           $(SRC_DIR)/interactions/rwt_rfl.c \
-           $(SRC_DIR)/interactions/rwt_sup.c \
-           $(SRC_DIR)/interactions/let_red.c
+           $(SRC_DIR)/interactions/col_lam.c
 
 # Objects
 OBJS = $(SRCS:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
