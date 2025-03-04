@@ -96,10 +96,6 @@ Term parse_file(const char* filename) {
 
 // Benchmark function to run normalization repeatedly for 1 second
 void benchmark_term(Term term) {
-  printf("Original term:\n");
-  show_term(stdout, term);
-  printf("\n\n");
-
   // Create a snapshot of the initial state
   uint32_t original_heap_ptr = heap_ptr;
   Term* original_heap_state = (Term*)malloc(original_heap_ptr * sizeof(Term));
@@ -116,7 +112,6 @@ void benchmark_term(Term term) {
 
   // Normalize once and show the result
   Term result = normal(term);
-  printf("Normal form:\n");
   show_term(stdout, result);
   printf("\n\n");
 
