@@ -13,8 +13,8 @@ Term ::=
   | VAR: Name
   | LAM: "λ" Name "." Term
   | APP: "(" Term " " Term ")"
-  | SUP: "{" Term "," Term "}"
-  | COL: "!" "{" Name "," Name "}" "=" Term ";" Term
+  | SUP: "&" Label "{" Term "," Term "}"
+  | COL: "!" "&" Label "{" Name "," Name "}" "=" Term ";" Term
 ```
 
 Where:
@@ -37,6 +37,8 @@ SUP is applied to an argument, it reduces through the overlap interaction
 interaction (COL-LAM). This gives a computational behavior for every possible
 interaction: there are no runtime errors on IC.
 
+The 'Label' is just a numeric value. It affects the COL-SUP interaction.
+
 The interaction rules are defined below:
 
 Beta-Reduce:
@@ -51,33 +53,42 @@ f
 Superpose:
 
 ```
-({a,b} c)
---------------- APP-SUP
-! {x0,x1} = c;
-{(a x0),(b x1)}
+(&L{a,b} c)
+----------------- APP-SUP
+! &L{c0,c1} = c;
+&L{(a c0),(b c1)}
 ```
 
 Entangle:
 
 ```
-! {r,s} = λx.f;
+! &L{r,s} = λx.f;
 K
---------------- COL-LAM
+----------------- COL-LAM
 r <- λx0.f0
 s <- λx1.f1
-x <- {x0,x1}
-! {f0,f1} = f;
+x <- &L{x0,x1}
+! &L{f0,f1} = f;
 K
 ```
 
 Collapse:
 
 ```
-! {x,y} = {a,b};
+! &L{x,y} = &L{a,b};
 K
---------------- COL-SUP
+-------------------- COL-SUP (if equal labels)
 x <- a
 y <- b
+K
+
+! &L{x,y} = &R{a,b};
+K
+-------------------- COL-SUP (if different labels)
+x <- &R{a0,b0} 
+y <- &R{a1,b1}
+! &L{a0,a1} = a
+! &L{b0,b1} = b
 K
 ```
 
@@ -101,7 +112,7 @@ def app_sup(app, sup):
   x1 = fresh()
   a0 = App(sup.lft, Var(x0))
   a1 = App(sup.rgt, Var(x1))
-  return Col(x0, x1, app.arg, Sup(a0, a1))
+  return Col(sup.lab, x0, x1, app.arg, Sup(a0, a1))
 
 def dup_lam(dup, lam):
   x0 = fresh()
@@ -110,13 +121,14 @@ def dup_lam(dup, lam):
   f1 = fresh()
   sub[dup.lft] = Lam(x0, Var(f0))
   sub[dup.rgt] = Lam(x1, Var(f1))
-  sub[lam.nam] = Sup(Var(x0), Var(x1))
-  return Col(f0, f1, lam.bod, dup.bod)
+  sub[lam.nam] = Sup(dup.lab, Var(x0), Var(x1))
+  return Col(dup.lab, f0, f1, lam.bod, dup.bod)
 
 def dup_sup(dup, sup):
-  sub[dup.lft] = sup.lft
-  sub[dup.rgt] = sup.rgt
-  return dup.bod
+  if dup.lab == sup.lab:
+    sub[dup.lft] = sup.lft
+    sub[dup.rgt] = sup.rgt
+    return dup.bod
 ```
 
 Terms can be reduced to weak head normal form, which means reducing until the
@@ -245,203 +257,9 @@ The following term can be used to test all interactions:
 λa.λb.a
 ```
 
-# The Superposed Type Theory (SupTT)
+# IC's Runtime (64-Bit)
 
-The Superposed Type Theory (SupTT) is an extension of the Interaction Calculus
-with a type system, labelled superpositions, and new primitives. Its grammar is:
-
-```
-Term ::=
-  -- Variables
-  | VAR: Name
-  | LET: "!" Name "=" Term ";" Term
-  -- Superpositions
-  | SUP: "&" Uint "{" Term "," Term "}"
-  | COL: "!" "&" Uint "{" Name "," Name "}" "=" Term ";" Term
-  -- Universe Type
-  | SET: "*"
-  -- Empty Type
-  | EMP: "⊥"
-  | EFQ: "¬" Term
-  -- Unit Type
-  | UNI: "⊤"
-  | NIL: "()"
-  | USE: "-" Term ";" Term
-  -- Bool Type
-  | BIT: "𝔹"
-  | BT0: "0"
-  | BT1: "1"
-  | ITE: "?" Term "{" Term "}" ";" "{" Term "}"
-  -- Sigma Type
-  | SIG: "Σ" Name ":" Term "." Term
-  | TUP: "[" Term "," Term "]"
-  | GET: "!" "[" Name "," Name "]" "=" Term ";" Term
-  -- Pi Type
-  | ALL: "Π" Name ":" Term "." Term
-  | LAM: "λ" Name "." Term
-  | APP: "(" Term " " Term ")"
-  -- Identity Type
-  | EQL: "<" Term "=" Term ">"
-  | RFL: "θ"
-  | RWT: "%" Term ";" Term
-```
-
-The Universe Type is the type of types.
-
-The Empty Type is a set without elements. It is eliminated as `¬x`, which
-corresponds to an empty pattern-match (agda: `case x of λ{}`).
-
-The Unit Type is a set with one element, `()`. It is eliminated as `-x; body`,
-which corresponds to an unitary pattern-match (agda: `case x of λ{(): body}`).
-
-The Bool Type is a set with two elements, `0` and `1`. It is eliminated as `?x {
-t } ; { f }`, which corresponds to a boolean pattern-match (agda: `case x of λ{
-true → t ; false → f }`).
-
-The Sigma Type is a dependent pair, constructed as `[a,b]`. It is eliminated by
-the projection `! [a,b] = p; body`, which extracts `a` and `b` from `p`.
-
-The Pi Type is a dependent function, constructed as `λx. body`. It is eliminated
-by an application, `(f x)`, as discussed before.
-
-The Identity Type represents a propositional equality, constructed by `θ`, which
-stands for reflexivity. It is eliminated as `% e; body`, which corresponds to an
-identity type pattern-match (agda: `case e of λ{ refl: body }`).
-
-The computation rules (interactions) of SupTT are written below.
-
-Constructors interact with their eliminators, as expected:
-
-```
-- () t
------- USE-NIL
-t
-
-? 0 { t } ; { f }
------------------ ITE-BT0
-f
-
-? 1 { t } ; { f }
------------------ ITE-BT1
-t
-
-! [x,y] = [a,b]; t
------------------- GET-TUP
-x <- a
-y <- b
-t
-
-% θ; t
------- RWT-RFL
-t
-
-(λx.f a)
--------- APP-LAM
-x <- a
-f
-```
-
-Constructors also interact with collapsers:
-
-```
-! &L{x0,x1} = (); K
-------------------- COL-NIL
-x0 <- ()
-x1 <- ()
-K
-
-! &L{x0,x1} = 0; K
------------------- COL-BT0
-x0 <- 0
-x1 <- 0
-K
-
-! &L{x0,x1} = 1; K
------------------- COL-BT1
-x0 <- 1
-x1 <- 1
-K
-
-! &L{x0,x1} = [a,b]; K
----------------------- COL-TUP
-x0 <- [a0,b0]
-x1 <- [a1,b1]
-! &L{a0,a1} = a
-! &L{b0,b1} = b
-K
-
-! &L{r,s} = λx.f;
-K
------------------ COL-LAM
-r <- λx0.f0
-s <- λx1.f1
-x <- &L{x0,x1}
-! &L{f0,f1} = f;
-K
-```
-
-Eliminators interact with superpositions:
-
-```
-- &L{a,b}; k
--------------------- USE-SUP
-! &L{k0,k1} = k;
-&L{-a;k0, -b;k1}
-
-? &L{a,b} {t} ; {f}
----------------------------- ITE-SUP
-! &L{t0,t1} = t;
-! &L{f0,f1} = f;
-&L{?a{t0};{f0}, ?b{t1};{f1}}
-
-! [x,y] = &L{a,b}; k
----------------------------- GET-SUP
-! &L{k0,k1} = k;
-&L{![x,y]=a;k0, ![x,y]=b;k1}
-
-% &L{a,b}; k
----------------- RWT-SUP
-! &L{k0,k1} = k;
-&L{%a;k0, %b;k1}
-
-(&L{a,b} c)
------------------ APP-SUP
-! &L{c0,c1} = c;
-&L{(a c0),(b c1)}
-```
-
-Superpositions and collapsers interact:
-
-```
-! &L{x,y} = &L{a,b};
-K
--------------------- COL-SUP (if equal labels)
-x <- a
-y <- b
-K
-
-! &L{x,y} = &R{a,b};
-K
--------------------- COL-SUP (if different labels)
-x <- &R{a0,b0} 
-y <- &R{a1,b1}
-! &L{a0,a1} = a
-! &L{b0,b1} = b
-K
-```
-
-Finally, LET interacts with anything:
-
-```
-! x = t; body
-------------- LET
-x <- t
-body
-```
-
-# SupTT's Runtime (64-Bit)
-
-SupTT-64 is implemented in portable C.
+IC-64 is implemented in portable C.
 
 It represents terms with u64-pointers, which store 3 fields:
 
@@ -457,24 +275,8 @@ The tag field can be:
 - `SUP`
 - `CO0`
 - `CO1`
-- `SET`
-- `EMP`
-- `EFQ`
-- `UNI`
-- `NIL`
-- `USE`
-- `BIT`
-- `BT0`
-- `BT1`
-- `ITE`
-- `SIG`
-- `TUP`
-- `ALL`
 - `LAM`
 - `APP`
-- `EQL`
-- `RFL`
-- `RWT`
 
 The lab field stores a label on SUP, CO0 and CO1 terms.
 
@@ -483,27 +285,9 @@ The val field depends on the label:
 - `VAR`: points to a Subst location
 - `CO0`: points to a Subst location
 - `CO1`: points to a Subst location
-- `LET`: points to a Let Node ({val: Term, bod: Term})
 - `SUP`: points to a Sup Node ({lft: Term, rgt: Term})
-- `SET`: unused
-- `EMP`: unused
-- `EFQ`: points to an Efq Node ({val: Term})
-- `UNI`: unused
-- `NIL`: unused
-- `USE`: points to a Use Node ({val: Term, bod: Term})
-- `BIT`: unused
-- `BT0`: unused
-- `BT1`: unused
-- `ITE`: points to a Ite Node ({cnd: Term, thn: Term, els: Term})
-- `SIG`: points to a Sig Node ({fst: Term, snd: Term})
-- `TUP`: points to a Tup Node ({fst: Term, snd: Term})
-- `GET`: points to a Get Node ({val: Term, bod: Term})
-- `ALL`: points to an All Node ({inp: Term, out: Term})
 - `LAM`: points to a Lam Node ({bod: Term})
 - `APP`: points to an App Node ({fun: Term, arg: Term})
-- `EQL`: points to an Eql Node ({lft: Term, rgt: Term})
-- `RFL`: unused
-- `RWT`: points to a Rwt Node ({val: Term, bod: Term})
 
 Non-nullary terms point to a Node, i.e., a consecutive block of its child terms.
 For example, the SUP term points to the memory location where its two child
@@ -556,9 +340,9 @@ Note how the var (CO0 or CO1) that triggers col_sup is given one of the half of
 the collapse, while the other half is stored on the collapser node memory
 location, now reinterpreted as a subst entry, allowing the other var to get it.
 
-# Parsing SupTT
+# Parsing IC
 
-On SupTT, all bound variables have global range. For example, consider the term:
+On IC, all bound variables have global range. For example, consider the term:
 
 λt.((t x) λx.λy.y)
 
@@ -626,13 +410,13 @@ def parse_col(loc):
   vars[co1] = Term(CO1, lab, loc)
 ```
 
-# Stringifying SupTT
+# Stringifying IC
 
-Converting SupTT terms to strings faces two challenges:
+Converting IC terms to strings faces two challenges:
 
-First, SupTT terms and nodes don't store variable names. As such, 
+First, IC terms and nodes don't store variable names. As such, 
 
-Second, on SupTT, Col Nodes aren't part of the main program's AST. Instead, they
+Second, on IC, Col Nodes aren't part of the main program's AST. Instead, they
 "float" on the heap, and are only reachable via CO0 and CO1 variables. Because
 of that, by stringifying a term naively, collapser nodes will be missing.
 
@@ -654,3 +438,41 @@ stringify the actual term. As such, the result will always be in the form:
 term
 
 With no COL nodes inside the ASTs of t0, t1, t2 ... and term.
+
+-----------------------------
+
+NOTE: SupTT has been renamed to IC (Interaction Calculus).
+Its core language has been greatly simplified:
+
+- VAR
+- LET (removed)
+- SUP
+- CO0
+- CO1
+- SET (removed)
+- EMP (removed)
+- EFQ (removed)
+- UNI (removed)
+- NIL (removed)
+- USE (removed)
+- BIT (removed)
+- BT0 (removed)
+- BT1 (removed)
+- ITE (removed)
+- SIG (removed)
+- TUP (removed)
+- GET (removed)
+- ALL (removed)
+- LAM
+- APP
+- EQL (removed)
+- RFL (removed)
+- RWT (removed)
+
+Now, there are only vars, sups, cols, lams and apps.
+
+TASK:
+
+We're now refactoring the repository to remove the old types. Your goal is to
+read the gile given to you, and rewrite it fully, in order to remove the
+deprecated types and constructors.

@@ -1,4 +1,4 @@
-//./../suptt.md//
+//./../IC.md//
 //./memory.h//
 //./types.h//
 //./whnf.h//
@@ -27,6 +27,7 @@ typedef struct {
 // Structure to track collapser nodes
 typedef struct {
   uint64_t* locations;   // Array of collapser locations
+  uint16_t* labels;      // Array of collapser labels
   uint64_t count;        // Number of collapsers
   uint64_t capacity;     // Capacity of the array
 } ColTable;
@@ -55,11 +56,13 @@ void init_col_table(ColTable* table) {
   table->count = 0;
   table->capacity = 64;
   table->locations = (uint64_t*)malloc(table->capacity * sizeof(uint64_t));
+  table->labels = (uint16_t*)malloc(table->capacity * sizeof(uint16_t));
 }
 
 // Free collapser table
 void free_col_table(ColTable* table) {
   free(table->locations);
+  free(table->labels);
 }
 
 // Add a variable to the table and return its name
@@ -114,23 +117,25 @@ void stringify_term(Term term, VarNameTable* var_table, char* buffer, int* pos, 
 void stringify_collapsers(ColTable* col_table, VarNameTable* var_table, char* buffer, int* pos, int max_len);
 
 // Register a collapser in the table
-bool register_collapser(ColTable* table, uint64_t location) {
-// Check if the collapser is already in the table
+bool register_collapser(ColTable* table, uint64_t location, uint16_t label) {
   for (uint64_t i = 0; i < table->count; i++) {
     if (table->locations[i] == location) {
-      return false; // Already registered
+      if (table->labels[i] != label) {
+        fprintf(stderr, "Label mismatch for collapser\n");
+        exit(1);
+      }
+      return false;
     }
   }
-
-  // Check if we need to expand the table
   if (table->count >= table->capacity) {
     table->capacity *= 2;
     table->locations = (uint64_t*)realloc(table->locations, table->capacity * sizeof(uint64_t));
+    table->labels = (uint16_t*)realloc(table->labels, table->capacity * sizeof(uint16_t));
   }
-
-  // Add the new collapser
-  table->locations[table->count++] = location;
-  return true; // Newly registered
+  table->locations[table->count] = location;
+  table->labels[table->count] = label;
+  table->count++;
+  return true;
 }
 
 // Assign IDs to variables and register collapsers
@@ -148,7 +153,8 @@ void assign_var_ids(Term term, VarNameTable* var_table, ColTable* col_table) {
         assign_var_ids(clear_sub(subst), var_table, col_table);
       } else {
         if (tag == CO0 || tag == CO1) {
-          if (register_collapser(col_table, loc)) {
+          uint16_t lab = TERM_LAB(term);
+          if (register_collapser(col_table, loc, lab)) {
             assign_var_ids(subst, var_table, col_table);
           }
         }
@@ -161,14 +167,6 @@ void assign_var_ids(Term term, VarNameTable* var_table, ColTable* col_table) {
       uint64_t lam_loc = val;
       add_variable(var_table, lam_loc, VAR);
       assign_var_ids(heap[lam_loc], var_table, col_table);
-      break;
-    }
-
-    case LET: {
-      uint64_t let_loc = val;
-      add_variable(var_table, let_loc, VAR);
-      assign_var_ids(heap[let_loc], var_table, col_table);
-      assign_var_ids(heap[let_loc + 1], var_table, col_table);
       break;
     }
 
@@ -186,67 +184,6 @@ void assign_var_ids(Term term, VarNameTable* var_table, ColTable* col_table) {
       break;
     }
 
-    case EFQ: {
-      uint64_t efq_loc = val;
-      assign_var_ids(heap[efq_loc], var_table, col_table);
-      break;
-    }
-
-    case USE: {
-      uint64_t use_loc = val;
-      assign_var_ids(heap[use_loc], var_table, col_table);
-      assign_var_ids(heap[use_loc + 1], var_table, col_table);
-      break;
-    }
-
-    case ITE: {
-      uint64_t ite_loc = val;
-      assign_var_ids(heap[ite_loc], var_table, col_table);
-      assign_var_ids(heap[ite_loc + 1], var_table, col_table);
-      assign_var_ids(heap[ite_loc + 2], var_table, col_table);
-      break;
-    }
-
-    case SIG:
-    case TUP: {
-      uint64_t pair_loc = val;
-      assign_var_ids(heap[pair_loc], var_table, col_table);
-      assign_var_ids(heap[pair_loc + 1], var_table, col_table);
-      break;
-    }
-
-    case GET: {
-      uint64_t get_loc = val;
-      add_variable(var_table, get_loc, VAR);     // First var
-      add_variable(var_table, get_loc + 1, VAR); // Second var
-      assign_var_ids(heap[get_loc + 0], var_table, col_table);
-      assign_var_ids(heap[get_loc + 1], var_table, col_table);
-      break;
-    }
-
-    case ALL: {
-      uint64_t all_loc = val;
-      add_variable(var_table, all_loc, VAR);
-      assign_var_ids(heap[all_loc], var_table, col_table);
-      assign_var_ids(heap[all_loc + 1], var_table, col_table);
-      break;
-    }
-
-    case EQL: {
-      uint64_t eql_loc = val;
-      assign_var_ids(heap[eql_loc], var_table, col_table);
-      assign_var_ids(heap[eql_loc + 1], var_table, col_table);
-      break;
-    }
-
-    case RWT: {
-      uint64_t rwt_loc = val;
-      assign_var_ids(heap[rwt_loc], var_table, col_table);
-      assign_var_ids(heap[rwt_loc + 1], var_table, col_table);
-      break;
-    }
-
-    // No need to process leaf nodes (SET, EMP, UNI, NIL, BIT, BT0, BT1, RFL)
     default:
       break;
   }
@@ -264,8 +201,8 @@ void stringify_collapsers(ColTable* col_table, VarNameTable* var_table, char* bu
   // Then, stringify each collapser
   for (uint64_t i = 0; i < col_table->count; i++) {
     uint64_t col_loc = col_table->locations[i];
+    uint16_t lab = col_table->labels[i];
     Term val_term = heap[col_loc];
-    uint16_t lab = TERM_LAB(val_term);
 
     // Get variable names
     char* var0 = get_var_name(var_table, col_loc, CO0);
@@ -303,131 +240,31 @@ void stringify_term(Term term, VarNameTable* var_table, char* buffer, int* pos, 
       break;
     }
 
-    case LAM:
-      *pos += snprintf(buffer + *pos, max_len - *pos, "λ%s.", get_var_name(var_table, val, VAR));
-      stringify_term(heap[val], var_table, buffer, pos, max_len);
+    case LAM: {
+      uint64_t lam_loc = val;
+      char* var_name = get_var_name(var_table, lam_loc, VAR);
+      *pos += snprintf(buffer + *pos, max_len - *pos, "λ%s.", var_name);
+      stringify_term(heap[lam_loc], var_table, buffer, pos, max_len);
       break;
+    }
 
-    case LET:
-      *pos += snprintf(buffer + *pos, max_len - *pos, "!%s = ", get_var_name(var_table, val, VAR));
-      stringify_term(heap[val], var_table, buffer, pos, max_len);
-      *pos += snprintf(buffer + *pos, max_len - *pos, "; ");
-      stringify_term(heap[val + 1], var_table, buffer, pos, max_len);
-      break;
-
-    case APP:
+    case APP: {
       *pos += snprintf(buffer + *pos, max_len - *pos, "(");
       stringify_term(heap[val], var_table, buffer, pos, max_len);
       *pos += snprintf(buffer + *pos, max_len - *pos, " ");
       stringify_term(heap[val + 1], var_table, buffer, pos, max_len);
       *pos += snprintf(buffer + *pos, max_len - *pos, ")");
       break;
+    }
 
-    case SUP:
+    case SUP: {
       *pos += snprintf(buffer + *pos, max_len - *pos, "&%u{", lab);
       stringify_term(heap[val], var_table, buffer, pos, max_len);
       *pos += snprintf(buffer + *pos, max_len - *pos, ",");
       stringify_term(heap[val + 1], var_table, buffer, pos, max_len);
       *pos += snprintf(buffer + *pos, max_len - *pos, "}");
       break;
-
-    case SET:
-      *pos += snprintf(buffer + *pos, max_len - *pos, "*");
-      break;
-
-    case EMP:
-      *pos += snprintf(buffer + *pos, max_len - *pos, "⊥");
-      break;
-
-    case EFQ:
-      *pos += snprintf(buffer + *pos, max_len - *pos, "¬");
-      stringify_term(heap[val], var_table, buffer, pos, max_len);
-      break;
-
-    case UNI:
-      *pos += snprintf(buffer + *pos, max_len - *pos, "⊤");
-      break;
-
-    case NIL:
-      *pos += snprintf(buffer + *pos, max_len - *pos, "()");
-      break;
-
-    case USE:
-      *pos += snprintf(buffer + *pos, max_len - *pos, "-");
-      stringify_term(heap[val], var_table, buffer, pos, max_len);
-      *pos += snprintf(buffer + *pos, max_len - *pos, "; ");
-      stringify_term(heap[val + 1], var_table, buffer, pos, max_len);
-      break;
-
-    case BIT:
-      *pos += snprintf(buffer + *pos, max_len - *pos, "𝔹");
-      break;
-
-    case BT0:
-      *pos += snprintf(buffer + *pos, max_len - *pos, "0");
-      break;
-
-    case BT1:
-      *pos += snprintf(buffer + *pos, max_len - *pos, "1");
-      break;
-
-    case ITE:
-      *pos += snprintf(buffer + *pos, max_len - *pos, "?");
-      stringify_term(heap[val], var_table, buffer, pos, max_len);
-      *pos += snprintf(buffer + *pos, max_len - *pos, "{");
-      stringify_term(heap[val + 1], var_table, buffer, pos, max_len);
-      *pos += snprintf(buffer + *pos, max_len - *pos, "}; {");
-      stringify_term(heap[val + 2], var_table, buffer, pos, max_len);
-      *pos += snprintf(buffer + *pos, max_len - *pos, "}");
-      break;
-
-    case SIG:
-      *pos += snprintf(buffer + *pos, max_len - *pos, "Σ%s:", get_var_name(var_table, val, VAR));
-      stringify_term(heap[val], var_table, buffer, pos, max_len);
-      *pos += snprintf(buffer + *pos, max_len - *pos, ".");
-      stringify_term(heap[val + 1], var_table, buffer, pos, max_len);
-      break;
-
-    case TUP:
-      *pos += snprintf(buffer + *pos, max_len - *pos, "[");
-      stringify_term(heap[val], var_table, buffer, pos, max_len);
-      *pos += snprintf(buffer + *pos, max_len - *pos, ",");
-      stringify_term(heap[val + 1], var_table, buffer, pos, max_len);
-      *pos += snprintf(buffer + *pos, max_len - *pos, "]");
-      break;
-
-    case GET:
-      *pos += snprintf(buffer + *pos, max_len - *pos, "![%s,%s] = ", get_var_name(var_table, val, VAR), get_var_name(var_table, val + 1, VAR));
-      stringify_term(heap[val + 0], var_table, buffer, pos, max_len);
-      *pos += snprintf(buffer + *pos, max_len - *pos, "; ");
-      stringify_term(heap[val + 1], var_table, buffer, pos, max_len);
-      break;
-
-    case ALL:
-      *pos += snprintf(buffer + *pos, max_len - *pos, "Π%s:", get_var_name(var_table, val, VAR));
-      stringify_term(heap[val], var_table, buffer, pos, max_len);
-      *pos += snprintf(buffer + *pos, max_len - *pos, ".");
-      stringify_term(heap[val + 1], var_table, buffer, pos, max_len);
-      break;
-
-    case EQL:
-      *pos += snprintf(buffer + *pos, max_len - *pos, "<");
-      stringify_term(heap[val], var_table, buffer, pos, max_len);
-      *pos += snprintf(buffer + *pos, max_len - *pos, "=");
-      stringify_term(heap[val + 1], var_table, buffer, pos, max_len);
-      *pos += snprintf(buffer + *pos, max_len - *pos, ">");
-      break;
-
-    case RFL:
-      *pos += snprintf(buffer + *pos, max_len - *pos, "θ");
-      break;
-
-    case RWT:
-      *pos += snprintf(buffer + *pos, max_len - *pos, "%%");
-      stringify_term(heap[val], var_table, buffer, pos, max_len);
-      *pos += snprintf(buffer + *pos, max_len - *pos, "; ");
-      stringify_term(heap[val + 1], var_table, buffer, pos, max_len);
-      break;
+    }
 
     default:
       *pos += snprintf(buffer + *pos, max_len - *pos, "<?unknown term>");

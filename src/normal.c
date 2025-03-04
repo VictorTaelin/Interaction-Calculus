@@ -1,3 +1,7 @@
+//./../IC.md//
+//./types.h//
+//./memory.h//
+
 #include <stdio.h>
 #include <stdlib.h>
 #include "normal.h"
@@ -68,48 +72,8 @@ Term normal(Term term) {
         normal_push(val);     // Push left location
         normal_push(val + 1); // Push right location
         break;
-      case LET:
-        normal_push(val);     // Push binding location
-        normal_push(val + 1); // Push body location
-        break;
-      case EFQ:
-        normal_push(val);     // Push argument location
-        break;
-      case USE:
-        normal_push(val);     // Push argument location
-        normal_push(val + 1); // Push body location
-        break;
-      case ITE:
-        normal_push(val);     // Push condition location
-        normal_push(val + 1); // Push then branch location
-        normal_push(val + 2); // Push else branch location
-        break;
-      case SIG:
-        normal_push(val);     // Push argument location
-        normal_push(val + 1); // Push body location
-        break;
-      case TUP:
-        normal_push(val);     // Push first location
-        normal_push(val + 1); // Push second location
-        break;
-      case GET:
-        normal_push(val + 0); // Push value location
-        normal_push(val + 1); // Push body location
-        break;
-      case ALL:
-        normal_push(val);     // Push argument location
-        normal_push(val + 1); // Push body location
-        break;
-      case EQL:
-        normal_push(val);     // Push left location
-        normal_push(val + 1); // Push right location
-        break;
-      case RWT:
-        normal_push(val);     // Push eq location
-        normal_push(val + 1); // Push body location
-        break;
       default:
-        // No subterms to process
+        // No subterms to process for VAR, CO0, CO1
         break;
     }
   }

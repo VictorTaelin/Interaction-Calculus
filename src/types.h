@@ -7,29 +7,11 @@
 // Term tags
 typedef enum {
   VAR, // Variable
-  LET, // Let binding
   SUP, // Superposition
   CO0, // Collapser first variable
   CO1, // Collapser second variable
-  SET, // Universe type
-  EMP, // Empty type
-  EFQ, // Empty type elimination
-  UNI, // Unit type
-  NIL, // Unit value
-  USE, // Unit elimination
-  BIT, // Bool type
-  BT0, // False value
-  BT1, // True value
-  ITE, // Bool elimination
-  SIG, // Sigma type
-  TUP, // Tuple (pair)
-  GET, // Sigma elimination
-  ALL, // Pi type
   LAM, // Lambda
-  APP, // Application
-  EQL, // Equality type
-  RFL, // Reflexivity
-  RWT  // Equality elimination
+  APP  // Application
 } TermTag;
 
 // Term 64-bit packed representation

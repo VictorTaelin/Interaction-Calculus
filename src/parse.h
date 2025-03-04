@@ -76,27 +76,9 @@ void store_term(uint64_t loc, TermTag tag, uint16_t label, uint64_t value);
 
 // Individual term parsers
 void parse_term_var(Parser* parser, uint64_t loc);
-void parse_term_let(Parser* parser, uint64_t loc);
 void parse_term_sup(Parser* parser, uint64_t loc);
 void parse_term_col(Parser* parser, uint64_t loc);
-void parse_term_set(Parser* parser, uint64_t loc);
-void parse_term_emp(Parser* parser, uint64_t loc);
-void parse_term_efq(Parser* parser, uint64_t loc);
-void parse_term_uni(Parser* parser, uint64_t loc);
-void parse_term_nil(Parser* parser, uint64_t loc);
-void parse_term_use(Parser* parser, uint64_t loc);
-void parse_term_bit(Parser* parser, uint64_t loc);
-void parse_term_bt0(Parser* parser, uint64_t loc);
-void parse_term_bt1(Parser* parser, uint64_t loc);
-void parse_term_ite(Parser* parser, uint64_t loc);
-void parse_term_sig(Parser* parser, uint64_t loc);
-void parse_term_tup(Parser* parser, uint64_t loc);
-void parse_term_get(Parser* parser, uint64_t loc);
-void parse_term_all(Parser* parser, uint64_t loc);
 void parse_term_lam(Parser* parser, uint64_t loc);
 void parse_term_app(Parser* parser, uint64_t loc);
-void parse_term_eql(Parser* parser, uint64_t loc);
-void parse_term_rfl(Parser* parser, uint64_t loc);
-void parse_term_rwt(Parser* parser, uint64_t loc);
 
 #endif // PARSE_H
