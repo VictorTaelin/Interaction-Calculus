@@ -6,33 +6,24 @@ BIN_DIR = bin
 
 # Main source files
 SRCS = $(SRC_DIR)/main.c \
-       $(SRC_DIR)/memory.c \
+       $(SRC_DIR)/ic.c \
        $(SRC_DIR)/show.c \
-       $(SRC_DIR)/whnf.c \
-       $(SRC_DIR)/normal.c \
        $(SRC_DIR)/parse.c
 
 # All parser source files - updated for new structure
 PARSE_SRCS = $(wildcard $(SRC_DIR)/parse/*.c) \
              $(wildcard $(SRC_DIR)/parse/term/*.c)
 
-# Interaction functions - simplified for IC
-INT_SRCS = $(SRC_DIR)/interactions/app_lam.c \
-           $(SRC_DIR)/interactions/app_sup.c \
-           $(SRC_DIR)/interactions/col_sup.c \
-           $(SRC_DIR)/interactions/col_lam.c
-
 # Objects
 OBJS = $(SRCS:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
 PARSE_OBJS = $(PARSE_SRCS:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
-INT_OBJS = $(INT_SRCS:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
 
 # Executable
 TARGET = $(BIN_DIR)/main
 TARGET_LN = $(BIN_DIR)/ic
 
 # Directories
-DIRS = $(OBJ_DIR) $(BIN_DIR) $(OBJ_DIR)/interactions $(OBJ_DIR)/parse \
+DIRS = $(OBJ_DIR) $(BIN_DIR) $(OBJ_DIR)/parse \
        $(OBJ_DIR)/parse/term
 
 .PHONY: all clean
@@ -42,7 +33,7 @@ all: $(DIRS) $(TARGET) $(TARGET_LN)
 $(DIRS):
 	mkdir -p $@
 
-$(TARGET): $(OBJS) $(PARSE_OBJS) $(INT_OBJS)
+$(TARGET): $(OBJS) $(PARSE_OBJS)
 	$(CC) $(CFLAGS) -o $@ $^
 
 $(TARGET_LN): $(TARGET)

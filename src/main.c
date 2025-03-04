@@ -3,26 +3,23 @@
 #include <string.h>
 #include <time.h>
 #include <sys/time.h>
-#include "types.h"
-#include "memory.h"
+#include "ic.h"
 #include "parse.h"
-#include "whnf.h"
-#include "normal.h"
 #include "show.h"
 
 // Default test term string
 const char* DEFAULT_TEST_TERM = "((λf.λx.!&0{f0,f1}=f;(f0 (f1 x)) λB.λT.λF.((B F) T)) λa.λb.a)";
 
 // Run a term through normalization and print results
-void process_term(Term term) {
+void process_term(IC* ic, Term term) {
   // Reset interaction counter
-  interaction_count = 0;
+  ic->interactions = 0;
 
   // Record start time
   clock_t start = clock();
 
   // Normalize the term
-  term = normal(term);
+  term = ic_normal(ic, term);
 
   // Record end time
   clock_t end = clock();
@@ -31,16 +28,16 @@ void process_term(Term term) {
   double time_seconds = (double)(end - start) / CLOCKS_PER_SEC;
 
   // Get heap size (the number of allocated nodes)
-  size_t size = heap_ptr;
+  size_t size = ic->heap_pos;
 
   // Calculate PERF, avoiding division by zero
-  double perf = time_seconds > 0 ? (interaction_count / time_seconds) / 1000000.0 : 0.0;
+  double perf = time_seconds > 0 ? (ic->interactions / time_seconds) / 1000000.0 : 0.0;
 
-  show_term(stdout, term);
+  show_term(stdout, ic, term);
   printf("\n\n");
 
   // Print statistics
-  printf("WORK: %llu interactions\n", interaction_count);
+  printf("WORK: %llu interactions\n", ic->interactions);
   printf("TIME: %.7f seconds\n", time_seconds);
   printf("SIZE: %zu nodes\n", size);
   printf("PERF: %.3f MIPS\n", perf);
@@ -48,71 +45,37 @@ void process_term(Term term) {
 }
 
 // Test function with the default term
-void test() {
+void test(IC* ic) {
   printf("Running with default test term: %s\n", DEFAULT_TEST_TERM);
 
   // Parse the term
-  Term term = parse_string(DEFAULT_TEST_TERM);
+  Term term = parse_string(ic, DEFAULT_TEST_TERM);
 
   // Process the term
-  process_term(term);
+  process_term(ic, term);
 }
 
-// Parse a file and return the term
-Term parse_file(const char* filename) {
-  FILE* file = fopen(filename, "r");
-  if (!file) {
-    fprintf(stderr, "Error: Could not open file '%s'\n", filename);
-    exit(1);
-  }
-
-  // Get file size
-  fseek(file, 0, SEEK_END);
-  long size = ftell(file);
-  fseek(file, 0, SEEK_SET);
-
-  // Allocate buffer
-  char* buffer = (char*)malloc(size + 1);
-  if (!buffer) {
-    fprintf(stderr, "Error: Memory allocation failed\n");
-    fclose(file);
-    exit(1);
-  }
-
-  // Read file contents
-  size_t read_size = fread(buffer, 1, size, file);
-  fclose(file);
-
-  buffer[read_size] = '\0';
-
-  // Parse the string
-  Term term = parse_string(buffer);
-
-  // Free the buffer
-  free(buffer);
-
-  return term;
-}
+// Now implemented in parse.c
 
 // Benchmark function to run normalization repeatedly for 1 second
-void benchmark_term(Term term) {
+void benchmark_term(IC* ic, Term term) {
   // Create a snapshot of the initial state
-  uint32_t original_heap_ptr = heap_ptr;
-  Term* original_heap_state = (Term*)malloc(original_heap_ptr * sizeof(Term));
+  uint32_t original_heap_pos = ic->heap_pos;
+  Term* original_heap_state = (Term*)malloc(original_heap_pos * sizeof(Term));
   if (!original_heap_state) {
     fprintf(stderr, "Error: Memory allocation failed for heap snapshot\n");
     return;
   }
 
   // Copy the initial heap state
-  memcpy(original_heap_state, heap, original_heap_ptr * sizeof(Term));
+  memcpy(original_heap_state, ic->heap, original_heap_pos * sizeof(Term));
 
   // Get a snapshot of the term as it might get modified during normalization
   Term original_term = term;
 
   // Normalize once and show the result
-  Term result = normal(term);
-  show_term(stdout, result);
+  Term result = ic_normal(ic, term);
+  show_term(stdout, ic, result);
   printf("\n\n");
 
   // Reset for benchmarking
@@ -127,17 +90,17 @@ void benchmark_term(Term term) {
   // Run normalization in a loop until 1 second has passed
   while (elapsed_seconds < 1.0) {
     // Reset heap state to original
-    heap_ptr = original_heap_ptr;
-    memcpy(heap, original_heap_state, original_heap_ptr * sizeof(Term));
+    ic->heap_pos = original_heap_pos;
+    memcpy(ic->heap, original_heap_state, original_heap_pos * sizeof(Term));
 
     // Reset interaction counter
-    interaction_count = 0;
+    ic->interactions = 0;
 
     // Normalize the term again
-    normal(original_term);
+    ic_normal(ic, original_term);
 
     // Accumulate interactions
-    total_interactions += interaction_count;
+    total_interactions += ic->interactions;
     iterations++;
 
     // Check elapsed time
@@ -170,14 +133,18 @@ void print_usage() {
 }
 
 int main(int argc, char* argv[]) {
-  // Initialize memory
-  init_memory();
+  // Initialize IC context
+  IC* ic = ic_default_new();
+  if (!ic) {
+    fprintf(stderr, "Error: Failed to initialize IC context\n");
+    return 1;
+  }
 
   int result = 0;
 
   // Check if no arguments provided
   if (argc < 2) {
-    test(); // Run with default test term
+    test(ic); // Run with default test term
   } else {
     // Get command
     const char* command = argv[1];
@@ -192,8 +159,8 @@ int main(int argc, char* argv[]) {
       } else {
         // Parse and process the file
         const char* filename = argv[2];
-        Term term = parse_file(filename);
-        process_term(term);
+        Term term = parse_file(ic, filename);
+        process_term(ic, term);
       }
     } else if (strcmp(command, "eval") == 0) {
       // Check if expression is provided
@@ -204,8 +171,8 @@ int main(int argc, char* argv[]) {
       } else {
         // Parse and process the expression
         const char* expression = argv[2];
-        Term term = parse_string(expression);
-        process_term(term);
+        Term term = parse_string(ic, expression);
+        process_term(ic, term);
       }
     } else if (strcmp(command, "bench") == 0) {
       // Check if filename is provided
@@ -216,8 +183,8 @@ int main(int argc, char* argv[]) {
       } else {
         // Parse and benchmark the file
         const char* filename = argv[2];
-        Term term = parse_file(filename);
-        benchmark_term(term);
+        Term term = parse_file(ic, filename);
+        benchmark_term(ic, term);
       }
     } else {
       fprintf(stderr, "Error: Unknown command '%s'\n", command);
@@ -226,8 +193,8 @@ int main(int argc, char* argv[]) {
     }
   }
 
-  // Clean up memory before exiting
-  cleanup_memory();
+  // Clean up IC context before exiting
+  ic_free(ic);
 
   return result;
 }

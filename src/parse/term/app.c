@@ -1,13 +1,12 @@
 #include <ctype.h>
 #include <stddef.h>
 #include "../../parse.h"
-#include "../../memory.h"
 
 // Parse an application
 void parse_term_app(Parser* parser, uint32_t loc) {
   expect(parser, "(", "for application");
 
-  uint32_t app_node = alloc(2);
+  uint32_t app_node = ic_alloc(parser->ic, 2);
   uint32_t fun_loc = app_node;
   uint32_t arg_loc = app_node + 1;
 
@@ -21,5 +20,5 @@ void parse_term_app(Parser* parser, uint32_t loc) {
   parse_term(parser, arg_loc);
   expect(parser, ")", "after application");
 
-  store_term(loc, APP, 0, app_node);
+  store_term(parser, loc, APP, 0, app_node);
 }

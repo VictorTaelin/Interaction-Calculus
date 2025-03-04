@@ -1,6 +1,5 @@
 #include <stddef.h>
 #include "../../parse.h"
-#include "../../memory.h"
 
 // Parse a lambda
 void parse_term_lam(Parser* parser, uint32_t loc) {
@@ -13,11 +12,11 @@ void parse_term_lam(Parser* parser, uint32_t loc) {
   char* name = parse_name(parser);
   expect(parser, ".", "after name in lambda");
 
-  uint32_t lam_node = alloc(1);
+  uint32_t lam_node = ic_alloc(parser->ic, 1);
 
-  Term var_term = make_term(VAR, 0, lam_node);
+  Term var_term = ic_make_term(VAR, 0, lam_node);
   bind_var(parser, name, var_term);
 
   parse_term(parser, lam_node);
-  store_term(loc, LAM, 0, lam_node);
+  store_term(parser, loc, LAM, 0, lam_node);
 }

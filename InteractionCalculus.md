@@ -450,3 +450,65 @@ stringify the actual term. As such, the result will always be in the form:
 term
 
 With no COL nodes inside the ASTs of t0, t1, t2 ... and term.
+
+---------------------------------------------
+
+FUTURE GOAL
+
+The future goal is to update this repo so that it runs on the GPU.
+
+Note that the current machine doesn't have 'nvcc' installed, but we
+have a machine with an RTX 4090, accessible via 'ssh taelin@NVCC'.
+The ssh keys are already there.
+
+There should be a new command: 'ic run-gpu <file>'.
+
+Note that, initially, we will run it in just a single thread on the GPU.
+
+As such, all that we need to do is:
+1. load the file (as usual)
+2. parse it on CPU side (as usual)
+3. copy the filled slice of the memory to the GPU
+4. run the equivalent of normal() but on GPU side (reuse C functions as much as possible)
+5. upload the result back to CPU side
+6. print the results (as usual)
+
+CURRENT GOAL
+
+Sadly, the goal above would require a lot of code duplication, because CUDA
+can't run plain C functions inside kernels.
+
+The current goal is to refactor this codebase in preparation for the CUDA
+refactor, in a way that prevents this future code repetition. In special, you
+must move ALL files related to types, memory, whnf and normal to a single
+header-only file called ic.h, which must be compatible with both plain C and
+CUDA. specifically:
+
+- `src/interactions/[app_lam|app_sup|col_lam|col_sup].c`
+- `memory.[c|h]`
+- `types.h`
+- `normal.[c|h]`
+- `whnf.[c|h]`
+
+must all be merged into a single 'ic.h' files
+
+the other files in this repo must be updated to account for this change.
+note that the parse and show files must NOT be merged into ic.h.
+
+your goal is to perform this refactor.
+perform as little changes to the code, structure and comments as possible.
+
+remember: your main goal is to just make sure the same code can be imported
+from both CUDA and plan C.
+
+to make it work, I recommend creating an IC struct, with:
+- heap, heap_pos
+- whnf_stack, whnf_stack_pos
+- normal_stack, normal_stack_pos
+- interactions
+
+this structure will be passed to all IC functions that handle the heap (i.e., the interactions, whnf, normal, etc.)
+
+the parser, stringifier, and some other files could need to be updated to receive IC* too.
+
+perform the CURRENT GOAL now.

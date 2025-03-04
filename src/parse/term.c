@@ -1,13 +1,10 @@
 //./../../IC.md//
-//./../types.h//
-//./../memory.h//
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
 #include "../parse.h"
-#include "../memory.h"
 
 // Main term parser - dispatcher for specific term types
 void parse_term(Parser* parser, uint32_t loc) {

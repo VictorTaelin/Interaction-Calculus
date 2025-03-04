@@ -3,7 +3,6 @@
 #include <string.h>
 #include <ctype.h>
 #include "parse.h"
-#include "memory.h"
 
 // Forward declarations for internal functions
 uint32_t parse_term_alloc(Parser* parser);
@@ -110,7 +109,8 @@ bool expect(Parser* parser, const char* token, const char* error_context) {
 }
 
 // Initialize a parser with the given input string
-void init_parser(Parser* parser, const char* input) {
+void init_parser(Parser* parser, IC* ic, const char* input) {
+  parser->ic = ic;
   parser->input = input;
   parser->pos = 0;
   parser->line = 1;
@@ -185,31 +185,67 @@ void resolve_var_uses(Parser* parser) {
       parse_error(parser, error);
     }
 
-    heap[parser->lcs[i].loc] = *binding;
+    parser->ic->heap[parser->lcs[i].loc] = *binding;
   }
 }
 
 // Store a term at the given location
-void store_term(uint32_t loc, TermTag tag, uint8_t label, uint32_t value) {
-  heap[loc] = make_term(tag, label, value);
+void store_term(Parser* parser, uint32_t loc, TermTag tag, uint8_t label, uint32_t value) {
+  parser->ic->heap[loc] = ic_make_term(tag, label, value);
 }
 
 // Parse a string into a term
-Term parse_string(const char* input) {
+Term parse_string(IC* ic, const char* input) {
   Parser parser;
-  init_parser(&parser, input);
+  init_parser(&parser, ic, input);
 
   uint32_t term_loc = parse_term_alloc(&parser);
 
   // Resolve variable references
   resolve_var_uses(&parser);
 
-  return heap[term_loc];
+  return parser.ic->heap[term_loc];
+}
+
+// Parse a file into a term
+Term parse_file(IC* ic, const char* filename) {
+  FILE* file = fopen(filename, "r");
+  if (!file) {
+    fprintf(stderr, "Error: Could not open file '%s'\n", filename);
+    exit(1);
+  }
+
+  // Get file size
+  fseek(file, 0, SEEK_END);
+  long size = ftell(file);
+  fseek(file, 0, SEEK_SET);
+
+  // Allocate buffer
+  char* buffer = (char*)malloc(size + 1);
+  if (!buffer) {
+    fprintf(stderr, "Error: Memory allocation failed\n");
+    fclose(file);
+    exit(1);
+  }
+
+  // Read file contents
+  size_t read_size = fread(buffer, 1, size, file);
+  fclose(file);
+
+  buffer[read_size] = '\0';
+
+  // Parse the string
+  Term term = parse_string(ic, buffer);
+
+  // Free the buffer
+  free(buffer);
+
+  return term;
 }
 
 // Allocate space for a term and parse into it
 uint32_t parse_term_alloc(Parser* parser) {
-  uint32_t loc = alloc(1);
+  uint32_t loc = ic_alloc(parser->ic, 1);
   parse_term(parser, loc);
   return loc;
 }

@@ -1,7 +1,7 @@
 #ifndef PARSE_H
 #define PARSE_H
 
-#include "types.h"
+#include "ic.h"
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -26,10 +26,11 @@ typedef struct {
 
 // Parser state structure
 typedef struct {
-  const char* input;  // Input string
-  size_t pos;         // Current position
-  size_t line;        // Current line number
-  size_t col;         // Current column number
+  IC* ic;              // Interaction Calculus context
+  const char* input;   // Input string
+  size_t pos;          // Current position
+  size_t line;         // Current line number
+  size_t col;          // Current column number
 
   // Uses and bindings for variable resolution
   VarUse lcs[MAX_USES];            // Array of unresolved variable uses
@@ -40,11 +41,11 @@ typedef struct {
 } Parser;
 
 // Initialize a parser with the given input string
-void init_parser(Parser* parser, const char* input);
+void init_parser(Parser* parser, IC* ic, const char* input);
 
 // Main parsing functions
-Term parse_string(const char* input);
-Term parse_file(const char* filename);
+Term parse_string(IC* ic, const char* input);
+Term parse_file(IC* ic, const char* filename);
 uint32_t parse_term_alloc(Parser* parser);
 void parse_term(Parser* parser, uint32_t loc);
 
@@ -72,7 +73,7 @@ bool check_utf8_4bytes(Parser* parser, uint8_t b1, uint8_t b2, uint8_t b3, uint8
 void consume_utf8(Parser* parser, int bytes);
 
 // Term creation helpers
-void store_term(uint32_t loc, TermTag tag, uint8_t label, uint32_t value);
+void store_term(Parser* parser, uint32_t loc, TermTag tag, uint8_t label, uint32_t value);
 
 // Individual term parsers
 void parse_term_var(Parser* parser, uint32_t loc);

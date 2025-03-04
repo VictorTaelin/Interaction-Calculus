@@ -1,6 +1,5 @@
 #include <stddef.h>
 #include "../../parse.h"
-#include "../../memory.h"
 
 // Parse a superposition
 void parse_term_sup(Parser* parser, uint32_t loc) {
@@ -9,7 +8,7 @@ void parse_term_sup(Parser* parser, uint32_t loc) {
   uint8_t label = parse_uint(parser) & 3; // Ensure it fits in 2 bits
   expect(parser, "{", "after label in superposition");
 
-  uint32_t sup_node = alloc(2);
+  uint32_t sup_node = ic_alloc(parser->ic, 2);
   uint32_t lft_loc = sup_node;
   uint32_t rgt_loc = sup_node + 1;
 
@@ -19,5 +18,5 @@ void parse_term_sup(Parser* parser, uint32_t loc) {
   parse_term(parser, rgt_loc);
   expect(parser, "}", "after terms in superposition");
 
-  store_term(loc, SUP, label, sup_node);
+  store_term(parser, loc, SUP, label, sup_node);
 }

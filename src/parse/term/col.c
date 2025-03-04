@@ -1,7 +1,6 @@
 #include <string.h>
 #include <stddef.h>
 #include "../../parse.h"
-#include "../../memory.h"
 
 // Parse a collapser
 void parse_term_col(Parser* parser, uint32_t loc) {
@@ -26,11 +25,11 @@ void parse_term_col(Parser* parser, uint32_t loc) {
   expect(parser, "=", "after names in collapser");
 
   // Allocate a node specifically for the collapse value
-  uint32_t col_node = alloc(1);
+  uint32_t col_node = ic_alloc(parser->ic, 1);
 
   // Create collapse variable terms that point to the col_node, NOT to the loc
-  Term co0_term = make_term(CO0, label, col_node);
-  Term co1_term = make_term(CO1, label, col_node);
+  Term co0_term = ic_make_term(CO0, label, col_node);
+  Term co1_term = ic_make_term(CO1, label, col_node);
   bind_var(parser, var1, co0_term);
   bind_var(parser, var2, co1_term);
 
