@@ -13,8 +13,7 @@ void init_memory() {
   // Allocate the heap dynamically
   heap = (Term*)malloc(HEAP_SIZE * sizeof(Term));
   if (heap == NULL) {
-    fprintf(stderr, "Error: Could not allocate memory heap of size %llu terms\n", 
-            (unsigned long long)HEAP_SIZE);
+    fprintf(stderr, "Error: Could not allocate memory heap of size %llu terms\n", (unsigned long long)HEAP_SIZE);
     exit(1);
   }
   

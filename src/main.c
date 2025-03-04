@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <sys/time.h>
 #include "types.h"
 #include "memory.h"
 #include "parse.h"
@@ -98,11 +99,83 @@ Term parse_file(const char* filename) {
   return term;
 }
 
+// Benchmark function to run normalization repeatedly for 1 second
+void benchmark_term(Term term) {
+  printf("Original term:\n");
+  show_term(stdout, term);
+  printf("\n\n");
+
+  // Create a snapshot of the initial state
+  uint32_t original_heap_ptr = heap_ptr;
+  Term* original_heap_state = (Term*)malloc(original_heap_ptr * sizeof(Term));
+  if (!original_heap_state) {
+    fprintf(stderr, "Error: Memory allocation failed for heap snapshot\n");
+    return;
+  }
+  
+  // Copy the initial heap state
+  memcpy(original_heap_state, heap, original_heap_ptr * sizeof(Term));
+  
+  // Get a snapshot of the term as it might get modified during normalization
+  Term original_term = term;
+  
+  // Normalize once and show the result
+  Term result = normal(term);
+  printf("Normal form:\n");
+  show_term(stdout, result);
+  printf("\n\n");
+  
+  // Reset for benchmarking
+  uint64_t total_interactions = 0;
+  uint32_t iterations = 0;
+  
+  // Start timing
+  struct timeval start_time, current_time;
+  gettimeofday(&start_time, NULL);
+  double elapsed_seconds = 0;
+  
+  // Run normalization in a loop until 1 second has passed
+  while (elapsed_seconds < 1.0) {
+    // Reset heap state to original
+    heap_ptr = original_heap_ptr;
+    memcpy(heap, original_heap_state, original_heap_ptr * sizeof(Term));
+    
+    // Reset interaction counter
+    interaction_count = 0;
+    
+    // Normalize the term again
+    normal(original_term);
+    
+    // Accumulate interactions
+    total_interactions += interaction_count;
+    iterations++;
+    
+    // Check elapsed time
+    gettimeofday(&current_time, NULL);
+    elapsed_seconds = (current_time.tv_sec - start_time.tv_sec) + 
+                      (current_time.tv_usec - start_time.tv_usec) / 1000000.0;
+  }
+  
+  // Calculate MIPS (Million Interactions Per Second)
+  double mips = (total_interactions / elapsed_seconds) / 1000000.0;
+  
+  // Print benchmark results
+  printf("BENCHMARK:\n");
+  printf("- LOOP: %u\n", iterations);
+  printf("- WORK: %llu\n", total_interactions);
+  printf("- TIME: %.3f seconds\n", elapsed_seconds);
+  printf("- PERF: %.3f MIPS\n", mips);
+  
+  // Clean up
+  free(original_heap_state);
+}
+
 void print_usage() {
   printf("Usage: suptt <command> [arguments]\n\n");
   printf("Commands:\n");
   printf("  run <file>     - Parse and normalize a SupTT file\n");
   printf("  eval <expr>    - Parse and normalize a SupTT expression\n");
+  printf("  bench <file>   - Benchmark normalization of a SupTT file\n");
   printf("\n");
 }
 
@@ -143,6 +216,18 @@ int main(int argc, char* argv[]) {
         const char* expression = argv[2];
         Term term = parse_string(expression);
         process_term(term);
+      }
+    } else if (strcmp(command, "bench") == 0) {
+      // Check if filename is provided
+      if (argc < 3) {
+        fprintf(stderr, "Error: No file specified for benchmark\n");
+        print_usage();
+        result = 1;
+      } else {
+        // Parse and benchmark the file
+        const char* filename = argv[2];
+        Term term = parse_file(filename);
+        benchmark_term(term);
       }
     } else {
       fprintf(stderr, "Error: Unknown command '%s'\n", command);

@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -w -std=c99 -O2
+CFLAGS = -w -std=c99 -O3
 SRC_DIR = src
 OBJ_DIR = obj
 BIN_DIR = bin
