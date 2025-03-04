@@ -15,10 +15,6 @@ const char* DEFAULT_TEST_TERM = "((λf.λx.!&0{f0,f1}=f;(f0 (f1 x)) λB.λT.λF.
 
 // Run a term through normalization and print results
 void process_term(Term term) {
-  printf("Original term:\n");
-  show_term(stdout, term);
-  printf("\n\n");
-
   // Reset interaction counter
   interaction_count = 0;
 
@@ -40,7 +36,6 @@ void process_term(Term term) {
   // Calculate PERF, avoiding division by zero
   double perf = time_seconds > 0 ? (interaction_count / time_seconds) / 1000000.0 : 0.0;
 
-  printf("Normal form:\n");
   show_term(stdout, term);
   printf("\n\n");
 
