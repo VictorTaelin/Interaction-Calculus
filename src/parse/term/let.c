@@ -4,19 +4,19 @@
 #include "../../memory.h"
 
 // Parse a let expression (syntax sugar for application of lambda)
-void parse_term_let(Parser* parser, uint64_t loc) {
+void parse_term_let(Parser* parser, uint32_t loc) {
   expect(parser, "!", "for let expression");
   
   char* name = parse_name(parser);
   expect(parser, "=", "after name in let expression");
   
   // Allocate nodes for the application and lambda
-  uint64_t app_node = alloc(2);
-  uint64_t lam_node = alloc(1);
+  uint32_t app_node = alloc(2);
+  uint32_t lam_node = alloc(1);
   
   // Set up the application structure
-  uint64_t fun_loc = app_node;     // lambda function
-  uint64_t arg_loc = app_node + 1; // value
+  uint32_t fun_loc = app_node;     // lambda function
+  uint32_t arg_loc = app_node + 1; // value
 
   // Create variable term for the lambda parameter
   bind_var(parser, name, make_term(VAR, 0, lam_node));

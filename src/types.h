@@ -14,27 +14,27 @@ typedef enum {
   APP  // Application
 } TermTag;
 
-// Term 64-bit packed representation
-typedef uint64_t Term;
+// Term 32-bit packed representation
+typedef uint32_t Term;
 
 // Term components
-#define TERM_SUB_MASK  0x8000000000000000ULL // 1-bit: Is this a substitution?
-#define TERM_TAG_MASK  0x7F00000000000000ULL // 7-bits: Term tag
-#define TERM_LAB_MASK  0x00FFFF0000000000ULL // 16-bits: Label for superpositions
-#define TERM_VAL_MASK  0x000000FFFFFFFFFFULL // 40-bits: Value/pointer
+#define TERM_SUB_MASK  0x80000000UL // 1-bit: Is this a substitution?
+#define TERM_TAG_MASK  0x70000000UL // 3-bits: Term tag
+#define TERM_LAB_MASK  0x0C000000UL // 2-bits: Label for superpositions
+#define TERM_VAL_MASK  0x03FFFFFFUL // 26-bits: Value/pointer
 
 // Term manipulation macros
 #define TERM_SUB(term)  (((term) & TERM_SUB_MASK) != 0)
-#define TERM_TAG(term)  (((term) & TERM_TAG_MASK) >> 56)
-#define TERM_LAB(term)  (((term) & TERM_LAB_MASK) >> 40)
+#define TERM_TAG(term)  (((term) & TERM_TAG_MASK) >> 28)
+#define TERM_LAB(term)  (((term) & TERM_LAB_MASK) >> 26)
 #define TERM_VAL(term)  ((term) & TERM_VAL_MASK)
 
 // Term creation macro
 #define MAKE_TERM(sub, tag, lab, val) \
   (((sub) ? TERM_SUB_MASK : 0) | \
-   (((uint64_t)(tag) << 56) & TERM_TAG_MASK) | \
-   (((uint64_t)(lab) << 40) & TERM_LAB_MASK) | \
-   ((uint64_t)(val) & TERM_VAL_MASK))
+   (((uint32_t)(tag) << 28) & TERM_TAG_MASK) | \
+   (((uint32_t)(lab) << 26) & TERM_LAB_MASK) | \
+   ((uint32_t)(val) & TERM_VAL_MASK))
 
 // Interaction counter
 extern uint64_t interaction_count;

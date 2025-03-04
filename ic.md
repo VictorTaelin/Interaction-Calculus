@@ -261,7 +261,7 @@ The following term can be used to test all interactions:
 
 IC-64 is implemented in portable C.
 
-It represents terms with u64-pointers, which store 3 fields:
+It represents terms with u64-pointers, which store 4 fields:
 
 - sub (1-bit): true if this is a substitution
 - tag (7-bit): the term tag
@@ -271,7 +271,6 @@ It represents terms with u64-pointers, which store 3 fields:
 The tag field can be:
 
 - `VAR`
-- `LET`
 - `SUP`
 - `CO0`
 - `CO1`
@@ -339,6 +338,19 @@ def col_sup(col, sup):
 Note how the var (CO0 or CO1) that triggers col_sup is given one of the half of
 the collapse, while the other half is stored on the collapser node memory
 location, now reinterpreted as a subst entry, allowing the other var to get it.
+
+# IC's Runtime (32-Bit)
+
+The 32-bit version of IC's runtime is a compacted representation.
+
+It is similar to IC-32, except terms are u32-pointers:
+
+- sub (1-bit)
+- tag (3-bit)
+- lab (2-bit)
+- val (26-bit)
+
+Everything else remains the same.
 
 # Parsing IC
 

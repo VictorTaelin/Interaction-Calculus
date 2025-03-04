@@ -39,16 +39,16 @@ void process_term(Term term) {
   // Calculate PERF, avoiding division by zero
   double perf = time_seconds > 0 ? (interaction_count / time_seconds) / 1000000.0 : 0.0;
 
+  printf("Normal form:\n");
+  show_term(stdout, term);
+  printf("\n\n");
+
   // Print statistics
   printf("WORK: %llu interactions\n", interaction_count);
   printf("TIME: %.7f seconds\n", time_seconds);
   printf("SIZE: %zu nodes\n", size);
   printf("PERF: %.3f MIPS\n", perf);
   printf("\n");
-
-  printf("Normal form:\n");
-  show_term(stdout, term);
-  printf("\n\n");
 }
 
 // Test function with the default term

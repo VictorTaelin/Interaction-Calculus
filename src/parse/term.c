@@ -10,7 +10,7 @@
 #include "../memory.h"
 
 // Main term parser - dispatcher for specific term types
-void parse_term(Parser* parser, uint64_t loc) {
+void parse_term(Parser* parser, uint32_t loc) {
   skip(parser);
 
   if (parser->input[parser->pos] == '\0') {

@@ -17,33 +17,33 @@
 
 // Structure to track variable names
 typedef struct {
-  uint64_t count;        // Number of variables encountered
-  uint64_t* locations;   // Array of variable locations
+  uint32_t count;        // Number of variables encountered
+  uint32_t* locations;   // Array of variable locations
   TermTag* types;        // Array of variable types (VAR, CO0, CO1)
   char** names;          // Array of variable names
-  uint64_t capacity;     // Capacity of the arrays
+  uint32_t capacity;     // Capacity of the arrays
 } VarNameTable;
 
 // Structure to track collapser nodes
 typedef struct {
-  uint64_t* locations;   // Array of collapser locations
-  uint16_t* labels;      // Array of collapser labels
-  uint64_t count;        // Number of collapsers
-  uint64_t capacity;     // Capacity of the array
+  uint32_t* locations;   // Array of collapser locations
+  uint8_t* labels;       // Array of collapser labels
+  uint32_t count;        // Number of collapsers
+  uint32_t capacity;     // Capacity of the array
 } ColTable;
 
 // Initialize variable name table
 void init_var_table(VarNameTable* table) {
   table->count = 0;
   table->capacity = 64;
-  table->locations = (uint64_t*)malloc(table->capacity * sizeof(uint64_t));
+  table->locations = (uint32_t*)malloc(table->capacity * sizeof(uint32_t));
   table->types = (TermTag*)malloc(table->capacity * sizeof(TermTag));
   table->names = (char**)malloc(table->capacity * sizeof(char*));
 }
 
 // Free variable name table
 void free_var_table(VarNameTable* table) {
-  for (uint64_t i = 0; i < table->count; i++) {
+  for (uint32_t i = 0; i < table->count; i++) {
     free(table->names[i]);
   }
   free(table->locations);
@@ -55,8 +55,8 @@ void free_var_table(VarNameTable* table) {
 void init_col_table(ColTable* table) {
   table->count = 0;
   table->capacity = 64;
-  table->locations = (uint64_t*)malloc(table->capacity * sizeof(uint64_t));
-  table->labels = (uint16_t*)malloc(table->capacity * sizeof(uint16_t));
+  table->locations = (uint32_t*)malloc(table->capacity * sizeof(uint32_t));
+  table->labels = (uint8_t*)malloc(table->capacity * sizeof(uint8_t));
 }
 
 // Free collapser table
@@ -66,17 +66,17 @@ void free_col_table(ColTable* table) {
 }
 
 // Add a variable to the table and return its name
-char* add_variable(VarNameTable* table, uint64_t location, TermTag type) {
+char* add_variable(VarNameTable* table, uint32_t location, TermTag type) {
   // Check if we need to expand the table
   if (table->count >= table->capacity) {
     table->capacity *= 2;
-    table->locations = (uint64_t*)realloc(table->locations, table->capacity * sizeof(uint64_t));
+    table->locations = (uint32_t*)realloc(table->locations, table->capacity * sizeof(uint32_t));
     table->types = (TermTag*)realloc(table->types, table->capacity * sizeof(TermTag));
     table->names = (char**)realloc(table->names, table->capacity * sizeof(char*));
   }
 
   // Check if the variable is already in the table
-  for (uint64_t i = 0; i < table->count; i++) {
+  for (uint32_t i = 0; i < table->count; i++) {
     if (table->locations[i] == location && table->types[i] == type) {
       return table->names[i];
     }
@@ -89,11 +89,11 @@ char* add_variable(VarNameTable* table, uint64_t location, TermTag type) {
   // Generate a name for the variable based on its type
   char* name = (char*)malloc(16);
   if (type == CO0) {
-    sprintf(name, "a%llu", (unsigned long long)table->count);
+    sprintf(name, "a%u", table->count);
   } else if (type == CO1) {
-    sprintf(name, "b%llu", (unsigned long long)table->count);
+    sprintf(name, "b%u", table->count);
   } else {
-    sprintf(name, "x%llu", (unsigned long long)table->count);
+    sprintf(name, "x%u", table->count);
   }
 
   table->names[table->count] = name;
@@ -102,8 +102,8 @@ char* add_variable(VarNameTable* table, uint64_t location, TermTag type) {
 }
 
 // Get a variable name from the table
-char* get_var_name(VarNameTable* table, uint64_t location, TermTag type) {
-  for (uint64_t i = 0; i < table->count; i++) {
+char* get_var_name(VarNameTable* table, uint32_t location, TermTag type) {
+  for (uint32_t i = 0; i < table->count; i++) {
     if (table->locations[i] == location && table->types[i] == type) {
       return table->names[i];
     }
@@ -117,8 +117,8 @@ void stringify_term(Term term, VarNameTable* var_table, char* buffer, int* pos, 
 void stringify_collapsers(ColTable* col_table, VarNameTable* var_table, char* buffer, int* pos, int max_len);
 
 // Register a collapser in the table
-bool register_collapser(ColTable* table, uint64_t location, uint16_t label) {
-  for (uint64_t i = 0; i < table->count; i++) {
+bool register_collapser(ColTable* table, uint32_t location, uint8_t label) {
+  for (uint32_t i = 0; i < table->count; i++) {
     if (table->locations[i] == location) {
       if (table->labels[i] != label) {
         fprintf(stderr, "Label mismatch for collapser\n");
@@ -129,8 +129,8 @@ bool register_collapser(ColTable* table, uint64_t location, uint16_t label) {
   }
   if (table->count >= table->capacity) {
     table->capacity *= 2;
-    table->locations = (uint64_t*)realloc(table->locations, table->capacity * sizeof(uint64_t));
-    table->labels = (uint16_t*)realloc(table->labels, table->capacity * sizeof(uint16_t));
+    table->locations = (uint32_t*)realloc(table->locations, table->capacity * sizeof(uint32_t));
+    table->labels = (uint8_t*)realloc(table->labels, table->capacity * sizeof(uint8_t));
   }
   table->locations[table->count] = location;
   table->labels[table->count] = label;
@@ -141,19 +141,19 @@ bool register_collapser(ColTable* table, uint64_t location, uint16_t label) {
 // Assign IDs to variables and register collapsers
 void assign_var_ids(Term term, VarNameTable* var_table, ColTable* col_table) {
   TermTag tag = TERM_TAG(term);
-  uint64_t val = TERM_VAL(term);
+  uint32_t val = TERM_VAL(term);
 
   switch (tag) {
     case VAR:
     case CO0:
     case CO1: {
-      uint64_t loc = val;
+      uint32_t loc = val;
       Term subst = heap[loc];
       if (TERM_SUB(subst)) {
         assign_var_ids(clear_sub(subst), var_table, col_table);
       } else {
         if (tag == CO0 || tag == CO1) {
-          uint16_t lab = TERM_LAB(term);
+          uint8_t lab = TERM_LAB(term);
           if (register_collapser(col_table, loc, lab)) {
             assign_var_ids(subst, var_table, col_table);
           }
@@ -164,21 +164,21 @@ void assign_var_ids(Term term, VarNameTable* var_table, ColTable* col_table) {
     }
 
     case LAM: {
-      uint64_t lam_loc = val;
+      uint32_t lam_loc = val;
       add_variable(var_table, lam_loc, VAR);
       assign_var_ids(heap[lam_loc], var_table, col_table);
       break;
     }
 
     case APP: {
-      uint64_t app_loc = val;
+      uint32_t app_loc = val;
       assign_var_ids(heap[app_loc], var_table, col_table);
       assign_var_ids(heap[app_loc + 1], var_table, col_table);
       break;
     }
 
     case SUP: {
-      uint64_t sup_loc = val;
+      uint32_t sup_loc = val;
       assign_var_ids(heap[sup_loc], var_table, col_table);
       assign_var_ids(heap[sup_loc + 1], var_table, col_table);
       break;
@@ -192,16 +192,16 @@ void assign_var_ids(Term term, VarNameTable* var_table, ColTable* col_table) {
 // Stringify collapsers
 void stringify_collapsers(ColTable* col_table, VarNameTable* var_table, char* buffer, int* pos, int max_len) {
   // First, add all collapser variables
-  for (uint64_t i = 0; i < col_table->count; i++) {
-    uint64_t col_loc = col_table->locations[i];
+  for (uint32_t i = 0; i < col_table->count; i++) {
+    uint32_t col_loc = col_table->locations[i];
     add_variable(var_table, col_loc, CO0);
     add_variable(var_table, col_loc, CO1);
   }
 
   // Then, stringify each collapser
-  for (uint64_t i = 0; i < col_table->count; i++) {
-    uint64_t col_loc = col_table->locations[i];
-    uint16_t lab = col_table->labels[i];
+  for (uint32_t i = 0; i < col_table->count; i++) {
+    uint32_t col_loc = col_table->locations[i];
+    uint8_t lab = col_table->labels[i];
     Term val_term = heap[col_loc];
 
     // Get variable names
@@ -222,14 +222,14 @@ void stringify_collapsers(ColTable* col_table, VarNameTable* var_table, char* bu
 // Stringify a term
 void stringify_term(Term term, VarNameTable* var_table, char* buffer, int* pos, int max_len) {
   TermTag tag = TERM_TAG(term);
-  uint64_t val = TERM_VAL(term);
-  uint16_t lab = TERM_LAB(term);
+  uint32_t val = TERM_VAL(term);
+  uint8_t lab = TERM_LAB(term);
 
   switch (tag) {
     case VAR:
     case CO0:
     case CO1: {
-      uint64_t loc = val;
+      uint32_t loc = val;
       Term subst = heap[loc];
       if (TERM_SUB(subst)) {
         stringify_term(clear_sub(subst), var_table, buffer, pos, max_len);
@@ -241,7 +241,7 @@ void stringify_term(Term term, VarNameTable* var_table, char* buffer, int* pos, 
     }
 
     case LAM: {
-      uint64_t lam_loc = val;
+      uint32_t lam_loc = val;
       char* var_name = get_var_name(var_table, lam_loc, VAR);
       *pos += snprintf(buffer + *pos, max_len - *pos, "λ%s.", var_name);
       stringify_term(heap[lam_loc], var_table, buffer, pos, max_len);

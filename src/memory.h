@@ -4,14 +4,14 @@
 #include "types.h"
 
 // Max heap size (2^30 terms, approximately 1 billion terms)
-// Using 2^40 would be 8TB of memory which is impractical
+// Using 2^26 would be enough with 32-bit values
 #define HEAP_SIZE (1ULL << 30)
 
 // The heap (global memory buffer)
 extern Term* heap;
 
 // The current allocation pointer
-extern uint64_t heap_ptr;
+extern uint32_t heap_ptr;
 
 // Initialize the memory system
 void init_memory();
@@ -20,10 +20,10 @@ void init_memory();
 void cleanup_memory();
 
 // Allocate n consecutive terms in memory
-uint64_t alloc(uint64_t n);
+uint32_t alloc(uint32_t n);
 
 // Create a term with the given tag and value
-Term make_term(TermTag tag, uint16_t lab, uint64_t val);
+Term make_term(TermTag tag, uint8_t lab, uint32_t val);
 
 // Create a substitution term
 Term make_sub(Term term);

@@ -15,7 +15,7 @@
 // Variable use structure to track unresolved variable uses
 typedef struct {
   char name[MAX_NAME_LEN];  // Variable name
-  uint64_t loc;             // Location in heap to update
+  uint32_t loc;             // Location in heap to update
 } VarUse;
 
 // Variable binding structure 
@@ -45,11 +45,11 @@ void init_parser(Parser* parser, const char* input);
 // Main parsing functions
 Term parse_string(const char* input);
 Term parse_file(const char* filename);
-uint64_t parse_term_alloc(Parser* parser);
-void parse_term(Parser* parser, uint64_t loc);
+uint32_t parse_term_alloc(Parser* parser);
+void parse_term(Parser* parser, uint32_t loc);
 
 // Variable management
-void add_var_use(Parser* parser, const char* name, uint64_t loc);
+void add_var_use(Parser* parser, const char* name, uint32_t loc);
 void bind_var(Parser* parser, const char* name, Term term);
 Term* lookup_var_binding(Parser* parser, const char* name);
 void resolve_var_uses(Parser* parser);
@@ -61,7 +61,7 @@ char next_char(Parser* parser);
 bool peek_is(Parser* parser, char c);
 bool consume(Parser* parser, const char* str);
 bool expect(Parser* parser, const char* token, const char* error_context);
-uint16_t parse_uint(Parser* parser);
+uint8_t parse_uint(Parser* parser);
 char* parse_name(Parser* parser);
 void parse_error(Parser* parser, const char* message);
 
@@ -72,14 +72,14 @@ bool check_utf8_4bytes(Parser* parser, uint8_t b1, uint8_t b2, uint8_t b3, uint8
 void consume_utf8(Parser* parser, int bytes);
 
 // Term creation helpers
-void store_term(uint64_t loc, TermTag tag, uint16_t label, uint64_t value);
+void store_term(uint32_t loc, TermTag tag, uint8_t label, uint32_t value);
 
 // Individual term parsers
-void parse_term_var(Parser* parser, uint64_t loc);
-void parse_term_sup(Parser* parser, uint64_t loc);
-void parse_term_col(Parser* parser, uint64_t loc);
-void parse_term_lam(Parser* parser, uint64_t loc);
-void parse_term_app(Parser* parser, uint64_t loc);
-void parse_term_let(Parser* parser, uint64_t loc);
+void parse_term_var(Parser* parser, uint32_t loc);
+void parse_term_sup(Parser* parser, uint32_t loc);
+void parse_term_col(Parser* parser, uint32_t loc);
+void parse_term_lam(Parser* parser, uint32_t loc);
+void parse_term_app(Parser* parser, uint32_t loc);
+void parse_term_let(Parser* parser, uint32_t loc);
 
 #endif // PARSE_H

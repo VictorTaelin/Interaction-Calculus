@@ -10,7 +10,7 @@ uint64_t interaction_count = 0;
 // Manual stack for WHNF reduction
 #define STACK_SIZE (1 << 26)
 Term stack[STACK_SIZE];
-uint64_t sp = 0;
+uint32_t sp = 0;
 
 // Helper functions for stack operations
 void spush(Term term) {
@@ -31,7 +31,7 @@ Term spop() {
 
 // Reduce a term to weak head normal form using a manual stack
 Term whnf(Term term) {
-  uint64_t stop = sp;
+  uint32_t stop = sp;
   Term next = term;
 
   while (1) {
@@ -39,7 +39,7 @@ Term whnf(Term term) {
 
     switch (tag) {
       case VAR: {
-        uint64_t var_loc = TERM_VAL(next);
+        uint32_t var_loc = TERM_VAL(next);
         Term subst = heap[var_loc];
         if (TERM_SUB(subst)) {
           next = clear_sub(subst);
@@ -50,7 +50,7 @@ Term whnf(Term term) {
 
       case CO0:
       case CO1: {
-        uint64_t col_loc = TERM_VAL(next);
+        uint32_t col_loc = TERM_VAL(next);
         Term val = heap[col_loc];
         if (TERM_SUB(val)) {
           next = clear_sub(val);
@@ -63,7 +63,7 @@ Term whnf(Term term) {
       }
 
       case APP: {
-        uint64_t app_loc = TERM_VAL(next);
+        uint32_t app_loc = TERM_VAL(next);
         spush(next);
         next = heap[app_loc]; // Reduce the function part
         continue;
@@ -105,7 +105,7 @@ Term whnf(Term term) {
       while (sp > stop) {
         Term host = spop();
         TermTag htag = TERM_TAG(host);
-        uint64_t hloc = TERM_VAL(host);
+        uint32_t hloc = TERM_VAL(host);
         switch (htag) {
           case APP: heap[hloc] = next; break;
           case CO0:

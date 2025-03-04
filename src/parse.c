@@ -6,8 +6,8 @@
 #include "memory.h"
 
 // Forward declarations for internal functions
-uint64_t parse_term_alloc(Parser* parser);
-void parse_term(Parser* parser, uint64_t loc);
+uint32_t parse_term_alloc(Parser* parser);
+void parse_term(Parser* parser, uint32_t loc);
 void skip(Parser* parser);
 char peek_char(Parser* parser);
 char next_char(Parser* parser);
@@ -28,7 +28,7 @@ void bind_var(Parser* parser, const char* name, Term term) {
 }
 
 // Track a variable use to be resolved later
-void add_var_use(Parser* parser, const char* name, uint64_t loc) {
+void add_var_use(Parser* parser, const char* name, uint32_t loc) {
   if (parser->lcs_count >= MAX_USES) {
     parse_error(parser, "Too many variable uses");
   }
@@ -191,7 +191,7 @@ void resolve_var_uses(Parser* parser) {
 }
 
 // Store a term at the given location
-void store_term(uint64_t loc, TermTag tag, uint16_t label, uint64_t value) {
+void store_term(uint32_t loc, TermTag tag, uint8_t label, uint32_t value) {
   heap[loc] = make_term(tag, label, value);
 }
 
@@ -200,7 +200,7 @@ Term parse_string(const char* input) {
   Parser parser;
   init_parser(&parser, input);
 
-  uint64_t term_loc = parse_term_alloc(&parser);
+  uint32_t term_loc = parse_term_alloc(&parser);
 
   // Resolve variable references
   resolve_var_uses(&parser);
@@ -209,15 +209,15 @@ Term parse_string(const char* input) {
 }
 
 // Allocate space for a term and parse into it
-uint64_t parse_term_alloc(Parser* parser) {
-  uint64_t loc = alloc(1);
+uint32_t parse_term_alloc(Parser* parser) {
+  uint32_t loc = alloc(1);
   parse_term(parser, loc);
   return loc;
 }
 
 // Parse an unsigned integer
-uint16_t parse_uint(Parser* parser) {
-  uint16_t value = 0;
+uint8_t parse_uint(Parser* parser) {
+  uint8_t value = 0;
   bool has_digit = false;
 
   while (isdigit(peek_char(parser))) {

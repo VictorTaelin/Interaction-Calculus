@@ -30,8 +30,8 @@
 Term col_sup(Term col, Term sup) {
   interaction_count++;
   //printf("col_sup\n");
-  uint64_t col_loc = TERM_VAL(col);
-  uint64_t sup_loc = TERM_VAL(sup);
+  uint32_t col_loc = TERM_VAL(col);
+  uint32_t sup_loc = TERM_VAL(sup);
   uint8_t col_lab = TERM_LAB(col);
   uint8_t sup_lab = TERM_LAB(sup);
   uint8_t is_co0 = TERM_TAG(col) == CO0;
@@ -53,17 +53,17 @@ Term col_sup(Term col, Term sup) {
     // Instead of allocating new memory for collapser locations,
     // directly use the values at sup_loc + 0 and sup_loc + 1
     // The values at these locations (lft and rgt) are already loaded
-    uint64_t col_lft_loc = sup_loc + 0;
-    uint64_t col_rgt_loc = sup_loc + 1;
+    uint32_t col_lft_loc = sup_loc + 0;
+    uint32_t col_rgt_loc = sup_loc + 1;
 
     // We don't need to set heap[col_lft_loc] = lft and heap[col_rgt_loc] = rgt
     // because lft is already at sup_loc + 0 and rgt is already at sup_loc + 1
 
-    uint64_t sup0_loc = alloc(2);
+    uint32_t sup0_loc = alloc(2);
     heap[sup0_loc + 0] = make_term(CO0, col_lab, col_lft_loc);
     heap[sup0_loc + 1] = make_term(CO0, col_lab, col_rgt_loc);
 
-    uint64_t sup1_loc = alloc(2);
+    uint32_t sup1_loc = alloc(2);
     heap[sup1_loc + 0] = make_term(CO1, col_lab, col_lft_loc);
     heap[sup1_loc + 1] = make_term(CO1, col_lab, col_rgt_loc);
 
