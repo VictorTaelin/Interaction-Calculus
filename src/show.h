@@ -1,4 +1,4 @@
-//./../suptt.md//
+//./../InteractionCalculus.md//
 //./memory.h//
 //./types.h//
 //./show.c//

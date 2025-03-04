@@ -1,4 +1,4 @@
-//./../../suptt.md//
+//./../../InteractionCalculus.md//
 
 #include <stdio.h>
 #include "../whnf.h"

@@ -29,7 +29,7 @@ INT_OBJS = $(INT_SRCS:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
 
 # Executable
 TARGET = $(BIN_DIR)/main
-TARGET_LN = $(BIN_DIR)/suptt
+TARGET_LN = $(BIN_DIR)/ic
 
 # Directories
 DIRS = $(OBJ_DIR) $(BIN_DIR) $(OBJ_DIR)/interactions $(OBJ_DIR)/parse \

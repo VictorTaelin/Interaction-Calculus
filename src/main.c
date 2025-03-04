@@ -171,11 +171,11 @@ void benchmark_term(Term term) {
 }
 
 void print_usage() {
-  printf("Usage: suptt <command> [arguments]\n\n");
+  printf("Usage: ic <command> [arguments]\n\n");
   printf("Commands:\n");
-  printf("  run <file>     - Parse and normalize a SupTT file\n");
-  printf("  eval <expr>    - Parse and normalize a SupTT expression\n");
-  printf("  bench <file>   - Benchmark normalization of a SupTT file\n");
+  printf("  run <file>     - Parse and normalize a IC file\n");
+  printf("  eval <expr>    - Parse and normalize a IC expression\n");
+  printf("  bench <file>   - Benchmark normalization of a IC file\n");
   printf("\n");
 }
 
