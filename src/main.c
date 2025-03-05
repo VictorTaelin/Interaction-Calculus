@@ -9,18 +9,40 @@
 
 // Forward declarations for GPU functions
 #ifdef HAVE_CUDA
-// Forward declarations for GPU functions when CUDA is available
 extern Term ic_normal_gpu(IC* ic, Term term);
 extern int ic_cuda_available();
-#else
-// Stub functions when CUDA is not available
-static inline Term ic_normal_gpu(IC* ic, Term term) {
-  fprintf(stderr, "Warning: GPU support not compiled. Running on CPU instead.\n");
-  return ic_normal(ic, term);
-}
+#endif
 
+#ifdef HAVE_METAL
+extern Term ic_normal_metal(IC* ic, Term term);
+extern int ic_metal_available();
+#endif
+
+// Stub functions when CUDA is not available
+#ifndef HAVE_CUDA
 static inline int ic_cuda_available() {
   return 0; // CUDA not available
+}
+
+static inline Term ic_normal_gpu(IC* ic, Term term) {
+  fprintf(stderr, "Warning: CUDA GPU support not compiled. Falling back to other methods.\n");
+  #ifdef HAVE_METAL
+  return ic_normal_metal(ic, term);
+  #else
+  return ic_normal(ic, term);
+  #endif
+}
+#endif
+
+// Stub functions when Metal is not available
+#ifndef HAVE_METAL
+static inline int ic_metal_available() {
+  return 0; // Metal not available
+}
+
+static inline Term ic_normal_metal(IC* ic, Term term) {
+  fprintf(stderr, "Warning: Metal GPU support not compiled. Running on CPU instead.\n");
+  return ic_normal(ic, term);
 }
 #endif
 
@@ -33,14 +55,19 @@ void process_term(IC* ic, Term term, int use_gpu) {
   ic->interactions = 0;
 
   // Record start time
-  clock_t start = clock();
+  struct timeval start_time, current_time;
+  gettimeofday(&start_time, NULL);
+  double elapsed_seconds = 0;
 
   // Normalize the term
   if (use_gpu) {
     if (ic_cuda_available()) {
       term = ic_normal_gpu(ic, term);
+    } else if (ic_metal_available()) {
+      printf("CUDA not available, using Metal GPU acceleration\n");
+      term = ic_normal_metal(ic, term);
     } else {
-      printf("Warning: CUDA not available, falling back to CPU execution\n");
+      printf("Warning: No GPU acceleration available, falling back to CPU execution\n");
       term = ic_normal(ic, term);
     }
   } else {
@@ -48,26 +75,36 @@ void process_term(IC* ic, Term term, int use_gpu) {
   }
 
   // Record end time
-  clock_t end = clock();
-
-  // Calculate time in seconds
-  double time_seconds = (double)(end - start) / CLOCKS_PER_SEC;
+  gettimeofday(&current_time, NULL);
+  elapsed_seconds = (current_time.tv_sec - start_time.tv_sec) + 
+                    (current_time.tv_usec - start_time.tv_usec) / 1000000.0;
 
   // Get heap size (the number of allocated nodes)
   size_t size = ic->heap_pos;
 
   // Calculate PERF, avoiding division by zero
-  double perf = time_seconds > 0 ? (ic->interactions / time_seconds) / 1000000.0 : 0.0;
+  double perf = elapsed_seconds > 0 ? (ic->interactions / elapsed_seconds) / 1000000.0 : 0.0;
 
   show_term(stdout, ic, term);
   printf("\n\n");
 
   // Print statistics
   printf("WORK: %llu interactions\n", ic->interactions);
-  printf("TIME: %.7f seconds\n", time_seconds);
+  printf("TIME: %.7f seconds\n", elapsed_seconds);
   printf("SIZE: %zu nodes\n", size);
   printf("PERF: %.3f MIPS\n", perf);
-  printf("MODE: %s\n", use_gpu ? "GPU" : "CPU");
+  
+  // Determine which mode was actually used
+  const char* mode_str = "CPU";
+  if (use_gpu) {
+    if (ic_cuda_available()) {
+      mode_str = "CUDA GPU";
+    } else if (ic_metal_available()) {
+      mode_str = "Metal GPU";
+    }
+  }
+  
+  printf("MODE: %s\n", mode_str);
   printf("\n");
 }
 
@@ -102,12 +139,17 @@ void benchmark_term(IC* ic, Term term, int use_gpu) {
 
   // Normalize once and show the result
   Term result;
-  if (use_gpu && ic_cuda_available()) {
-    result = ic_normal_gpu(ic, term);
-  } else {
-    if (use_gpu) {
-      printf("Warning: CUDA not available, falling back to CPU execution\n");
+  if (use_gpu) {
+    if (ic_cuda_available()) {
+      result = ic_normal_gpu(ic, term);
+    } else if (ic_metal_available()) {
+      printf("CUDA not available, using Metal GPU acceleration\n");
+      result = ic_normal_metal(ic, term);
+    } else {
+      printf("Warning: No GPU acceleration available, falling back to CPU execution\n");
+      result = ic_normal(ic, term);
     }
+  } else {
     result = ic_normal(ic, term);
   }
 
@@ -133,8 +175,14 @@ void benchmark_term(IC* ic, Term term, int use_gpu) {
     ic->interactions = 0;
 
     // Normalize the term again
-    if (use_gpu && ic_cuda_available()) {
-      ic_normal_gpu(ic, original_term);
+    if (use_gpu) {
+      if (ic_cuda_available()) {
+        ic_normal_gpu(ic, original_term);
+      } else if (ic_metal_available()) {
+        ic_normal_metal(ic, original_term);
+      } else {
+        ic_normal(ic, original_term);
+      }
     } else {
       ic_normal(ic, original_term);
     }
@@ -158,7 +206,17 @@ void benchmark_term(IC* ic, Term term, int use_gpu) {
   printf("- WORK: %llu\n", total_interactions);
   printf("- TIME: %.3f seconds\n", elapsed_seconds);
   printf("- PERF: %.3f MIPS\n", mips);
-  printf("- MODE: %s\n", use_gpu ? "GPU" : "CPU");
+  // Determine which mode was actually used for benchmark
+  const char* mode_str = "CPU";
+  if (use_gpu) {
+    if (ic_cuda_available()) {
+      mode_str = "CUDA GPU";
+    } else if (ic_metal_available()) {
+      mode_str = "Metal GPU";
+    }
+  }
+  
+  printf("- MODE: %s\n", mode_str);
 
   // Clean up
   free(original_heap_state);
@@ -168,11 +226,11 @@ void print_usage() {
   printf("Usage: ic <command> [arguments]\n\n");
   printf("Commands:\n");
   printf("  run <file>     - Parse and normalize a IC file on CPU\n");
-  printf("  run-gpu <file> - Parse and normalize a IC file on GPU\n");
+  printf("  run-gpu <file> - Parse and normalize a IC file on GPU (CUDA or Metal)\n");
   printf("  eval <expr>    - Parse and normalize a IC expression on CPU\n");
-  printf("  eval-gpu <expr> - Parse and normalize a IC expression on GPU\n");
+  printf("  eval-gpu <expr> - Parse and normalize a IC expression on GPU (CUDA or Metal)\n");
   printf("  bench <file>   - Benchmark normalization of a IC file on CPU\n");
-  printf("  bench-gpu <file> - Benchmark normalization of a IC file on GPU\n");
+  printf("  bench-gpu <file> - Benchmark normalization of a IC file on GPU (CUDA or Metal)\n");
   printf("\n");
 }
 
