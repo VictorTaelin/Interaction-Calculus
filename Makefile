@@ -34,7 +34,8 @@ ifeq ($(UNAME), Darwin)
   METAL_CHECK := $(shell which xcrun 2>/dev/null || echo "")
   ifneq ($(METAL_CHECK),)
     # Compile Metal on macOS
-    METAL_CFLAGS = -DHAVE_METAL -framework Metal -framework Foundation
+    METAL_CFLAGS = -DHAVE_METAL
+    METAL_LDFLAGS = -framework Metal -framework Foundation -lc++
     METAL_SRCS = $(SRC_DIR)/ic_metal.mm $(SRC_DIR)/ic.metal
     METAL_OBJS = $(OBJ_DIR)/ic_metal.o
     HAS_METAL = 1
@@ -43,9 +44,6 @@ ifeq ($(UNAME), Darwin)
     CXX = clang++
     OBJCXX = clang++
     OBJCXXFLAGS = -fobjc-arc -O3 -std=c++14
-    
-    # Add C++ standard library for linking
-    METAL_LDFLAGS = -lc++
     
     # Metal compiler
     METAL_COMPILER = xcrun -sdk macosx metal
@@ -56,6 +54,7 @@ ifeq ($(UNAME), Darwin)
     METAL_SRCS =
     METAL_OBJS =
     METAL_CFLAGS =
+    METAL_LDFLAGS =
     HAS_METAL = 0
   endif
 else
@@ -100,7 +99,7 @@ $(DIRS):
 ifeq ($(HAS_CUDA),1)
 ifeq ($(HAS_METAL),1)
 $(TARGET): $(OBJS) $(PARSE_OBJS) $(CUDA_OBJS) $(METAL_OBJS) $(METAL_OUTPUT)
-	$(CC) $(CFLAGS) -o $@ $(OBJS) $(PARSE_OBJS) $(CUDA_OBJS) $(METAL_OBJS) $(CUDA_LDFLAGS) $(METAL_CFLAGS) $(METAL_LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ $(OBJS) $(PARSE_OBJS) $(CUDA_OBJS) $(METAL_OBJS) $(CUDA_LDFLAGS) $(METAL_LDFLAGS)
 else
 $(TARGET): $(OBJS) $(PARSE_OBJS) $(CUDA_OBJS)
 	$(CC) $(CFLAGS) -o $@ $^ $(CUDA_LDFLAGS)
@@ -108,7 +107,7 @@ endif
 else
 ifeq ($(HAS_METAL),1)
 $(TARGET): $(OBJS) $(PARSE_OBJS) $(METAL_OBJS) $(METAL_OUTPUT)
-	$(CC) $(CFLAGS) -o $@ $(OBJS) $(PARSE_OBJS) $(METAL_OBJS) $(METAL_CFLAGS) $(METAL_LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ $(OBJS) $(PARSE_OBJS) $(METAL_OBJS) $(METAL_LDFLAGS)
 else
 $(TARGET): $(OBJS) $(PARSE_OBJS)
 	$(CC) $(CFLAGS) -o $@ $^

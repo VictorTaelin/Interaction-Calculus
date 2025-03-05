@@ -55,7 +55,9 @@ void process_term(IC* ic, Term term, int use_gpu) {
   ic->interactions = 0;
 
   // Record start time
-  clock_t start = clock();
+  struct timeval start_time, current_time;
+  gettimeofday(&start_time, NULL);
+  double elapsed_seconds = 0;
 
   // Normalize the term
   if (use_gpu) {
@@ -73,23 +75,22 @@ void process_term(IC* ic, Term term, int use_gpu) {
   }
 
   // Record end time
-  clock_t end = clock();
-
-  // Calculate time in seconds
-  double time_seconds = (double)(end - start) / CLOCKS_PER_SEC;
+  gettimeofday(&current_time, NULL);
+  elapsed_seconds = (current_time.tv_sec - start_time.tv_sec) + 
+                    (current_time.tv_usec - start_time.tv_usec) / 1000000.0;
 
   // Get heap size (the number of allocated nodes)
   size_t size = ic->heap_pos;
 
   // Calculate PERF, avoiding division by zero
-  double perf = time_seconds > 0 ? (ic->interactions / time_seconds) / 1000000.0 : 0.0;
+  double perf = elapsed_seconds > 0 ? (ic->interactions / elapsed_seconds) / 1000000.0 : 0.0;
 
   show_term(stdout, ic, term);
   printf("\n\n");
 
   // Print statistics
   printf("WORK: %llu interactions\n", ic->interactions);
-  printf("TIME: %.7f seconds\n", time_seconds);
+  printf("TIME: %.7f seconds\n", elapsed_seconds);
   printf("SIZE: %zu nodes\n", size);
   printf("PERF: %.3f MIPS\n", perf);
   
