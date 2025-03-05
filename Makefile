@@ -27,6 +27,46 @@ else
   HAS_CUDA = 0
 endif
 
+# Check if we're on macOS for Metal support
+UNAME := $(shell uname)
+ifeq ($(UNAME), Darwin)
+  # Check if xcrun exists (required for Metal)
+  METAL_CHECK := $(shell which xcrun 2>/dev/null || echo "")
+  ifneq ($(METAL_CHECK),)
+    # Compile Metal on macOS
+    METAL_CFLAGS = -DHAVE_METAL -framework Metal -framework Foundation
+    METAL_SRCS = $(SRC_DIR)/ic_metal.mm $(SRC_DIR)/ic.metal
+    METAL_OBJS = $(OBJ_DIR)/ic_metal.o
+    HAS_METAL = 1
+    
+    # Use clang for Objective-C++ compilation
+    CXX = clang++
+    OBJCXX = clang++
+    OBJCXXFLAGS = -fobjc-arc -O3 -std=c++14
+    
+    # Add C++ standard library for linking
+    METAL_LDFLAGS = -lc++
+    
+    # Metal compiler
+    METAL_COMPILER = xcrun -sdk macosx metal
+    METAL_COMPILER_FLAGS = -O
+    METAL_OUTPUT = $(BIN_DIR)/ic.metallib
+  else
+    # No Metal available
+    METAL_SRCS =
+    METAL_OBJS =
+    METAL_CFLAGS =
+    HAS_METAL = 0
+  endif
+else
+  # Not macOS, no Metal
+  METAL_SRCS =
+  METAL_OBJS =
+  METAL_CFLAGS =
+  METAL_LDFLAGS =
+  HAS_METAL = 0
+endif
+
 # Main source files
 SRCS = $(SRC_DIR)/main.c \
        $(SRC_DIR)/ic.c \
@@ -56,38 +96,80 @@ all: $(DIRS) $(TARGET) $(TARGET_LN)
 $(DIRS):
 	mkdir -p $@
 
-# Build target with or without CUDA
+# Build target with CUDA, Metal, or neither
 ifeq ($(HAS_CUDA),1)
+ifeq ($(HAS_METAL),1)
+$(TARGET): $(OBJS) $(PARSE_OBJS) $(CUDA_OBJS) $(METAL_OBJS) $(METAL_OUTPUT)
+	$(CC) $(CFLAGS) -o $@ $(OBJS) $(PARSE_OBJS) $(CUDA_OBJS) $(METAL_OBJS) $(CUDA_LDFLAGS) $(METAL_CFLAGS) $(METAL_LDFLAGS)
+else
 $(TARGET): $(OBJS) $(PARSE_OBJS) $(CUDA_OBJS)
 	$(CC) $(CFLAGS) -o $@ $^ $(CUDA_LDFLAGS)
+endif
+else
+ifeq ($(HAS_METAL),1)
+$(TARGET): $(OBJS) $(PARSE_OBJS) $(METAL_OBJS) $(METAL_OUTPUT)
+	$(CC) $(CFLAGS) -o $@ $(OBJS) $(PARSE_OBJS) $(METAL_OBJS) $(METAL_CFLAGS) $(METAL_LDFLAGS)
 else
 $(TARGET): $(OBJS) $(PARSE_OBJS)
 	$(CC) $(CFLAGS) -o $@ $^
+endif
 endif
 
 $(TARGET_LN): $(TARGET)
 	ln -sf main $(TARGET_LN)
 
+# Compile Metal shader library
+$(METAL_OUTPUT): $(SRC_DIR)/ic.metal | $(BIN_DIR)
+	$(METAL_COMPILER) $(METAL_COMPILER_FLAGS) -o $@ $<
+
+# Compile C files
 ifeq ($(HAS_CUDA),1)
+ifeq ($(HAS_METAL),1)
+$(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
+	$(CC) $(CFLAGS) $(CUDA_CFLAGS) $(METAL_CFLAGS) -c -o $@ $<
+else
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
 	$(CC) $(CFLAGS) $(CUDA_CFLAGS) -c -o $@ $<
+endif
+else
+ifeq ($(HAS_METAL),1)
+$(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
+	$(CC) $(CFLAGS) $(METAL_CFLAGS) -c -o $@ $<
 else
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 endif
+endif
 
+# Compile CUDA
 ifeq ($(HAS_CUDA),1)
 $(OBJ_DIR)/ic.o: $(SRC_DIR)/ic.cu
 	$(NVCC) $(NVCCFLAGS) -c -o $@ $<
 endif
 
+# Compile Metal Objective-C++
+ifeq ($(HAS_METAL),1)
+$(OBJ_DIR)/ic_metal.o: $(SRC_DIR)/ic_metal.mm
+	$(OBJCXX) $(OBJCXXFLAGS) $(METAL_CFLAGS) -c -o $@ $<
+endif
+
 clean:
 	rm -rf $(OBJ_DIR) $(BIN_DIR)
 
-# Show GPU compilation status
+# Show GPU/Metal compilation status
 status:
 ifeq ($(HAS_CUDA),1)
-	@echo "CUDA compiler found ($(NVCC)). Building with GPU support."
+	@echo "CUDA compiler found ($(NVCC)). Building with CUDA GPU support."
 else
-	@echo "CUDA compiler not found. Building without GPU support."
+	@echo "CUDA compiler not found. Building without CUDA GPU support."
 endif
+
+ifeq ($(HAS_METAL),1)
+	@echo "Metal supported on this system. Building with Metal GPU support."
+else
+	@echo "Metal not supported on this system. Building without Metal GPU support."
+endif
+
+metal-status: $(TARGET)
+	@echo "Testing Metal availability..."
+	@./$(TARGET) eval-gpu "λx.x" 2>&1 | grep -i "Metal" || true
