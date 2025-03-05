@@ -424,61 +424,22 @@ static inline Term ic_whnf(IC* ic, Term term) {
           Term prev = stack[--stack_pos];
           TermTag ptag = TERM_TAG(prev);
           
-          // Directly handle the most common reduction patterns
-          // APP-LAM interaction
+          // Handle interactions based on term types
           if (ptag == APP && tag == LAM) {
-            ic->interactions++; 
-            
-            uint32_t app_loc = TERM_VAL(prev);
-            uint32_t lam_loc = TERM_VAL(next);
-            
-            Term arg = heap[app_loc + 1];
-            Term bod = heap[lam_loc + 0];
-
-            // Create substitution for the lambda variable
-            heap[lam_loc] = arg | TERM_SUB_MASK; // Inlined version of ic_make_sub
-
-            next = bod;
+            next = ic_app_lam(ic, prev, next);
             continue;
           } 
-          // APP-SUP interaction
           else if (ptag == APP && tag == SUP) {
             next = ic_app_sup(ic, prev, next); 
             continue;
           }
-          // COL-LAM interaction
           else if ((ptag == CO0 || ptag == CO1) && tag == LAM) {
             next = ic_col_lam(ic, prev, next);
             continue;
           }
-          // COL-SUP interaction (most common case with matching labels)
           else if ((ptag == CO0 || ptag == CO1) && tag == SUP) {
-            uint32_t col_loc = TERM_VAL(prev);
-            uint32_t sup_loc = TERM_VAL(next);
-            uint8_t col_lab = TERM_LAB(prev);
-            uint8_t sup_lab = TERM_LAB(next);
-            uint8_t is_co0 = ptag == CO0;
-
-            // Fast path for matching labels
-            if (col_lab == sup_lab) {
-              ic->interactions++;
-              
-              Term lft = heap[sup_loc + 0];
-              Term rgt = heap[sup_loc + 1];
-
-              if (is_co0) {
-                heap[col_loc] = rgt | TERM_SUB_MASK;
-                next = lft;
-              } else {
-                heap[col_loc] = lft | TERM_SUB_MASK;
-                next = rgt;
-              }
-              continue;
-            } else {
-              // Call the function for the non-matching labels case
-              next = ic_col_sup(ic, prev, next);
-              continue;
-            }
+            next = ic_col_sup(ic, prev, next);
+            continue;
           }
           
           // No interaction found, proceed to stack traversal
@@ -498,7 +459,7 @@ static inline Term ic_whnf(IC* ic, Term term) {
         TermTag htag = TERM_TAG(host);
         uint32_t hloc = TERM_VAL(host);
         
-        // Fast path for common cases
+        // Update the heap with the reduced term
         if (htag == APP || htag == CO0 || htag == CO1) {
           heap[hloc] = next;
         }
