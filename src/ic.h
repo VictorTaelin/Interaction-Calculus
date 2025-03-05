@@ -47,7 +47,7 @@ typedef uint32_t Term;
 
 // Term component extraction
 #define TERM_SUB(term) (((term) & TERM_SUB_MASK) != 0)
-#define TERM_TAG(term) (((term) & TERM_TAG_MASK) >> 28)
+#define TERM_TAG(term) ((TermTag)(((term) & TERM_TAG_MASK) >> 28))
 #define TERM_LAB(term) (((term) & TERM_LAB_MASK) >> 26)
 #define TERM_VAL(term) ((term) & TERM_VAL_MASK)
 
@@ -71,7 +71,7 @@ typedef struct {
   Term* heap;          // Heap memory for terms
   uint32_t heap_size;  // Total size of the heap
   uint32_t heap_pos;   // Current allocation position
-  
+
   // Evaluation stack
   Term* stack;          // Stack for term evaluation
   uint32_t stack_size;  // Total size of the stack
@@ -79,7 +79,7 @@ typedef struct {
 
   // Statistics
   uint64_t interactions; // Interaction counter
-  
+
 } IC;
 
 // Function declarations to avoid circular dependencies
@@ -98,23 +98,23 @@ static inline void ic_free(IC* ic);
 static inline IC* ic_new(uint32_t heap_size, uint32_t stack_size) {
   IC* ic = (IC*)malloc(sizeof(IC));
   if (!ic) return NULL;
-  
+
   // Initialize structure
   ic->heap_size = heap_size;
   ic->stack_size = stack_size;
   ic->heap_pos = 0;
   ic->interactions = 0;
   ic->stack_pos = 0;
-  
+
   // Allocate heap and stack
   ic->heap = (Term*)calloc(heap_size, sizeof(Term));
   ic->stack = (Term*)malloc(stack_size * sizeof(Term));
-  
+
   if (!ic->heap || !ic->stack) {
     ic_free(ic);
     return NULL;
   }
-  
+
   return ic;
 }
 
@@ -124,7 +124,7 @@ static inline IC* ic_new(uint32_t heap_size, uint32_t stack_size) {
  */
 static inline void ic_free(IC* ic) {
   if (!ic) return;
-  
+
   if (ic->heap) free(ic->heap);
   if (ic->stack) free(ic->stack);
   free(ic);
@@ -190,10 +190,10 @@ static inline Term ic_clear_sub(Term term) {
 //f
 static inline Term ic_app_lam(IC* ic, Term app, Term lam) {
   ic->interactions++;
-  
+
   uint32_t app_loc = TERM_VAL(app);
   uint32_t lam_loc = TERM_VAL(lam);
-  
+
   Term arg = ic->heap[app_loc + 1];
   Term bod = ic->heap[lam_loc + 0];
 
@@ -209,7 +209,7 @@ static inline Term ic_app_lam(IC* ic, Term app, Term lam) {
 //&L{(a c0),(b c1)}
 static inline Term ic_app_sup(IC* ic, Term app, Term sup) {
   ic->interactions++;
-  
+
   uint32_t app_loc = TERM_VAL(app);
   uint32_t sup_loc = TERM_VAL(sup);
   uint8_t sup_lab = TERM_LAB(sup);
@@ -221,7 +221,7 @@ static inline Term ic_app_sup(IC* ic, Term app, Term sup) {
   // Allocate only what's necessary
   uint32_t col_loc = ic_alloc(ic, 1);
   uint32_t app1_loc = ic_alloc(ic, 2);
-  
+
   // Store the arg in the collapser location
   ic->heap[col_loc] = arg;
 
@@ -253,7 +253,7 @@ static inline Term ic_app_sup(IC* ic, Term app, Term sup) {
 //K
 static inline Term ic_col_lam(IC* ic, Term col, Term lam) {
   ic->interactions++;
-  
+
   uint32_t col_loc = TERM_VAL(col);
   uint32_t lam_loc = TERM_VAL(lam);
   uint8_t col_lab = TERM_LAB(col);
@@ -309,7 +309,7 @@ static inline Term ic_col_lam(IC* ic, Term col, Term lam) {
 //K
 static inline Term ic_col_sup(IC* ic, Term col, Term sup) {
   ic->interactions++;
-  
+
   uint32_t col_loc = TERM_VAL(col);
   uint32_t sup_loc = TERM_VAL(sup);
   uint8_t col_lab = TERM_LAB(col);
@@ -338,15 +338,15 @@ static inline Term ic_col_sup(IC* ic, Term col, Term sup) {
     // Use existing locations as collapser locations
     uint32_t col_lft_loc = sup_loc + 0;
     uint32_t col_rgt_loc = sup_loc + 1;
-    
+
     // Set up the first superposition (for CO0)
     ic->heap[sup0_loc + 0] = ic_make_term(CO0, col_lab, col_lft_loc);
     ic->heap[sup0_loc + 1] = ic_make_term(CO0, col_lab, col_rgt_loc);
-    
+
     // Set up the second superposition (for CO1)
     ic->heap[sup1_loc + 0] = ic_make_term(CO1, col_lab, col_lft_loc);
     ic->heap[sup1_loc + 1] = ic_make_term(CO1, col_lab, col_rgt_loc);
-    
+
     // Set up original collapsers to point to lft and rgt
     ic->heap[col_lft_loc] = lft;
     ic->heap[col_rgt_loc] = rgt;
@@ -423,7 +423,7 @@ static inline Term ic_whnf(IC* ic, Term term) {
         } else {
           Term prev = stack[--stack_pos];
           TermTag ptag = TERM_TAG(prev);
-          
+
           // Handle interactions based on term types
           if (ptag == APP && tag == LAM) {
             next = ic_app_lam(ic, prev, next);
@@ -441,7 +441,7 @@ static inline Term ic_whnf(IC* ic, Term term) {
             next = ic_col_sup(ic, prev, next);
             continue;
           }
-          
+
           // No interaction found, proceed to stack traversal
           stack[stack_pos++] = prev;
           break;
@@ -458,7 +458,7 @@ static inline Term ic_whnf(IC* ic, Term term) {
         Term host = stack[--stack_pos];
         TermTag htag = TERM_TAG(host);
         uint32_t hloc = TERM_VAL(host);
-        
+
         // Update the heap with the reduced term
         if (htag == APP || htag == CO0 || htag == CO1) {
           heap[hloc] = next;
@@ -536,6 +536,5 @@ static inline Term ic_normal(IC* ic, Term term) {
 static inline IC* ic_default_new() {
   return ic_new(IC_DEFAULT_HEAP_SIZE, IC_DEFAULT_STACK_SIZE);
 }
-
 
 #endif // IC_H
