@@ -10,7 +10,9 @@ NVCC_CHECK := $(shell which nvcc 2>/dev/null || echo "")
 ifneq ($(NVCC_CHECK),)
   # NVCC is available
   NVCC := $(NVCC_CHECK)
-  NVCCFLAGS = -O3 --std=c++11
+  NVCCFLAGS = -O3 --std=c++11 -arch=sm_75 --use_fast_math -Xptxas -O3,-v \
+    -prec-div=false -prec-sqrt=false -fmad=true -res-usage \
+    --compiler-options -ffast-math,-march=native,-mtune=native,-O3,-funroll-loops
   CUDA_CFLAGS = -DHAVE_CUDA
   CUDA_SRCS = $(SRC_DIR)/ic.cu
   CUDA_OBJS = $(OBJ_DIR)/ic.o
