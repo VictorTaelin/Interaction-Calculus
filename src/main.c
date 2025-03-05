@@ -9,7 +9,7 @@
 
 // Forward declarations for GPU functions
 #ifdef HAVE_CUDA
-extern Term ic_normal_gpu(IC* ic, Term term);
+extern Term ic_normal_cuda(IC* ic, Term term);
 extern int ic_cuda_available();
 #endif
 
@@ -24,7 +24,7 @@ static inline int ic_cuda_available() {
   return 0; // CUDA not available
 }
 
-static inline Term ic_normal_gpu(IC* ic, Term term) {
+static inline Term ic_normal_cuda(IC* ic, Term term) {
   fprintf(stderr, "Warning: CUDA GPU support not compiled. Falling back to other methods.\n");
   #ifdef HAVE_METAL
   return ic_normal_metal(ic, term);
@@ -62,7 +62,7 @@ void process_term(IC* ic, Term term, int use_gpu) {
   // Normalize the term
   if (use_gpu) {
     if (ic_cuda_available()) {
-      term = ic_normal_gpu(ic, term);
+      term = ic_normal_cuda(ic, term);
     } else if (ic_metal_available()) {
       printf("CUDA not available, using Metal GPU acceleration\n");
       term = ic_normal_metal(ic, term);
@@ -141,7 +141,7 @@ void benchmark_term(IC* ic, Term term, int use_gpu) {
   Term result;
   if (use_gpu) {
     if (ic_cuda_available()) {
-      result = ic_normal_gpu(ic, term);
+      result = ic_normal_cuda(ic, term);
     } else if (ic_metal_available()) {
       printf("CUDA not available, using Metal GPU acceleration\n");
       result = ic_normal_metal(ic, term);
@@ -177,7 +177,7 @@ void benchmark_term(IC* ic, Term term, int use_gpu) {
     // Normalize the term again
     if (use_gpu) {
       if (ic_cuda_available()) {
-        ic_normal_gpu(ic, original_term);
+        ic_normal_cuda(ic, original_term);
       } else if (ic_metal_available()) {
         ic_normal_metal(ic, original_term);
       } else {

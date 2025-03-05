@@ -367,7 +367,7 @@ __global__ void normalizeKernel() {
 }
 
 // Host function to normalize a term on the GPU
-extern "C" Term ic_normal_gpu(IC* ic, Term term) {
+extern "C" Term ic_normal_cuda(IC* ic, Term term) {
   // Allocate GPU memory for heap
   Term* d_heap_ptr;
   Term* d_stack_ptr;
