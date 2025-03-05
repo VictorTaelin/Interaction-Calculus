@@ -14,12 +14,6 @@ extern "C" int ic_cuda_available() {
   return deviceCount > 0;
 }
 
-// Device constants optimized for GPU performance
-// Use compiler flags to direct GPU optimizations
-#pragma GCC push_options
-#pragma GCC optimize ("O3", "unroll-loops", "fast-math")
-#define USE_AGGRESSIVE_OPTIMIZATIONS 1
-
 // Device memory for heap and stack
 __device__ Term* d_heap;
 __device__ Term* d_stack;
@@ -31,268 +25,202 @@ __device__ uint64_t d_interactions;
 
 // Device implementations of IC functions
 
-// Fast, optimized version using direct bit operations
-// Use direct macro expansion for critical operations
-#define D_IC_MAKE_SUB(term) ((term) | TERM_SUB_MASK)
-#define D_IC_CLEAR_SUB(term) ((term) & ~TERM_SUB_MASK)
-#define D_IC_GET_TAG(term) ((TermTag)(((term) & TERM_TAG_MASK) >> 28))
-#define D_IC_GET_LAB(term) (((term) & TERM_LAB_MASK) >> 26)
-#define D_IC_GET_VAL(term) ((term) & TERM_VAL_MASK)
-
-// Function versions maintained for compatibility
-__device__ __forceinline__ Term d_ic_make_sub(Term term) {
-  return D_IC_MAKE_SUB(term);
+// Create a term with substitution bit
+__device__ inline Term d_ic_make_sub(Term term) {
+  return term | TERM_SUB_MASK;
 }
 
-// Function versions maintained for compatibility
-__device__ __forceinline__ Term d_ic_clear_sub(Term term) {
-  return D_IC_CLEAR_SUB(term);
+// Remove substitution bit from a term
+__device__ inline Term d_ic_clear_sub(Term term) {
+  return term & ~TERM_SUB_MASK;
 }
 
 // Create a term with specified tag, label, and value
-// Define as a macro for better compiler optimization
-#define D_IC_MAKE_TERM(tag, lab, val) \
-  (((uint32_t)(tag) << 28) | ((uint32_t)(lab) << 26) | ((uint32_t)(val) & TERM_VAL_MASK))
-
-// Function version maintained for compatibility
-__device__ __forceinline__ Term d_ic_make_term(TermTag tag, uint8_t lab, uint32_t val) {
-  // Direct bit manipulation for faster term construction
-  return D_IC_MAKE_TERM(tag, lab, val);
+__device__ inline Term d_ic_make_term(TermTag tag, uint8_t lab, uint32_t val) {
+  return MAKE_TERM(false, tag, lab, val);
 }
 
-// Allocate n consecutive terms in memory with prefetch hint
-__device__ __forceinline__ uint32_t d_ic_alloc(uint32_t n) {
+// Allocate n consecutive terms in memory
+__device__ inline uint32_t d_ic_alloc(uint32_t n) {
   uint32_t ptr = d_heap_pos;
   d_heap_pos += n;
   
-  // Check if we've run out of memory (bounds check)
+  // Check if we've run out of memory
   if (d_heap_pos >= d_heap_size) {
-    // Since we can't easily abort a kernel, just cap at maximum size
+    // In a real implementation, we'd need error handling here
+    // Since we can't easily abort a kernel, we'll just wrap around
     // This is just a safeguard; the host should ensure enough memory
     d_heap_pos = d_heap_size - 1;
-  }
-  
-  // Prefetch next allocation area to help cache locality
-  #pragma unroll
-  for (uint32_t i = 0; i < 4 && i < n; i++) {
-    // Use simple memory access as prefetch hint
-    volatile Term temp = d_heap[ptr + i];
   }
   
   return ptr;
 }
 
-// Apply a lambda to an argument - optimized with direct heap access and macros
-__device__ __forceinline__ Term d_ic_app_lam(Term app, Term lam) {
+// Apply a lambda to an argument
+__device__ inline Term d_ic_app_lam(Term app, Term lam) {
   d_interactions++;
   
-  // Extract locations with optimized macros
-  const uint32_t app_loc = D_IC_GET_VAL(app);
-  const uint32_t lam_loc = D_IC_GET_VAL(lam);
+  uint32_t app_loc = TERM_VAL(app);
+  uint32_t lam_loc = TERM_VAL(lam);
   
-  // Get heap pointer for direct access
-  Term* const heap = d_heap;
-  
-  // Load arguments directly
-  const Term arg = heap[app_loc + 1];
-  const Term bod = heap[lam_loc + 0];
+  Term arg = d_heap[app_loc + 1];
+  Term bod = d_heap[lam_loc + 0];
 
-  // Create substitution for the lambda variable with direct bit manipulation
-  heap[lam_loc] = D_IC_MAKE_SUB(arg);
+  // Create substitution for the lambda variable
+  d_heap[lam_loc] = d_ic_make_sub(arg);
 
   return bod;
 }
 
-// Apply a superposition - optimized
-__device__ __forceinline__ Term d_ic_app_sup(Term app, Term sup) {
+// Apply a superposition
+__device__ inline Term d_ic_app_sup(Term app, Term sup) {
   d_interactions++;
   
-  // Cache frequent values in registers for faster access
-  const uint32_t app_loc = TERM_VAL(app);
-  const uint32_t sup_loc = TERM_VAL(sup);
-  const uint8_t sup_lab = TERM_LAB(sup);
-  
-  // Direct heap access
-  Term* const heap = d_heap;
+  uint32_t app_loc = TERM_VAL(app);
+  uint32_t sup_loc = TERM_VAL(sup);
+  uint8_t sup_lab = TERM_LAB(sup);
 
-  // Load arguments in one go to reduce memory reads
-  const Term arg = heap[app_loc + 1];
-  const Term lft = heap[sup_loc + 0];
-  const Term rgt = heap[sup_loc + 1];
+  Term arg = d_heap[app_loc + 1];
+  Term lft = d_heap[sup_loc + 0];
+  Term rgt = d_heap[sup_loc + 1];
 
-  // Batch allocation for better memory access pattern
-  const uint32_t col_loc = d_ic_alloc(1);
-  const uint32_t app1_loc = d_ic_alloc(2);
+  // Allocate only what's necessary
+  uint32_t col_loc = d_ic_alloc(1);
+  uint32_t app1_loc = d_ic_alloc(2);
   
   // Store the arg in the collapser location
-  heap[col_loc] = arg;
+  d_heap[col_loc] = arg;
 
-  // Create terms with direct bit manipulation for speed
-  // CO0 term - optimized term creation
-  const Term x0 = ((uint32_t)(CO0) << 28) | ((uint32_t)(sup_lab) << 26) | (col_loc & TERM_VAL_MASK);
-  
-  // CO1 term - optimized term creation
-  const Term x1 = ((uint32_t)(CO1) << 28) | ((uint32_t)(sup_lab) << 26) | (col_loc & TERM_VAL_MASK);
+  // Create CO0 and CO1 terms
+  Term x0 = d_ic_make_term(CO0, sup_lab, col_loc);
+  Term x1 = d_ic_make_term(CO1, sup_lab, col_loc);
 
-  // Reuse sup_loc for app0 - lft is already in heap[sup_loc + 0]
-  heap[sup_loc + 1] = x0;
+  // Reuse sup_loc for app0
+  d_heap[sup_loc + 1] = x0; // lft is already in heap[sup_loc + 0]
 
   // Set up app1
-  heap[app1_loc + 0] = rgt;
-  heap[app1_loc + 1] = x1;
+  d_heap[app1_loc + 0] = rgt;
+  d_heap[app1_loc + 1] = x1;
 
   // Reuse app_loc for the result superposition
-  // Use direct bit manipulation for d_ic_make_term
-  heap[app_loc + 0] = ((uint32_t)(APP) << 28) | (sup_loc & TERM_VAL_MASK);
-  heap[app_loc + 1] = ((uint32_t)(APP) << 28) | (app1_loc & TERM_VAL_MASK);
+  d_heap[app_loc + 0] = d_ic_make_term(APP, 0, sup_loc);
+  d_heap[app_loc + 1] = d_ic_make_term(APP, 0, app1_loc);
 
-  // Use direct bit manipulation for return value
-  return ((uint32_t)(SUP) << 28) | ((uint32_t)(sup_lab) << 26) | (app_loc & TERM_VAL_MASK);
+  return d_ic_make_term(SUP, sup_lab, app_loc);
 }
 
-// Collapse a lambda - optimized for GPU
-__device__ __forceinline__ Term d_ic_col_lam(Term col, Term lam) {
+// Collapse a lambda
+__device__ inline Term d_ic_col_lam(Term col, Term lam) {
   d_interactions++;
   
-  // Cache frequent values in registers
-  const uint32_t col_loc = TERM_VAL(col);
-  const uint32_t lam_loc = TERM_VAL(lam);
-  const uint8_t col_lab = TERM_LAB(col);
-  const uint8_t is_co0 = (TERM_TAG(col) == CO0);
-  
-  // Direct heap access
-  Term* const heap = d_heap;
+  uint32_t col_loc = TERM_VAL(col);
+  uint32_t lam_loc = TERM_VAL(lam);
+  uint8_t col_lab = TERM_LAB(col);
+  uint8_t is_co0 = (TERM_TAG(col) == CO0);
 
-  // Load body once
-  const Term bod = heap[lam_loc + 0];
+  Term bod = d_heap[lam_loc + 0];
 
-  // Batch allocate memory for better memory pattern
-  const uint32_t alloc_start = d_ic_alloc(5);
-  const uint32_t lam0_loc = alloc_start;
-  const uint32_t lam1_loc = alloc_start + 1;
-  const uint32_t sup_loc = alloc_start + 2; // 2 locations
-  const uint32_t col_new_loc = alloc_start + 4;
+  // Batch allocate memory for efficiency
+  uint32_t alloc_start = d_ic_alloc(5);
+  uint32_t lam0_loc = alloc_start;
+  uint32_t lam1_loc = alloc_start + 1;
+  uint32_t sup_loc = alloc_start + 2; // 2 locations
+  uint32_t col_new_loc = alloc_start + 4;
 
-  // Set up the superposition with direct bit manipulation
-  heap[sup_loc + 0] = ((uint32_t)(VAR) << 28) | (lam0_loc & TERM_VAL_MASK);
-  heap[sup_loc + 1] = ((uint32_t)(VAR) << 28) | (lam1_loc & TERM_VAL_MASK);
+  // Set up the superposition
+  d_heap[sup_loc + 0] = d_ic_make_term(VAR, 0, lam0_loc);
+  d_heap[sup_loc + 1] = d_ic_make_term(VAR, 0, lam1_loc);
 
   // Replace lambda's variable with the superposition
-  // Use direct bit manipulation for nested term creation
-  heap[lam_loc] = ((uint32_t)(SUP) << 28) | ((uint32_t)(col_lab) << 26) | (sup_loc & TERM_VAL_MASK) | TERM_SUB_MASK;
+  d_heap[lam_loc] = d_ic_make_sub(d_ic_make_term(SUP, col_lab, sup_loc));
 
   // Set up the new collapser
-  heap[col_new_loc] = bod;
+  d_heap[col_new_loc] = bod;
 
-  // Set up new lambda bodies with direct bit manipulation
-  heap[lam0_loc] = ((uint32_t)(CO0) << 28) | ((uint32_t)(col_lab) << 26) | (col_new_loc & TERM_VAL_MASK);
-  heap[lam1_loc] = ((uint32_t)(CO1) << 28) | ((uint32_t)(col_lab) << 26) | (col_new_loc & TERM_VAL_MASK);
+  // Set up new lambda bodies
+  d_heap[lam0_loc] = d_ic_make_term(CO0, col_lab, col_new_loc);
+  d_heap[lam1_loc] = d_ic_make_term(CO1, col_lab, col_new_loc);
 
-  // Create and return the appropriate lambda - branch-free when possible
-  // Fast path implementation using registers
-  const Term lam0_term = ((uint32_t)(LAM) << 28) | (lam0_loc & TERM_VAL_MASK);
-  const Term lam1_term = ((uint32_t)(LAM) << 28) | (lam1_loc & TERM_VAL_MASK);
-  const Term sub_term0 = ((uint32_t)(LAM) << 28) | (lam0_loc & TERM_VAL_MASK) | TERM_SUB_MASK;
-  const Term sub_term1 = ((uint32_t)(LAM) << 28) | (lam1_loc & TERM_VAL_MASK) | TERM_SUB_MASK;
-  
-  // Use the condition directly to avoid branching when possible
-  heap[col_loc] = is_co0 ? sub_term1 : sub_term0;
-  return is_co0 ? lam0_term : lam1_term;
+  // Create and return the appropriate lambda
+  if (is_co0) {
+    d_heap[col_loc] = d_ic_make_sub(d_ic_make_term(LAM, 0, lam1_loc));
+    return d_ic_make_term(LAM, 0, lam0_loc);
+  } else {
+    d_heap[col_loc] = d_ic_make_sub(d_ic_make_term(LAM, 0, lam0_loc));
+    return d_ic_make_term(LAM, 0, lam1_loc);
+  }
 }
 
-// Collapse a superposition - optimized with fast paths
-__device__ __forceinline__ Term d_ic_col_sup(Term col, Term sup) {
+// Collapse a superposition
+__device__ inline Term d_ic_col_sup(Term col, Term sup) {
   d_interactions++;
   
-  // Cache frequent values in registers
-  const uint32_t col_loc = TERM_VAL(col);
-  const uint32_t sup_loc = TERM_VAL(sup);
-  const uint8_t col_lab = TERM_LAB(col);
-  const uint8_t sup_lab = TERM_LAB(sup);
-  const uint8_t is_co0 = (TERM_TAG(col) == CO0);
-  
-  // Direct heap access
-  Term* const heap = d_heap;
+  uint32_t col_loc = TERM_VAL(col);
+  uint32_t sup_loc = TERM_VAL(sup);
+  uint8_t col_lab = TERM_LAB(col);
+  uint8_t sup_lab = TERM_LAB(sup);
+  uint8_t is_co0 = (TERM_TAG(col) == CO0);
 
-  // Load values needed for both paths
-  const Term lft = heap[sup_loc + 0];
-  const Term rgt = heap[sup_loc + 1];
+  Term lft = d_heap[sup_loc + 0];
+  Term rgt = d_heap[sup_loc + 1];
 
-  // Fast path for matching labels (more common case) - helps branch prediction
+  // Fast path for matching labels (common case)
   if (col_lab == sup_lab) {
-    // Labels match: simple substitution - use direct bit manipulation
-    // This is the most common case, so optimize heavily
+    // Labels match: simple substitution
     if (is_co0) {
-      heap[col_loc] = rgt | TERM_SUB_MASK;
+      d_heap[col_loc] = d_ic_make_sub(rgt);
       return lft;
     } else {
-      heap[col_loc] = lft | TERM_SUB_MASK;
+      d_heap[col_loc] = d_ic_make_sub(lft);
       return rgt;
     }
   } else {
     // Labels don't match: create nested collapsers
-    // This path is less common but still needs optimization
-    const uint32_t sup_start = d_ic_alloc(4); // 2 sups with 2 terms each
-    const uint32_t sup0_loc = sup_start;
-    const uint32_t sup1_loc = sup_start + 2;
+    uint32_t sup_start = d_ic_alloc(4); // 2 sups with 2 terms each
+    uint32_t sup0_loc = sup_start;
+    uint32_t sup1_loc = sup_start + 2;
 
-    // Use existing locations as collapser locations to save memory
-    const uint32_t col_lft_loc = sup_loc + 0;
-    const uint32_t col_rgt_loc = sup_loc + 1;
+    // Use existing locations as collapser locations
+    uint32_t col_lft_loc = sup_loc + 0;
+    uint32_t col_rgt_loc = sup_loc + 1;
     
-    // Set up the first superposition (for CO0) with direct bit manipulation
-    heap[sup0_loc + 0] = ((uint32_t)(CO0) << 28) | ((uint32_t)(col_lab) << 26) | (col_lft_loc & TERM_VAL_MASK);
-    heap[sup0_loc + 1] = ((uint32_t)(CO0) << 28) | ((uint32_t)(col_lab) << 26) | (col_rgt_loc & TERM_VAL_MASK);
+    // Set up the first superposition (for CO0)
+    d_heap[sup0_loc + 0] = d_ic_make_term(CO0, col_lab, col_lft_loc);
+    d_heap[sup0_loc + 1] = d_ic_make_term(CO0, col_lab, col_rgt_loc);
     
-    // Set up the second superposition (for CO1) with direct bit manipulation
-    heap[sup1_loc + 0] = ((uint32_t)(CO1) << 28) | ((uint32_t)(col_lab) << 26) | (col_lft_loc & TERM_VAL_MASK);
-    heap[sup1_loc + 1] = ((uint32_t)(CO1) << 28) | ((uint32_t)(col_lab) << 26) | (col_rgt_loc & TERM_VAL_MASK);
+    // Set up the second superposition (for CO1)
+    d_heap[sup1_loc + 0] = d_ic_make_term(CO1, col_lab, col_lft_loc);
+    d_heap[sup1_loc + 1] = d_ic_make_term(CO1, col_lab, col_rgt_loc);
     
     // Set up original collapsers to point to lft and rgt
-    heap[col_lft_loc] = lft;
-    heap[col_rgt_loc] = rgt;
+    d_heap[col_lft_loc] = lft;
+    d_heap[col_rgt_loc] = rgt;
 
-    // Prepare common terms to reduce branches
-    const Term sup0_term = ((uint32_t)(SUP) << 28) | ((uint32_t)(sup_lab) << 26) | (sup0_loc & TERM_VAL_MASK);
-    const Term sup1_term = ((uint32_t)(SUP) << 28) | ((uint32_t)(sup_lab) << 26) | (sup1_loc & TERM_VAL_MASK);
-    const Term sub_term0 = ((uint32_t)(SUP) << 28) | ((uint32_t)(sup_lab) << 26) | (sup0_loc & TERM_VAL_MASK) | TERM_SUB_MASK;
-    const Term sub_term1 = ((uint32_t)(SUP) << 28) | ((uint32_t)(sup_lab) << 26) | (sup1_loc & TERM_VAL_MASK) | TERM_SUB_MASK;
-
-    // Use the condition directly to avoid branching when possible
-    heap[col_loc] = is_co0 ? sub_term1 : sub_term0;
-    return is_co0 ? sup0_term : sup1_term;
+    if (is_co0) {
+      d_heap[col_loc] = d_ic_make_sub(d_ic_make_term(SUP, sup_lab, sup1_loc));
+      return d_ic_make_term(SUP, sup_lab, sup0_loc);
+    } else {
+      d_heap[col_loc] = d_ic_make_sub(d_ic_make_term(SUP, sup_lab, sup0_loc));
+      return d_ic_make_term(SUP, sup_lab, sup1_loc);
+    }
   }
 }
 
-// Shared memory cache will be dynamically allocated in the kernel
-// Note that we're using a single thread, so regular global memory is fine
+// Reduce a term to WHNF (Weak Head Normal Form)
+__device__ inline Term d_ic_whnf(Term term) {
+  uint32_t stop = d_stack_pos;
+  Term next = term;
+  uint32_t stack_pos = stop;
 
-// Key constants for faster case switching
-#define INTERACTION_APP_LAM ((APP << 3) | LAM)
-#define INTERACTION_APP_SUP ((APP << 3) | SUP)
-
-// Reduce a term to WHNF (Weak Head Normal Form) - heavily optimized with macros and prefetching
-__device__ __forceinline__ Term d_ic_whnf(Term term) {
-  // Cache frequently used variables in registers for faster access
-  register uint32_t stop = d_stack_pos;
-  register Term next = term;
-  Term* const __restrict__ heap = d_heap;  // Restrict pointer for better optimization
-  Term* const __restrict__ stack = d_stack;
-  register uint32_t stack_pos = stop;
-
-  // Main normalization loop
   while (1) {
-    // Get tag with optimized macro
-    const TermTag tag = D_IC_GET_TAG(next);
+    TermTag tag = TERM_TAG(next);
 
-    // Use switch for better branch prediction on GPU
     switch (tag) {
       case VAR: {
-        // Variable case - optimize for common path
-        const uint32_t var_loc = D_IC_GET_VAL(next);
-        const Term subst = heap[var_loc];
-        if (subst & TERM_SUB_MASK) { // Direct bit test
-          next = D_IC_CLEAR_SUB(subst);
+        uint32_t var_loc = TERM_VAL(next);
+        Term subst = d_heap[var_loc];
+        if (TERM_SUB(subst)) {
+          next = d_ic_clear_sub(subst);
           continue;
         }
         break; // No substitution, so it's in WHNF
@@ -300,78 +228,53 @@ __device__ __forceinline__ Term d_ic_whnf(Term term) {
 
       case CO0:
       case CO1: {
-        // Collapser case - optimize for common path
-        const uint32_t col_loc = D_IC_GET_VAL(next);
-        const Term val = heap[col_loc];
-        if (val & TERM_SUB_MASK) { // Direct bit test
-          next = D_IC_CLEAR_SUB(val);
+        uint32_t col_loc = TERM_VAL(next);
+        Term val = d_heap[col_loc];
+        if (TERM_SUB(val)) {
+          next = d_ic_clear_sub(val);
           continue;
         } else {
-          // Direct push to stack
-          stack[stack_pos++] = next;
+          d_stack[stack_pos++] = next;
           next = val;
           continue;
         }
       }
 
       case APP: {
-        // Application case - optimize for this frequent operation
-        const uint32_t app_loc = D_IC_GET_VAL(next);
-        
-        // Direct stack access
-        stack[stack_pos++] = next;
-        
-        // Pre-load with software prefetch
-        #if __CUDA_ARCH__ >= 700 
-        // Use intrinsic prefetch for Volta+ architecture
-        asm("prefetch.global.L1 [%0];" : : "l"(heap + app_loc));
-        #else
-        // Software prefetch for older architectures
-        volatile Term temp = heap[app_loc];
-        #endif
-        
-        next = heap[app_loc]; // Reduce the function part
+        uint32_t app_loc = TERM_VAL(next);
+        d_stack[stack_pos++] = next;
+        next = d_heap[app_loc]; // Reduce the function part
         continue;
       }
 
       default: { // SUP, LAM
-        // Handle default case (SUP, LAM) - optimize stack checks
         if (stack_pos == stop) {
           d_stack_pos = stack_pos; // Update stack position before return
           return next; // Stack empty, term is in WHNF
         } else {
-          // Direct stack access 
-          Term prev = stack[--stack_pos];
+          Term prev = d_stack[--stack_pos];
+          TermTag ptag = TERM_TAG(prev);
           
-          // Get tag with optimized macro
-          const TermTag ptag = D_IC_GET_TAG(prev);
-          
-          // Optimize interaction detection using direct bit comparison (combine tags)
-          const uint32_t interaction_type = ((ptag << 3) | tag);
-          
-          // Fast interaction path for APP+LAM (most common)
-          if (interaction_type == INTERACTION_APP_LAM) {
+          // Handle interactions based on term types
+          if (ptag == APP && tag == LAM) {
             next = d_ic_app_lam(prev, next);
             continue;
           } 
-          // Fast interaction path for APP+SUP
-          else if (interaction_type == INTERACTION_APP_SUP) {
+          else if (ptag == APP && tag == SUP) {
             next = d_ic_app_sup(prev, next); 
             continue;
           }
-          // CO0/CO1+LAM path
-          else if (((ptag == CO0) || (ptag == CO1)) && tag == LAM) {
+          else if ((ptag == CO0 || ptag == CO1) && tag == LAM) {
             next = d_ic_col_lam(prev, next);
             continue;
           }
-          // CO0/CO1+SUP path
-          else if (((ptag == CO0) || (ptag == CO1)) && tag == SUP) {
+          else if ((ptag == CO0 || ptag == CO1) && tag == SUP) {
             next = d_ic_col_sup(prev, next);
             continue;
           }
           
-          // No interaction found, return to stack
-          stack[stack_pos++] = prev;
+          // No interaction found, proceed to stack traversal
+          d_stack[stack_pos++] = prev;
           break;
         }
       }
@@ -382,18 +285,14 @@ __device__ __forceinline__ Term d_ic_whnf(Term term) {
       d_stack_pos = stack_pos;
       return next; // Stack empty, return WHNF
     } else {
-      // Process remaining stack
       while (stack_pos > stop) {
-        // Direct stack access
-        Term host = stack[--stack_pos];
+        Term host = d_stack[--stack_pos];
+        TermTag htag = TERM_TAG(host);
+        uint32_t hloc = TERM_VAL(host);
         
-        // Use optimized macros for faster extraction
-        const TermTag htag = D_IC_GET_TAG(host);
-        const uint32_t hloc = D_IC_GET_VAL(host);
-        
-        // Update the heap with the reduced term - only for specific tags
+        // Update the heap with the reduced term
         if (htag == APP || htag == CO0 || htag == CO1) {
-          heap[hloc] = next;
+          d_heap[hloc] = next;
         }
         next = host;
       }
@@ -403,64 +302,25 @@ __device__ __forceinline__ Term d_ic_whnf(Term term) {
   }
 }
 
-// Reduce a term to normal form - optimized version
-__device__ __forceinline__ Term d_ic_normal(Term term) {
+// Reduce a term to normal form
+__device__ inline Term d_ic_normal(Term term) {
   // Reset stack
   d_stack_pos = 0;
-  Term* const heap = d_heap;
-  Term* const stack = d_stack;
   uint32_t stack_pos = 0;
 
-  // No shared memory cache in this version
-
   // Allocate a new node for the initial term
-  const uint32_t root_loc = d_ic_alloc(1);
-  heap[root_loc] = term;
+  uint32_t root_loc = d_ic_alloc(1);
+  d_heap[root_loc] = term;
 
-  // Push initial location to stack - use direct bit manipulation
-  stack[stack_pos++] = (root_loc & TERM_VAL_MASK);
+  // Push initial location to stack as a "location"
+  d_stack[stack_pos++] = MAKE_TERM(false, 0, 0, root_loc);
 
-  // Main normalization loop - unroll initial iterations for better GPU performance
-  #pragma unroll 8
-  for (int i = 0; i < 8 && stack_pos > 0; i++) {
-    // Pop current location from stack
-    const uint32_t loc = stack[--stack_pos] & TERM_VAL_MASK;
-
-    // Get term at this location with prefetch
-    volatile Term temp = heap[loc];
-    Term current = heap[loc];
-
-    // Reduce to WHNF
-    d_stack_pos = stack_pos;
-    current = d_ic_whnf(current);
-    stack_pos = d_stack_pos;
-
-    // Store the WHNF term back to the heap
-    heap[loc] = current;
-
-    // Get term details - use direct bit manipulation
-    const TermTag tag = (TermTag)((current & TERM_TAG_MASK) >> 28);
-    const uint32_t val = current & TERM_VAL_MASK;
-
-    // Push subterm locations based on term type
-    if (tag == LAM) {
-      stack[stack_pos++] = val & TERM_VAL_MASK;
-    }
-    else if (tag == APP || tag == SUP) {
-      // Both APP and SUP need to push two locations
-      stack[stack_pos++] = val & TERM_VAL_MASK;
-      stack[stack_pos++] = (val + 1) & TERM_VAL_MASK;
-    }
-    // Other tags have no subterms to process
-  }
-
-  // Continue with remaining stack items
   while (stack_pos > 0) {
     // Pop current location from stack
-    const uint32_t loc = stack[--stack_pos] & TERM_VAL_MASK;
+    uint32_t loc = TERM_VAL(d_stack[--stack_pos]);
 
     // Get term at this location
-    Term current = heap[loc];
+    Term current = d_heap[loc];
 
     // Reduce to WHNF
     d_stack_pos = stack_pos;
@@ -468,37 +328,34 @@ __device__ __forceinline__ Term d_ic_normal(Term term) {
     stack_pos = d_stack_pos;
 
     // Store the WHNF term back to the heap
-    heap[loc] = current;
+    d_heap[loc] = current;
 
-    // Get term details - use direct bit manipulation
-    const TermTag tag = (TermTag)((current & TERM_TAG_MASK) >> 28);
-    const uint32_t val = current & TERM_VAL_MASK;
+    // Get term details
+    TermTag tag = TERM_TAG(current);
+    uint32_t val = TERM_VAL(current);
 
     // Push subterm locations based on term type
     if (tag == LAM) {
-      stack[stack_pos++] = val & TERM_VAL_MASK;
+      d_stack[stack_pos++] = MAKE_TERM(false, 0, 0, val);
     }
     else if (tag == APP || tag == SUP) {
       // Both APP and SUP need to push two locations
-      stack[stack_pos++] = val & TERM_VAL_MASK;
-      stack[stack_pos++] = (val + 1) & TERM_VAL_MASK;
+      d_stack[stack_pos++] = MAKE_TERM(false, 0, 0, val);
+      d_stack[stack_pos++] = MAKE_TERM(false, 0, 0, val + 1);
     }
     // Other tags have no subterms to process
   }
 
   // Update stack position and return the fully normalized term
   d_stack_pos = stack_pos;
-  return heap[root_loc];
+  return d_heap[root_loc];
 }
 
-// CUDA kernel to normalize a term - optimized kernel configuration
+// CUDA kernel to normalize a term
 __global__ void normalizeKernel() {
   // Single-threaded implementation (block 0, thread 0)
   if (blockIdx.x == 0 && threadIdx.x == 0) {
-    // No shared memory cache in this version
-    
-    // Get the term from the heap's entry point with prefetch hint
-    volatile Term temp = d_heap[0];
+    // Get the term from the heap's entry point
     Term term = d_heap[0];
     
     // Perform normalization
@@ -509,52 +366,21 @@ __global__ void normalizeKernel() {
   }
 }
 
-// Host function to normalize a term on the GPU - optimized memory transfers
+// Host function to normalize a term on the GPU
 extern "C" Term ic_normal_gpu(IC* ic, Term term) {
-  // Debug outputs
-  printf("GPU: Starting normalization\n");
-  printf("GPU: Initial heap_pos = %u\n", ic->heap_pos);
-  printf("GPU: Initial interactions = %llu\n", ic->interactions);
-  
-  // Allocate GPU memory for heap and stack with proper alignment for GPU
+  // Allocate GPU memory for heap
   Term* d_heap_ptr;
   Term* d_stack_ptr;
   uint32_t heap_size = ic->heap_size;
   uint32_t stack_size = ic->stack_size;
   
-  // Use CUDA events to measure GPU time more accurately
-  cudaEvent_t start, stop;
-  cudaEventCreate(&start);
-  cudaEventCreate(&stop);
-  
-  // Select best GPU device if multiple are available
-  int deviceCount = 0;
-  cudaGetDeviceCount(&deviceCount);
-  if (deviceCount > 1) {
-    int bestDevice = 0;
-    int maxMultiprocessors = 0;
-    cudaDeviceProp prop;
-    
-    for (int device = 0; device < deviceCount; device++) {
-      cudaGetDeviceProperties(&prop, device);
-      if (prop.multiProcessorCount > maxMultiprocessors) {
-        maxMultiprocessors = prop.multiProcessorCount;
-        bestDevice = device;
-      }
-    }
-    
-    cudaSetDevice(bestDevice);
-  }
-  
-  // Allocate device memory with proper alignment
+  // Allocate device memory for heap and stack
   cudaError_t err;
-  printf("GPU: Allocating heap memory (%u terms, %zu bytes)\n", heap_size, heap_size * sizeof(Term));
   err = cudaMalloc((void**)&d_heap_ptr, heap_size * sizeof(Term));
   if (err != cudaSuccess) {
     fprintf(stderr, "CUDA Error (heap allocation): %s\n", cudaGetErrorString(err));
     return term; // Return original term on error
   }
-  printf("GPU: Heap allocated successfully at %p\n", d_heap_ptr);
   
   err = cudaMalloc((void**)&d_stack_ptr, stack_size * sizeof(Term));
   if (err != cudaSuccess) {
@@ -563,19 +389,12 @@ extern "C" Term ic_normal_gpu(IC* ic, Term term) {
     return term; // Return original term on error
   }
   
-  // Start timing
-  cudaEventRecord(start);
-  
-  // Copy only the needed portion of heap to device - use async copy for better performance
-  cudaStream_t stream;
-  cudaStreamCreate(&stream);
-  err = cudaMemcpyAsync(d_heap_ptr, ic->heap, ic->heap_pos * sizeof(Term), cudaMemcpyHostToDevice, stream);
+  // Copy heap from host to device
+  err = cudaMemcpy(d_heap_ptr, ic->heap, ic->heap_pos * sizeof(Term), cudaMemcpyHostToDevice);
   if (err != cudaSuccess) {
     fprintf(stderr, "CUDA Error (heap copy to device): %s\n", cudaGetErrorString(err));
     cudaFree(d_heap_ptr);
     cudaFree(d_stack_ptr);
-    cudaEventDestroy(start);
-    cudaEventDestroy(stop);
     return term; // Return original term on error
   }
   
@@ -584,39 +403,19 @@ extern "C" Term ic_normal_gpu(IC* ic, Term term) {
   uint64_t interactions = 0;
   uint32_t stack_pos = 0;
   
-  // Use async copies with stream for better performance
-  cudaMemcpyToSymbolAsync(d_heap, &d_heap_ptr, sizeof(Term*), 0, cudaMemcpyHostToDevice, stream);
-  cudaMemcpyToSymbolAsync(d_stack, &d_stack_ptr, sizeof(Term*), 0, cudaMemcpyHostToDevice, stream);
-  cudaMemcpyToSymbolAsync(d_heap_size, &heap_size, sizeof(uint32_t), 0, cudaMemcpyHostToDevice, stream);
-  cudaMemcpyToSymbolAsync(d_stack_size, &stack_size, sizeof(uint32_t), 0, cudaMemcpyHostToDevice, stream);
-  cudaMemcpyToSymbolAsync(d_heap_pos, &heap_pos, sizeof(uint32_t), 0, cudaMemcpyHostToDevice, stream);
-  cudaMemcpyToSymbolAsync(d_stack_pos, &stack_pos, sizeof(uint32_t), 0, cudaMemcpyHostToDevice, stream);
-  cudaMemcpyToSymbolAsync(d_interactions, &interactions, sizeof(uint64_t), 0, cudaMemcpyHostToDevice, stream);
+  cudaMemcpyToSymbol(d_heap, &d_heap_ptr, sizeof(Term*));
+  cudaMemcpyToSymbol(d_stack, &d_stack_ptr, sizeof(Term*));
+  cudaMemcpyToSymbol(d_heap_size, &heap_size, sizeof(uint32_t));
+  cudaMemcpyToSymbol(d_stack_size, &stack_size, sizeof(uint32_t));
+  cudaMemcpyToSymbol(d_heap_pos, &heap_pos, sizeof(uint32_t));
+  cudaMemcpyToSymbol(d_stack_pos, &stack_pos, sizeof(uint32_t));
+  cudaMemcpyToSymbol(d_interactions, &interactions, sizeof(uint64_t));
   
-  // Make sure all async operations are complete before continuing
-  cudaStreamSynchronize(stream);
-  
-  // Configure kernel execution parameters
-  // Use L1 cache preference for this memory-intensive application
-  cudaFuncSetCacheConfig(normalizeKernel, cudaFuncCachePreferL1);
-  
-  // Launch kernel with a single thread but optimal configuration
-  // Use cuda occupancy API to get optimal block size
-  int minGridSize;
-  int blockSize;
-  printf("GPU: Preparing kernel launch\n");
-  cudaOccupancyMaxPotentialBlockSize(&minGridSize, &blockSize, normalizeKernel, 0, 0);
-  printf("GPU: Optimal block size: %d, grid size: %d\n", blockSize, minGridSize);
-  
-  // Launch with one thread but optimal SM configuration
-  printf("GPU: Launching kernel\n");
-  normalizeKernel<<<1, 1, 0, stream>>>();
-  printf("GPU: Kernel launched\n");
+  // Launch kernel with a single thread
+  normalizeKernel<<<1, 1>>>();
   
   // Wait for kernel to complete
-  printf("GPU: Waiting for kernel to complete\n");
   cudaDeviceSynchronize();
-  printf("GPU: Kernel execution completed\n");
   
   // Check for kernel errors
   err = cudaGetLastError();
@@ -624,47 +423,29 @@ extern "C" Term ic_normal_gpu(IC* ic, Term term) {
     fprintf(stderr, "CUDA Kernel Error: %s\n", cudaGetErrorString(err));
     cudaFree(d_heap_ptr);
     cudaFree(d_stack_ptr);
-    cudaEventDestroy(start);
-    cudaEventDestroy(stop);
     return term; // Return original term on error
   }
-  printf("GPU: No kernel errors detected\n");
   
-  // Get updated values back from device - use async for better performance
-  cudaMemcpyFromSymbolAsync(&heap_pos, d_heap_pos, sizeof(uint32_t), 0, cudaMemcpyDeviceToHost, stream);
-  cudaMemcpyFromSymbolAsync(&interactions, d_interactions, sizeof(uint64_t), 0, cudaMemcpyDeviceToHost, stream);
+  // Get updated values back from device
+  cudaMemcpyFromSymbol(&heap_pos, d_heap_pos, sizeof(uint32_t));
+  cudaMemcpyFromSymbol(&interactions, d_interactions, sizeof(uint64_t));
   
-  // Wait for values to be available
-  cudaStreamSynchronize(stream);
-  
-  // Copy back only the used portion of the heap asynchronously
-  err = cudaMemcpyAsync(ic->heap, d_heap_ptr, heap_pos * sizeof(Term), cudaMemcpyDeviceToHost, stream);
-  
-  // Wait for copy to complete
-  cudaStreamSynchronize(stream);
+  // Copy updated heap back to host
+  err = cudaMemcpy(ic->heap, d_heap_ptr, heap_pos * sizeof(Term), cudaMemcpyDeviceToHost);
   if (err != cudaSuccess) {
     fprintf(stderr, "CUDA Error (heap copy from device): %s\n", cudaGetErrorString(err));
     cudaFree(d_heap_ptr);
     cudaFree(d_stack_ptr);
-    cudaEventDestroy(start);
-    cudaEventDestroy(stop);
     return term; // Return original term on error
   }
-  
-  // Record stop time
-  cudaEventRecord(stop);
-  cudaEventSynchronize(stop);
   
   // Update the host context
   ic->heap_pos = heap_pos;
   ic->interactions = interactions;
   
-  // Free device memory and clean up resources
+  // Free device memory
   cudaFree(d_heap_ptr);
   cudaFree(d_stack_ptr);
-  cudaEventDestroy(start);
-  cudaEventDestroy(stop);
-  cudaStreamDestroy(stream);
   
   // Return the normalized term
   return ic->heap[0];
