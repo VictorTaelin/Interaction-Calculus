@@ -9,7 +9,7 @@
 
 // Forward declarations for GPU functions
 #ifdef HAVE_CUDA
-extern Term ic_normal_cuda(IC* ic, Term term);
+extern Term ic_normal_cuda(IC* ic, Term term, int thread_count);
 extern int ic_cuda_available();
 #endif
 
@@ -24,7 +24,7 @@ static inline int ic_cuda_available() {
   return 0; // CUDA not available
 }
 
-static inline Term ic_normal_cuda(IC* ic, Term term) {
+static inline Term ic_normal_cuda(IC* ic, Term term, int thread_count) {
   fprintf(stderr, "Warning: CUDA GPU support not compiled. Falling back to other methods.\n");
   #ifdef HAVE_METAL
   return ic_normal_metal(ic, term);
@@ -50,7 +50,7 @@ static inline Term ic_normal_metal(IC* ic, Term term) {
 const char* DEFAULT_TEST_TERM = "((λf.λx.!&0{f0,f1}=f;(f0 (f1 x)) λB.λT.λF.((B F) T)) λa.λb.a)";
 
 // Run a term through normalization and print results
-void process_term(IC* ic, Term term, int use_gpu) {
+void process_term(IC* ic, Term term, int use_gpu, int thread_count) {
   // Reset interaction counter
   ic->interactions = 0;
 
@@ -62,7 +62,7 @@ void process_term(IC* ic, Term term, int use_gpu) {
   // Normalize the term
   if (use_gpu) {
     if (ic_cuda_available()) {
-      term = ic_normal_cuda(ic, term);
+      term = ic_normal_cuda(ic, term, thread_count);
     } else if (ic_metal_available()) {
       printf("CUDA not available, using Metal GPU acceleration\n");
       term = ic_normal_metal(ic, term);
@@ -99,6 +99,7 @@ void process_term(IC* ic, Term term, int use_gpu) {
   if (use_gpu) {
     if (ic_cuda_available()) {
       mode_str = "CUDA GPU";
+      printf("THREADS: %d\n", thread_count);
     } else if (ic_metal_available()) {
       mode_str = "Metal GPU";
     }
@@ -109,20 +110,20 @@ void process_term(IC* ic, Term term, int use_gpu) {
 }
 
 // Test function with the default term
-void test(IC* ic, int use_gpu) {
+void test(IC* ic, int use_gpu, int thread_count) {
   printf("Running with default test term: %s\n", DEFAULT_TEST_TERM);
 
   // Parse the term
   Term term = parse_string(ic, DEFAULT_TEST_TERM);
 
   // Process the term
-  process_term(ic, term, use_gpu);
+  process_term(ic, term, use_gpu, thread_count);
 }
 
 // Now implemented in parse.c
 
 // Benchmark function to run normalization repeatedly for 1 second
-void benchmark_term(IC* ic, Term term, int use_gpu) {
+void benchmark_term(IC* ic, Term term, int use_gpu, int thread_count) {
   // Create a snapshot of the initial state
   uint32_t original_heap_pos = ic->heap_pos;
   Term* original_heap_state = (Term*)malloc(original_heap_pos * sizeof(Term));
@@ -141,7 +142,7 @@ void benchmark_term(IC* ic, Term term, int use_gpu) {
   Term result;
   if (use_gpu) {
     if (ic_cuda_available()) {
-      result = ic_normal_cuda(ic, term);
+      result = ic_normal_cuda(ic, term, thread_count);
     } else if (ic_metal_available()) {
       printf("CUDA not available, using Metal GPU acceleration\n");
       result = ic_normal_metal(ic, term);
@@ -177,7 +178,7 @@ void benchmark_term(IC* ic, Term term, int use_gpu) {
     // Normalize the term again
     if (use_gpu) {
       if (ic_cuda_available()) {
-        ic_normal_cuda(ic, original_term);
+        ic_normal_cuda(ic, original_term, thread_count);
       } else if (ic_metal_available()) {
         ic_normal_metal(ic, original_term);
       } else {
@@ -206,11 +207,13 @@ void benchmark_term(IC* ic, Term term, int use_gpu) {
   printf("- WORK: %llu\n", total_interactions);
   printf("- TIME: %.3f seconds\n", elapsed_seconds);
   printf("- PERF: %.3f MIPS\n", mips);
+  
   // Determine which mode was actually used for benchmark
   const char* mode_str = "CPU";
   if (use_gpu) {
     if (ic_cuda_available()) {
       mode_str = "CUDA GPU";
+      printf("- THREADS: %d\n", thread_count);
     } else if (ic_metal_available()) {
       mode_str = "Metal GPU";
     }
@@ -223,7 +226,7 @@ void benchmark_term(IC* ic, Term term, int use_gpu) {
 }
 
 void print_usage() {
-  printf("Usage: ic <command> [arguments]\n\n");
+  printf("Usage: ic <command> [arguments] [options]\n\n");
   printf("Commands:\n");
   printf("  run <file>     - Parse and normalize a IC file on CPU\n");
   printf("  run-gpu <file> - Parse and normalize a IC file on GPU (CUDA or Metal)\n");
@@ -231,6 +234,9 @@ void print_usage() {
   printf("  eval-gpu <expr> - Parse and normalize a IC expression on GPU (CUDA or Metal)\n");
   printf("  bench <file>   - Benchmark normalization of a IC file on CPU\n");
   printf("  bench-gpu <file> - Benchmark normalization of a IC file on GPU (CUDA or Metal)\n");
+  printf("\n");
+  printf("Options for GPU commands:\n");
+  printf("  -t <num>       - Number of CUDA threads to use (default: 1)\n");
   printf("\n");
 }
 
@@ -243,10 +249,22 @@ int main(int argc, char* argv[]) {
   }
 
   int result = 0;
+  int thread_count = 1; // Default thread count
+  
+  // Parse thread count from command line arguments
+  for (int i = 1; i < argc - 1; i++) {
+    if (strcmp(argv[i], "-t") == 0 && i + 1 < argc) {
+      thread_count = atoi(argv[i + 1]);
+      if (thread_count <= 0) {
+        fprintf(stderr, "Warning: Invalid thread count '%s', using default (1)\n", argv[i + 1]);
+        thread_count = 1;
+      }
+    }
+  }
 
   // Check if no arguments provided
   if (argc < 2) {
-    test(ic, 0); // Run with default test term on CPU
+    test(ic, 0, thread_count); // Run with default test term on CPU
   } else {
     // Get command
     const char* command = argv[1];
@@ -262,7 +280,7 @@ int main(int argc, char* argv[]) {
         // Parse and process the file on CPU
         const char* filename = argv[2];
         Term term = parse_file(ic, filename);
-        process_term(ic, term, 0);
+        process_term(ic, term, 0, thread_count);
       }
     } else if (strcmp(command, "run-gpu") == 0) {
       // Check if filename is provided
@@ -274,7 +292,7 @@ int main(int argc, char* argv[]) {
         // Parse and process the file on GPU
         const char* filename = argv[2];
         Term term = parse_file(ic, filename);
-        process_term(ic, term, 1);
+        process_term(ic, term, 1, thread_count);
       }
     } else if (strcmp(command, "eval") == 0) {
       // Check if expression is provided
@@ -286,7 +304,7 @@ int main(int argc, char* argv[]) {
         // Parse and process the expression on CPU
         const char* expression = argv[2];
         Term term = parse_string(ic, expression);
-        process_term(ic, term, 0);
+        process_term(ic, term, 0, thread_count);
       }
     } else if (strcmp(command, "eval-gpu") == 0) {
       // Check if expression is provided
@@ -298,7 +316,7 @@ int main(int argc, char* argv[]) {
         // Parse and process the expression on GPU
         const char* expression = argv[2];
         Term term = parse_string(ic, expression);
-        process_term(ic, term, 1);
+        process_term(ic, term, 1, thread_count);
       }
     } else if (strcmp(command, "bench") == 0) {
       // Check if filename is provided
@@ -310,7 +328,7 @@ int main(int argc, char* argv[]) {
         // Parse and benchmark the file on CPU
         const char* filename = argv[2];
         Term term = parse_file(ic, filename);
-        benchmark_term(ic, term, 0);
+        benchmark_term(ic, term, 0, thread_count);
       }
     } else if (strcmp(command, "bench-gpu") == 0) {
       // Check if filename is provided
@@ -322,7 +340,7 @@ int main(int argc, char* argv[]) {
         // Parse and benchmark the file on GPU
         const char* filename = argv[2];
         Term term = parse_file(ic, filename);
-        benchmark_term(ic, term, 1);
+        benchmark_term(ic, term, 1, thread_count);
       }
     } else {
       fprintf(stderr, "Error: Unknown command '%s'\n", command);
