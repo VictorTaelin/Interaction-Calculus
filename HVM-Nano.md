@@ -15,7 +15,8 @@ Term ::=
   | APP: "(" Term " " Term ")"
   | SUP: "&" Label "{" Term "," Term "}"
   | COL: "!" "&" Label "{" Name "," Name "}" "=" Term ";" Term
-  | NAT: Numb
+  | NUM: Numb
+  | SUC: "+" Term
   | CAL: "@" Name "(" Term ")"
 ```
 
@@ -25,7 +26,8 @@ Where:
 - APP represents a application.
 - SUP represents a superposition.
 - COL represents a collapse.
-- NAT represents a number literal.
+- NUM represents a number literal.
+- SUC represents a number's successor.
 - CAL represents a function call.
 
 Lambdas are curried, and work like their λC counterpart, except with a relaxed
@@ -46,27 +48,37 @@ The 'Label' is just a numeric value. It affects the COL-SUP interaction.
 For practical purposes, HVM-Nano also extends the Interaction Calculus with
 numbers and functions, which aren't part of the original theory. 
 
-The interaction rules are defined below:
-
-Beta-Reduce:
+The main interaction rules are listed below:
 
 ```
 (λx.f a)
 -------- APP-LAM
 x <- a
 f
-```
 
-Superpose:
-
-```
 (&L{a,b} c)
 ----------------- APP-SUP
 ! &L{c0,c1} = c;
 &L{(a c0),(b c1)}
+
+@F(&L{a,b})
+--------------- CAL-SUP
+&L{@F(a) @F(b)}
+
+@F(N)
+---------------- CAL-NUM
+deref(F)[x <- N]
+
++N
+--- SUC-NUM
+N+1
+
++{x,y}
+------- SUC-SUP
+{+x,+y}
 ```
 
-Entangle:
+The collapsing interactions are listed below:
 
 ```
 ! &L{r,s} = λx.f;
@@ -77,11 +89,7 @@ s <- λx1.f1
 x <- &L{x0,x1}
 ! &L{f0,f1} = f;
 K
-```
 
-Collapse:
-
-```
 ! &L{x,y} = &L{a,b};
 K
 -------------------- COL-SUP (if equal labels)
@@ -97,24 +105,11 @@ y <- &R{a1,b1}
 ! &L{a0,a1} = a;
 ! &L{b0,b1} = b;
 K
-```
 
-Overlap:
-
-```
-@foo(&L{a,b})
-------------------- CAL-SUP
-&L{@foo(a) @foo(b)}
-```
-
-Spread:
-
-```
-! &L{x,y} = @foo(a); K
----------------------- COL-CAL
-x <- @foo(a0)
-y <- @foo(a1)
-! &L{a0,a1} = a;
+! &L{x,y} = N; K
+---------------- COL-NUM
+x <- N
+y <- N
 K
 ```
 
@@ -285,27 +280,26 @@ The following term can be used to test all interactions:
 
 # Global Functions
 
-HVM-Nano features global, single-argument functions:
+HVM-Nano features global functions that pattern-match on a numberic argument:
 
 ```
-@id = λx. x
-```
+// identity
+@A(0+i) = i
 
-Functions also support pattern-matching on numbers:
+// predecessor
+@B(0)   = 0
+@B(1+x) = x
 
-```
-@pred(0)   = 0
-@pred(1+x) = x
-
-@is_even(0)   = λt. λf. t
-@is_even(1)   = λt. λf. f
-@is_even(2+n) = @is_even(n)
+// is-even
+@C(0)   = λt. λf. t
+@C(1)   = λt. λf. f
+@C(2+n) = @C(n)
 ```
 
 Note that:
 - The first clause must be 0.
 - Each clause must increment by 1.
-- The last clause must be 'K+n'.
+- The last clause must be 'K+var'.
 
 # HVM-Nano-32: a 32-Bit Runtime
 
@@ -314,9 +308,9 @@ HVM-Nano-32 is implemented in portable C.
 It represents terms with u32-pointers, which store 4 fields:
 
 - sub (1-bit): true if this is a substitution
-- tag (3-bit): the term tag
-- lab (4-bit): the label (optionally)
-- val (24-bit): the value of this pointer
+- tag (3-bit): the tag
+- lab (4-bit): the label
+- val (24-bit): the value
 
 The tag field can be:
 
@@ -326,46 +320,47 @@ The tag field can be:
 - `CO1`
 - `LAM`
 - `APP`
-- `NAT`
+- `NAT` (overloaded for NUM and SUC terms)
 - `CAL`
 
-The lab field stores a label on SUP, CO0 and CO1 terms.
+The lab field stores:
 
-The lab field stores the function id on CAL terms.
+- On SUP, CO0 and CO1 terms: a label.
+- On CAL terms: the function id.
+- On NAT terms: a flag (0 if NUM, 1 if SUC).
 
-The val field depends on the label:
+The val field depends on the variant:
 
-- `VAR`: points to a Subst location
-- `CO0`: points to a Subst location
-- `CO1`: points to a Subst location
+- `VAR`: points to a Lam node ({bod: Term}) or a substitution
+- `CO0`: points to a Col Node ({val: Term}) or a substitution
+- `CO1`: points to a Col Node ({val: Term}) or a substitution
 - `SUP`: points to a Sup Node ({lft: Term, rgt: Term})
 - `LAM`: points to a Lam Node ({bod: Term})
 - `APP`: points to an App Node ({fun: Term, arg: Term})
-- `NAT`: stores its numeric value
+- `NUM`: stores its numeric value, unboxed
+- `SUC`: points to a Suc Node ({pre: Term})
 - `CAL`: points to a Cal Node ({arg: Term})
 
-Non-nullary terms point to a Node, i.e., a consecutive block of its child terms.
-For example, the SUP term points to the memory location where its two child
-terms are stored.
+A Node is a consecutive block of its child terms. For example, the SUP term
+points to the memory location where its two child terms are stored.
 
-Variable terms (VAR, CO0 and CO1) point to a location in memory where the
-substitution will be inserted. As an optimization, rather than keeping a
-separate subst map in memory, we just re-use the location of the corresponding
-binder. For example, the VAR term of a lambda points either to its corresponding
-Lam Node (before the beta reduction), or to the substituted term (after the beta
-reduction). To distinguish, we set the 'sub' bit to signal that a memory
-location is a substitution entry.
+Variable terms (VAR, CO0 and CO1) point to the location where the substitution
+will be placed. As an optimization, that location is always the location of the
+corresponding binder node (like a Lam or Col). When the interaction occurs, we
+replace the binder node by the substituted term, with a 'sub' bit set. Then,
+when we access it from a variable, we retrieve that term, clearing the bit.
 
-Note that there is no COL term. That's because collapser nodes are special:
-1. they aren't part of the AST
-2. they don't store a body
-3. their bound vars are represented by CO0 and CO1 instead of VAR
-Because of that, the only way to access them is via the CO0 and CO1 terms, which
-point to the collapser node. When a collapse interaction takes place, the bound
-var that triggered the interaction immediatelly gets its half of the collapse,
-and the collapser node is replaced by the other half, with the sub bit set,
-allowing the other bound var to get it. For example, the COL-SUP interaction
-could be implemented as:
+Note that there is no COL term. That's because Col Nodes are special: they are't
+part of the AST, and they don't store a body; they "float" on the heap. In other
+words, `λx. !&0{x0,x1}=x; &0{x0,x1}` and `!&0{x0,x1}=x; λx. &0{x0,x1}` are both
+valid, and stored identically on memory. As such, the only way to access a Col
+Node is via its bound variables, CO0 and CO1.
+
+Before the collapse, the Col Node stores just the collapsed value (no body).
+After a collapse is triggered (when we access it via a CO0 or CO1 vars), the
+first half of the collapsed term is returned, and the other half is stored where
+the Col Node was, allowing the other var to get it as a substitution. For
+example, the COL-SUP interaction could be implemented as:
 
 ```
 def col_sup(col, sup):
@@ -391,28 +386,23 @@ def col_sup(col, sup):
     return (su0_val if col.tag == CO0 else su1_val)
 ```
 
-Note how the var (CO0 or CO1) that triggers col_sup is given one of the half of
-the collapse, while the other half is stored on the collapser node memory
-location, now reinterpreted as a subst entry, allowing the other var to get it.
-
 # Global Functions
 
-Functions are stored in a global structure called 'Book', which holds an array
-mapping function ids to Function objects. A Function object stores an array of
-arrays of (Term,u32), representing, for each clause, its body, and an index,
-pointing the location of its bound variable on that clause's body.
+Global Functions are parsed before the main term, and stored in a global
+structure called 'Book', which holds an array mapping function ids to Function
+objects. A Function object stores an array of arrays of Terms, representing, for
+each clause, its body.
 
-When a function node is reached on the whnf() function, we first reduce its
-argument (functions calls are strict). Then, if the argument is a number, we
-select the nth clause. Otherwise, we select the last clause. Finally, we
-allocate enough space for the selected clause, copy it into the heap, adjusting
-vals of terms w.r.t heap location, and replacing the bound var by the argument.
+The function book is accessed on the CAL-NUM interaction, which selects the nth
+clause of the called function, allocates enough space for its body, and copies
+it into the heap, adjusting the vals of its terms, and replacing the bound var
+by the call's argument.
 
 For example, if we have the following function:
 
 ```
-@foo(0)   = λx. x
-@foo(1+n) = λt. (t n)
+@F(0)   = λx. x
+@F(1+n) = λt. (t n)
 ```
 
 Then, that function would be stored on the Book as:
@@ -424,7 +414,7 @@ book[0] = {
 }
 ```
 
-Then, calling it as `foo((λx.x 5))` would:
+Then, calling it as `@F((λx.x 5))` would:
 1. Take the whnf of `(λx.x 5)`, resulting in `5`.
 2. Select the second clause (`λt. (t n)`), as it matches the pattern `1+n` with `n=4`.
 3. Allocate 4 nodes on loc `L`, and fill it as `LAM(L+1), APP(L+2), VAR(L+0), NAT(4)`.
@@ -499,6 +489,16 @@ def parse_col(loc):
   vars[co1] = Term(CO1, lab, loc)
 ```
 
+HVM-Nano files are parsed as a series of functions, followed by a main term:
+
+```
+@A(0)   = ...
+@A(1+x) = ...
+@B(0)   = ...
+@B(1+x) = ...
+...
+```
+
 # Stringifying HVM-Nano
 
 Converting HVM-Nano terms to strings faces two challenges:
@@ -529,11 +529,3 @@ stringify the actual term. As such, the result will always be in the form:
 term
 
 With no COL nodes inside the ASTs of t0, t1, t2 ... and term.
-
-HVM-Nano files are parsed as a series of functions, followed by a main term:
-
-```
-@foo(x) = foo_here
-@bar(x) = bar_here
-main_here
-```
