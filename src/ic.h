@@ -467,7 +467,7 @@ static inline Term ic_cal_num(IC* ic, Term cal, Term num) {
       }
     } 
     // Adjust pointer values to point to the new memory location
-    else if (tag == LAM || tag == APP || tag == SUP || tag == CAL || (tag == NAT && lab == 1)) {
+    else if (tag == VAR || tag == LAM || tag == APP || tag == SUP || tag == CAL || (tag == NAT && lab == 1)) {
       // The pointers in the stored clause are relative to the start of the clause,
       // so we add 'loc' to make them point to the correct absolute position
       ic->heap[loc + i] = ic_make_term(tag, lab, val + loc);

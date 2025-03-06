@@ -615,11 +615,15 @@ void parse_function(Parser* parser) {
     uint32_t val = TERM_VAL(term);
     
     // If this is a pointer to another term in the same clause, make it relative
-    if ((tag == LAM || tag == APP || tag == SUP || tag == CAL || (tag == NAT && TERM_LAB(term) == 1)) && 
-        val >= heap_start && val < heap_start + term_count) {
-      // Convert to a relative offset from the start of the clause
-      val -= heap_start;
-      term = MAKE_TERM(TERM_SUB(term), tag, TERM_LAB(term), val);
+    if ((tag == VAR && val != PATTERN_VAR_MASK) || 
+        tag == LAM || tag == APP || tag == SUP || tag == CAL || 
+        (tag == NAT && TERM_LAB(term) == 1)) {
+      
+      if (val >= heap_start && val < heap_start + term_count) {
+        // Convert to a relative offset from the start of the clause
+        val -= heap_start;
+        term = MAKE_TERM(TERM_SUB(term), tag, TERM_LAB(term), val);
+      }
     }
     
     clause->terms[i] = term;
