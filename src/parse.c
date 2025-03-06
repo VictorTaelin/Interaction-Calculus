@@ -1,3 +1,5 @@
+//./../HVM-Nano.md//
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -58,13 +60,11 @@ Term* lookup_var_binding(Parser* parser, const char* name) {
 void resolve_var_uses(Parser* parser) {
   for (size_t i = 0; i < parser->lcs_count; i++) {
     Term* binding = lookup_var_binding(parser, parser->lcs[i].name);
-
     if (binding == NULL) {
       char error[MAX_NAME_LEN + 50];
       snprintf(error, sizeof(error), "Undefined variable: %s", parser->lcs[i].name);
       parse_error(parser, error);
     }
-
     parser->ic->heap[parser->lcs[i].loc] = *binding;
   }
 }
@@ -581,27 +581,53 @@ void parse_function(Parser* parser) {
     bind_var(parser, var_name, pattern_var);
   }
 
+  // Record the starting position in the heap before parsing
+  uint32_t heap_start = parser->ic->heap_pos;
+
   // Parse the clause body directly into the heap
   uint32_t clause_loc = ic_alloc(parser->ic, 1);
   parse_term(parser, clause_loc);
 
-  // Allocate memory for a single term (the body)
+  // Resolve variable uses for this clause
+  resolve_var_uses(parser);
+
+  // Calculate the number of terms used by this clause
+  uint32_t term_count = parser->ic->heap_pos - heap_start;
+
+  // Clear variable bindings and uses for the next clause
+  parser->vrs_count = 0;
+  parser->lcs_count = 0;
+
+  // Allocate memory for all terms in the clause
   Clause* clause = &parser->ic->book->functions[func_id].clauses[clause_idx];
-  clause->terms = (Term*)malloc(sizeof(Term));
+  clause->terms = (Term*)malloc(term_count * sizeof(Term));
   if (!clause->terms) {
     parse_error(parser, "Memory allocation failed for function clause");
     return;
   }
   
-  clause->term_count = 1;
-  clause->terms[0] = parser->ic->heap[clause_loc];
-
-  // We're not handling pattern variables right now
+  clause->term_count = term_count;
+  
+  // Copy all terms from the heap to the clause, adjusting pointers to be relative
+  for (uint32_t i = 0; i < term_count; i++) {
+    Term term = parser->ic->heap[heap_start + i];
+    TermTag tag = TERM_TAG(term);
+    uint32_t val = TERM_VAL(term);
+    
+    // If this is a pointer to another term in the same clause, make it relative
+    if ((tag == LAM || tag == APP || tag == SUP || tag == CAL || (tag == NAT && TERM_LAB(term) == 1)) && 
+        val >= heap_start && val < heap_start + term_count) {
+      // Convert to a relative offset from the start of the clause
+      val -= heap_start;
+      term = MAKE_TERM(TERM_SUB(term), tag, TERM_LAB(term), val);
+    }
+    
+    clause->terms[i] = term;
+  }
 
   // Increment clause count
   parser->ic->book->functions[func_id].clause_count++;
 }
-
 
 // Parse the book of functions
 void parse_book(Parser* parser) {
@@ -644,7 +670,7 @@ Term parse_string(IC* ic, const char* input) {
   // Parse the main term
   uint32_t term_loc = parse_term_alloc(&parser);
 
-  // Resolve variable references
+  // Resolve variable uses for the main term
   resolve_var_uses(&parser);
 
   return parser.ic->heap[term_loc];
