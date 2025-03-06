@@ -47,6 +47,7 @@ typedef uint32_t Term;
 #define TERM_SUB_MASK 0x80000000UL // 1-bit: Is this a substitution?
 #define TERM_TAG_MASK 0x70000000UL // 3-bits: Term tag
 #define TERM_LAB_MASK 0x0F000000UL // 4-bits: Label for superpositions/functions
+#define SUC 0xF                    // Special label for successor (SUC) nodes
 #define TERM_VAL_MASK 0x00FFFFFFUL // 24-bits: Value/pointer
 
 // Term component extraction
@@ -435,13 +436,13 @@ static inline Term ic_col_num(IC* ic, Term col, Term num) {
 // --------------- CAL-SUP
 // &L{@F(a) @F(b)}
 static inline Term ic_cal_sup(IC* ic, Term cal, Term sup) {
-  ic->interactions++;
   uint8_t func_id = TERM_LAB(cal);
   
-  // Special case for the increment function (0xFF)
-  if (func_id == 0xFF) {
+  // Special case for the increment function (SUC)
+  if (func_id == SUC) {
     return ic_suc_sup(ic, cal, sup);
   }
+  ic->interactions++;
   
   uint32_t cal_loc = TERM_VAL(cal);
   uint32_t sup_loc = TERM_VAL(sup);
@@ -464,13 +465,13 @@ static inline Term ic_cal_sup(IC* ic, Term cal, Term sup) {
 // -------- CAL-LAM
 // ⊥
 static inline Term ic_cal_lam(IC* ic, Term cal, Term lam) {
-  ic->interactions++;
   uint8_t func_id = TERM_LAB(cal);
   
-  // Special case for the increment function (0xFF)
-  if (func_id == 0xFF) {
+  // Special case for the increment function (SUC)
+  if (func_id == SUC) {
     return ic_suc_lam(ic, cal, lam);
   }
+  ic->interactions++;
   
   fprintf(stderr, "Runtime error: function call on a lambda\n");
   exit(1);
@@ -481,13 +482,13 @@ static inline Term ic_cal_lam(IC* ic, Term cal, Term lam) {
 // ---------------- CAL-NUM
 // deref(F)[x <- N]
 static inline Term ic_cal_num(IC* ic, Term cal, Term num) {
-  ic->interactions++;
   uint8_t func_id = TERM_LAB(cal);
   
-  // Special case for the increment function (0xFF)
-  if (func_id == 0xFF) {
+  // Special case for the increment function (SUC)
+  if (func_id == SUC) {
     return ic_suc_num(ic, cal, num);
   }
+  ic->interactions++;
   
   uint32_t N = TERM_VAL(num);
   
@@ -560,8 +561,8 @@ static inline Term ic_suc_sup(IC* ic, Term suc, Term sup) {
   uint32_t suc_y_loc = ic_alloc(ic, 1);
   ic->heap[suc_x_loc] = x;
   ic->heap[suc_y_loc] = y;
-  Term suc_x = ic_make_term(CAL, 0xFF, suc_x_loc);
-  Term suc_y = ic_make_term(CAL, 0xFF, suc_y_loc);
+  Term suc_x = ic_make_term(CAL, SUC, suc_x_loc);
+  Term suc_y = ic_make_term(CAL, SUC, suc_y_loc);
   uint32_t new_sup_loc = ic_alloc(ic, 2);
   ic->heap[new_sup_loc + 0] = suc_x;
   ic->heap[new_sup_loc + 1] = suc_y;

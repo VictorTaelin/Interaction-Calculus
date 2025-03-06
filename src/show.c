@@ -278,7 +278,7 @@ void stringify_term(IC* ic, Term term, VarNameTable* var_table, char* buffer, in
     }
 
     case CAL: {
-      if (lab == 0xFF) { // Special case for increment (SUC)
+      if (lab == SUC) { // Special case for increment (SUC)
         *pos += snprintf(buffer + *pos, max_len - *pos, "+");
         stringify_term(ic, ic->heap[val], var_table, buffer, pos, max_len);
       } else {

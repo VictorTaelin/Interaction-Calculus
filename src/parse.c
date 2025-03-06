@@ -398,8 +398,8 @@ void parse_term_suc(Parser* parser, uint32_t loc) {
   // Parse the predecessor term
   parse_term(parser, cal_node);
 
-  // Store the term as a CAL with special label 0xFF (the built-in increment function)
-  store_term(parser, loc, CAL, 0xFF, cal_node);
+  // Store the term as a CAL with special label SUC (the built-in increment function)
+  store_term(parser, loc, CAL, SUC, cal_node);
 }
 
 // Parse a function call (CAL)

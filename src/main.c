@@ -228,11 +228,11 @@ void benchmark_term(IC* ic, Term term, int use_gpu, int thread_count) {
 void print_usage() {
   printf("Usage: ic <command> [arguments] [options]\n\n");
   printf("Commands:\n");
-  printf("  run <file>     - Parse and normalize a IC file on CPU\n");
-  printf("  run-gpu <file> - Parse and normalize a IC file on GPU (CUDA or Metal)\n");
-  printf("  eval <expr>    - Parse and normalize a IC expression on CPU\n");
-  printf("  eval-gpu <expr> - Parse and normalize a IC expression on GPU (CUDA or Metal)\n");
-  printf("  bench <file>   - Benchmark normalization of a IC file on CPU\n");
+  printf("  run <file>       - Parse and normalize a IC file on CPU\n");
+  printf("  run-gpu <file>   - Parse and normalize a IC file on GPU (CUDA or Metal)\n");
+  printf("  eval <expr>      - Parse and normalize a IC expression on CPU\n");
+  printf("  eval-gpu <expr>  - Parse and normalize a IC expression on GPU (CUDA or Metal)\n");
+  printf("  bench <file>     - Benchmark normalization of a IC file on CPU\n");
   printf("  bench-gpu <file> - Benchmark normalization of a IC file on GPU (CUDA or Metal)\n");
   printf("\n");
   printf("Options for GPU commands:\n");
