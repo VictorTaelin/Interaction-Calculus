@@ -254,6 +254,16 @@ void skip(Parser* parser) {
 // Term parsing functions (moved from parse/term/*)
 //-----------------------------------------------------------------------------
 
+// Map a function name (A-P) to its function ID (0-15)
+uint8_t get_function_id(const char* name) {
+  // For simplicity, we only support uppercase letters A-P as function names
+  if (strlen(name) != 1 || name[0] < 'A' || name[0] > 'P') {
+    fprintf(stderr, "Error: Function names must be uppercase letters A-P\n");
+    exit(1);
+  }
+  return (uint8_t)(name[0] - 'A'); // A=0, B=1, ..., P=15
+}
+
 // Parse a variable
 void parse_term_var(Parser* parser, uint32_t loc) {
   char* name = parse_name(parser);
@@ -264,7 +274,7 @@ void parse_term_var(Parser* parser, uint32_t loc) {
 void parse_term_sup(Parser* parser, uint32_t loc) {
   expect(parser, "&", "for superposition");
 
-  uint8_t label = parse_uint(parser) & 3; // Ensure it fits in 2 bits
+  uint8_t label = parse_uint(parser) & 0xF; // Ensure it fits in 4 bits
   expect(parser, "{", "after label in superposition");
 
   uint32_t sup_node = ic_alloc(parser->ic, 2);
@@ -304,7 +314,7 @@ void parse_term_lam(Parser* parser, uint32_t loc) {
 void parse_term_col(Parser* parser, uint32_t loc) {
   expect(parser, "!&", "for collapser");
 
-  uint8_t label = parse_uint(parser) & 3;
+  uint8_t label = parse_uint(parser) & 0xF; // Ensure it fits in 4 bits
   expect(parser, "{", "after label in collapser");
 
   static char var1[MAX_NAME_LEN], var2[MAX_NAME_LEN];
@@ -358,6 +368,62 @@ void parse_term_app(Parser* parser, uint32_t loc) {
   expect(parser, ")", "after application");
 
   store_term(parser, loc, APP, 0, app_node);
+}
+
+// Parse a number literal (NUM)
+void parse_term_num(Parser* parser, uint32_t loc) {
+  uint32_t value = 0;
+  bool has_digit = false;
+
+  while (isdigit(peek_char(parser))) {
+    value = value * 10 + (next_char(parser) - '0');
+    has_digit = true;
+  }
+
+  if (!has_digit) {
+    parse_error(parser, "Expected number");
+  }
+
+  // For NUM terms, store the value directly in the term with label=0
+  store_term(parser, loc, NAT, 0, value);
+}
+
+// Parse a successor term (SUC)
+void parse_term_suc(Parser* parser, uint32_t loc) {
+  expect(parser, "+", "for successor");
+
+  // Allocate space for the predecessor term
+  uint32_t suc_node = ic_alloc(parser->ic, 1);
+
+  // Parse the predecessor term
+  parse_term(parser, suc_node);
+
+  // Store the SUC term with label=1 for SUC
+  store_term(parser, loc, NAT, 1, suc_node);
+}
+
+// Parse a function call (CAL)
+void parse_term_cal(Parser* parser, uint32_t loc) {
+  expect(parser, "@", "for function call");
+
+  // Parse function name
+  char* name = parse_name(parser);
+
+  // Look up function ID
+  uint8_t func_id = get_function_id(name);
+
+  expect(parser, "(", "after function name in call");
+
+  // Allocate space for the argument
+  uint32_t cal_node = ic_alloc(parser->ic, 1);
+
+  // Parse the argument
+  parse_term(parser, cal_node);
+
+  expect(parser, ")", "after argument in function call");
+
+  // Store the CAL term with the function ID as the label
+  store_term(parser, loc, CAL, func_id, cal_node);
 }
 
 // Parse a let expression (syntax sugar for application of lambda)
@@ -419,6 +485,12 @@ void parse_term(Parser* parser, uint32_t loc) {
     }
   } else if (c == '&') {
     parse_term_sup(parser, loc);
+  } else if (c == '@') {
+    parse_term_cal(parser, loc);
+  } else if (c == '+') {
+    parse_term_suc(parser, loc);
+  } else if (isdigit(c)) {
+    parse_term_num(parser, loc);
   } else if (c == 0xCE) {
     unsigned char next_byte = (unsigned char)parser->input[parser->pos + 1];
     if (next_byte == 0xBB) {
@@ -432,6 +504,170 @@ void parse_term(Parser* parser, uint32_t loc) {
     char error_msg[100];
     snprintf(error_msg, sizeof(error_msg), "Unexpected character: %c (code: %d)", c, (int)c);
     parse_error(parser, error_msg);
+  }
+}
+
+//-----------------------------------------------------------------------------
+// Function book parsing
+//-----------------------------------------------------------------------------
+
+// Parse a function definition (@A(0) = ... @A(1+n) = ...)
+void parse_function(Parser* parser) {
+  expect(parser, "@", "for function definition");
+
+  // Parse function name
+  char* name = parse_name(parser);
+  uint8_t func_id = get_function_id(name);
+
+  // Check if function already exists
+  if (func_id >= parser->ic->book->function_count) {
+    // New function
+    parser->ic->book->function_count = func_id + 1;
+    parser->ic->book->functions[func_id].clause_count = 0;
+  }
+
+  // Parse and open parenthesis
+  if (!expect(parser, "(", "after function name")) {
+    return;
+  }
+
+  // Parse pattern number
+  if (!isdigit(peek_char(parser))) {
+    parse_error(parser, "Expected number in function pattern");
+    return;
+  }
+
+  uint32_t pattern_num = parse_uint(parser);
+
+  // Check for pattern variable
+  bool has_variable = false;
+  char var_name[MAX_NAME_LEN] = "";
+
+  if (consume(parser, "+")) {
+    has_variable = true;
+    char* name = parse_name(parser);
+    strncpy(var_name, name, MAX_NAME_LEN - 1);
+    var_name[MAX_NAME_LEN - 1] = '\0';
+  }
+
+  // Close parenthesis
+  if (!expect(parser, ")", "after function pattern")) {
+    return;
+  }
+
+  // Require equals sign
+  if (!expect(parser, "=", "after function pattern")) {
+    return;
+  }
+
+  // Get the current clause
+  uint8_t clause_idx = parser->ic->book->functions[func_id].clause_count;
+
+  // Patterns should be consecutive
+  if (pattern_num != clause_idx) {
+    parse_error(parser, "Function patterns must be consecutive starting from 0");
+    return;
+  }
+
+  if (clause_idx >= MAX_CLAUSES) {
+    parse_error(parser, "Too many clauses for a single function");
+    return;
+  }
+
+  // Save the current variable count and position
+  size_t old_vars_count = parser->vrs_count;
+
+  // If we have a pattern variable, bind it to its pattern value
+  if (has_variable) {
+    bind_var(parser, var_name, ic_make_term(NAT, 0, PATTERN_VAR_MASK));
+  }
+
+  // Parse the clause body directly into the heap
+  uint32_t clause_loc = ic_alloc(parser->ic, 1);
+  parse_term(parser, clause_loc);
+
+  // Allocate memory for a single term (the body)
+  Clause* clause = &parser->ic->book->functions[func_id].clauses[clause_idx];
+  clause->terms = (Term*)malloc(sizeof(Term));
+  clause->term_count = 1;
+  clause->terms[0] = parser->ic->heap[clause_loc];
+
+  // Remove the pattern variable binding if it was added
+  if (has_variable) {
+    parser->vrs_count = old_vars_count;
+  }
+
+  // Increment clause count
+  parser->ic->book->functions[func_id].clause_count++;
+}
+
+// Determine if this is a function definition or a call
+bool is_function_definition(Parser* parser) {
+  // Save the current position
+  size_t saved_pos = parser->pos;
+  size_t saved_line = parser->line;
+  size_t saved_col = parser->col;
+
+  bool result = false;
+
+  // Skip @Name(num)
+  if (consume(parser, "@")) {
+    // Skip name
+    if (isalpha(peek_char(parser)) || peek_char(parser) == '_') {
+      while (isalnum(peek_char(parser)) || peek_char(parser) == '_') {
+        next_char(parser);
+      }
+
+      // Skip whitespace
+      skip(parser);
+
+      // Check for opening parenthesis
+      if (consume(parser, "(")) {
+        // Skip digits
+        while (isdigit(peek_char(parser))) {
+          next_char(parser);
+        }
+
+        // Check for pattern variable (n+x)
+        if (consume(parser, "+")) {
+          // Skip variable name
+          if (isalpha(peek_char(parser)) || peek_char(parser) == '_') {
+            while (isalnum(peek_char(parser)) || peek_char(parser) == '_') {
+              next_char(parser);
+            }
+          }
+        }
+
+        // Check for closing parenthesis
+        if (consume(parser, ")")) {
+          // Skip whitespace
+          skip(parser);
+
+          // Check if next non-whitespace is '='
+          if (peek_char(parser) == '=') {
+            result = true;
+          }
+        }
+      }
+    }
+  }
+
+  // Restore position
+  parser->pos = saved_pos;
+  parser->line = saved_line;
+  parser->col = saved_col;
+
+  return result;
+}
+
+// Parse the book of functions
+void parse_book(Parser* parser) {
+  skip(parser);
+
+  // As long as we see @ for function definitions, parse them
+  while (peek_char(parser) == '@' && is_function_definition(parser)) {
+    parse_function(parser);
+    skip(parser);
   }
 }
 
@@ -451,6 +687,10 @@ Term parse_string(IC* ic, const char* input) {
   Parser parser;
   init_parser(&parser, ic, input);
 
+  // First parse the book of functions
+  parse_book(&parser);
+
+  // Then parse the main term
   uint32_t term_loc = parse_term_alloc(&parser);
 
   // Resolve variable references

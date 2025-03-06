@@ -61,6 +61,14 @@ f
 ! &L{c0,c1} = c;
 &L{(a c0),(b c1)}
 
+(N a)
+----- APP-NUM
+⊥
+
+@F(λx.f)
+-------- CAL-LAM
+⊥
+
 @F(&L{a,b})
 --------------- CAL-SUP
 &L{@F(a) @F(b)}
@@ -68,6 +76,10 @@ f
 @F(N)
 ---------------- CAL-NUM
 deref(F)[x <- N]
+
++λx.f
+----- SUC-LAM
+⊥
 
 +N
 --- SUC-NUM
@@ -396,7 +408,7 @@ each clause, its body.
 The function book is accessed on the CAL-NUM interaction, which selects the nth
 clause of the called function, allocates enough space for its body, and copies
 it into the heap, adjusting the vals of its terms, and replacing the bound var
-by the call's argument.
+by the call's argument, decreased by the pattern number.
 
 For example, if we have the following function:
 
@@ -410,7 +422,7 @@ Then, that function would be stored on the Book as:
 ```
 book[0] = {
   0: [LAM(1), VAR(0)],
-  1: [LAM(1), APP(2), VAR(0), NULL],
+  1: [LAM(1), APP(2), VAR(0), VAR(0xFFFFFF)],
 }
 ```
 
@@ -418,6 +430,8 @@ Then, calling it as `@F((λx.x 5))` would:
 1. Take the whnf of `(λx.x 5)`, resulting in `5`.
 2. Select the second clause (`λt. (t n)`), as it matches the pattern `1+n` with `n=4`.
 3. Allocate 4 nodes on loc `L`, and fill it as `LAM(L+1), APP(L+2), VAR(L+0), NAT(4)`.
+
+Note we're using VAR(0xFFFFFF) to represent the pattern-bound variable.
 
 # Parsing HVM-Nano
 

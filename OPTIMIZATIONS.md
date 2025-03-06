@@ -56,10 +56,10 @@ Inlining the most frequent operations directly:
 // APP-LAM interaction fast path
 if (ptag == APP && tag == LAM) {
   ic->interactions++;
-  
+
   uint32_t app_loc = TERM_VAL(prev);
   uint32_t lam_loc = TERM_VAL(next);
-  
+
   Term arg = heap[app_loc + 1];
   Term bod = heap[lam_loc + 0];
 
@@ -84,7 +84,7 @@ static inline Term ic_whnf(IC* ic, Term term) {
   Term* heap = ic->heap;      // Cache heap pointer
   Term* stack = ic->stack;    // Cache stack pointer
   uint32_t stack_pos = stop;
-  
+
   // Now use heap and stack directly instead of ic->heap and ic->stack
   // ...
 }

@@ -37,12 +37,12 @@ ifeq ($(UNAME), Darwin)
     METAL_SRCS = $(SRC_DIR)/ic_metal.mm $(SRC_DIR)/ic.metal
     METAL_OBJS = $(OBJ_DIR)/ic_metal.o
     HAS_METAL = 1
-    
+
     # Use clang for Objective-C++ compilation
     CXX = clang++
     OBJCXX = clang++
     OBJCXXFLAGS = -fobjc-arc -O3 -std=c++14
-    
+
     # Metal compiler
     METAL_COMPILER = xcrun -sdk macosx metal
     METAL_COMPILER_FLAGS = -O

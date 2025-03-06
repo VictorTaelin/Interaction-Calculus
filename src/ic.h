@@ -33,7 +33,9 @@ typedef enum {
   CO0, // Collapser first variable
   CO1, // Collapser second variable
   LAM, // Lambda
-  APP  // Application
+  APP, // Application
+  NAT, // Natural number (NUM or SUC)
+  CAL  // Function call
 } TermTag;
 
 // Term 32-bit packed representation
@@ -42,21 +44,58 @@ typedef uint32_t Term;
 // Term components
 #define TERM_SUB_MASK 0x80000000UL // 1-bit: Is this a substitution?
 #define TERM_TAG_MASK 0x70000000UL // 3-bits: Term tag
-#define TERM_LAB_MASK 0x0C000000UL // 2-bits: Label for superpositions
-#define TERM_VAL_MASK 0x03FFFFFFUL // 26-bits: Value/pointer
+#define TERM_LAB_MASK 0x0F000000UL // 4-bits: Label for superpositions/functions
+#define TERM_VAL_MASK 0x00FFFFFFUL // 24-bits: Value/pointer
 
 // Term component extraction
 #define TERM_SUB(term) (((term) & TERM_SUB_MASK) != 0)
 #define TERM_TAG(term) ((TermTag)(((term) & TERM_TAG_MASK) >> 28))
-#define TERM_LAB(term) (((term) & TERM_LAB_MASK) >> 26)
+#define TERM_LAB(term) (((term) & TERM_LAB_MASK) >> 24)
 #define TERM_VAL(term) ((term) & TERM_VAL_MASK)
 
 // Term creation
 #define MAKE_TERM(sub, tag, lab, val) \
   (((sub) ? TERM_SUB_MASK : 0) | \
    (((uint32_t)(tag) << 28)) | \
-   (((uint32_t)(lab) << 26)) | \
+   (((uint32_t)(lab) << 24)) | \
    ((uint32_t)(val) & TERM_VAL_MASK))
+
+// -----------------------------------------------------------------------------
+// Function Book Structure
+// -----------------------------------------------------------------------------
+
+// Maximum number of clauses per function
+#define MAX_CLAUSES 16
+
+// Maximum number of functions in the book
+#define MAX_FUNCTIONS 16
+
+// Special value used to represent the pattern-bound variable
+#define PATTERN_VAR_MASK 0x00FFFFFFUL
+
+/**
+ * Represents a single clause in a function
+ */
+typedef struct {
+  Term* terms;         // Array of terms in the clause body
+  uint32_t term_count; // Number of terms in the clause
+} Clause;
+
+/**
+ * Represents a global function with pattern-matching clauses
+ */
+typedef struct {
+  Clause clauses[MAX_CLAUSES]; // Array of clauses for this function
+  uint8_t clause_count;        // Number of clauses
+} Function;
+
+/**
+ * The book of all global functions
+ */
+typedef struct {
+  Function functions[MAX_FUNCTIONS]; // Array of all functions
+  uint8_t function_count;            // Number of functions in the book
+} Book;
 
 // -----------------------------------------------------------------------------
 // IC Structure
@@ -76,6 +115,9 @@ typedef struct {
   Term* stack;          // Stack for term evaluation
   uint32_t stack_size;  // Total size of the stack
   uint32_t stack_pos;   // Current stack position
+
+  // Function book
+  Book* book;          // Book of global functions
 
   // Statistics
   uint64_t interactions; // Interaction counter
@@ -106,6 +148,13 @@ static inline IC* ic_new(uint32_t heap_size, uint32_t stack_size) {
   ic->interactions = 0;
   ic->stack_pos = 0;
 
+  // Initialize book
+  ic->book = (Book*)calloc(1, sizeof(Book));
+  if (!ic->book) {
+    free(ic);
+    return NULL;
+  }
+
   // Allocate heap and stack
   ic->heap = (Term*)calloc(heap_size, sizeof(Term));
   ic->stack = (Term*)malloc(stack_size * sizeof(Term));
@@ -127,6 +176,20 @@ static inline void ic_free(IC* ic) {
 
   if (ic->heap) free(ic->heap);
   if (ic->stack) free(ic->stack);
+
+  // Free the book and its contents
+  if (ic->book) {
+    for (uint8_t i = 0; i < ic->book->function_count; i++) {
+      Function* func = &ic->book->functions[i];
+      for (uint8_t j = 0; j < func->clause_count; j++) {
+        if (func->clauses[j].terms) {
+          free(func->clauses[j].terms);
+        }
+      }
+    }
+    free(ic->book);
+  }
+
   free(ic);
 }
 
@@ -520,6 +583,12 @@ static inline Term ic_normal(IC* ic, Term term) {
       // Both APP and SUP need to push two locations
       stack[stack_pos++] = MAKE_TERM(false, 0, 0, val);
       stack[stack_pos++] = MAKE_TERM(false, 0, 0, val + 1);
+    }
+    else if (tag == NAT && TERM_LAB(current) == 1) { // SUC
+      stack[stack_pos++] = MAKE_TERM(false, 0, 0, val);
+    }
+    else if (tag == CAL) {
+      stack[stack_pos++] = MAKE_TERM(false, 0, 0, val);
     }
     // Other tags have no subterms to process
   }

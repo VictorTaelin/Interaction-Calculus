@@ -93,7 +93,7 @@ void process_term(IC* ic, Term term, int use_gpu, int thread_count) {
   printf("TIME: %.7f seconds\n", elapsed_seconds);
   printf("SIZE: %zu nodes\n", size);
   printf("PERF: %.3f MIPS\n", perf);
-  
+
   // Determine which mode was actually used
   const char* mode_str = "CPU";
   if (use_gpu) {
@@ -104,7 +104,7 @@ void process_term(IC* ic, Term term, int use_gpu, int thread_count) {
       mode_str = "Metal GPU";
     }
   }
-  
+
   printf("MODE: %s\n", mode_str);
   printf("\n");
 }
@@ -207,7 +207,7 @@ void benchmark_term(IC* ic, Term term, int use_gpu, int thread_count) {
   printf("- WORK: %llu\n", total_interactions);
   printf("- TIME: %.3f seconds\n", elapsed_seconds);
   printf("- PERF: %.3f MIPS\n", mips);
-  
+
   // Determine which mode was actually used for benchmark
   const char* mode_str = "CPU";
   if (use_gpu) {
@@ -218,7 +218,7 @@ void benchmark_term(IC* ic, Term term, int use_gpu, int thread_count) {
       mode_str = "Metal GPU";
     }
   }
-  
+
   printf("- MODE: %s\n", mode_str);
 
   // Clean up
@@ -250,7 +250,7 @@ int main(int argc, char* argv[]) {
 
   int result = 0;
   int thread_count = 1; // Default thread count
-  
+
   // Parse thread count from command line arguments
   for (int i = 1; i < argc - 1; i++) {
     if (strcmp(argv[i], "-t") == 0 && i + 1 < argc) {
