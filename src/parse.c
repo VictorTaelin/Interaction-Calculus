@@ -204,8 +204,8 @@ bool peek_is(Parser* parser, char c) {
 }
 
 // Store a term at the given location
-void store_term(Parser* parser, uint32_t loc, TermTag tag, uint8_t label, uint32_t value) {
-  parser->ic->heap[loc] = ic_make_term(tag, label, value);
+void store_term(Parser* parser, uint32_t loc, TermTag tag, uint32_t value) {
+  parser->ic->heap[loc] = ic_make_term(tag, value);
 }
 
 // Parse an unsigned integer
@@ -265,7 +265,7 @@ void parse_term_var(Parser* parser, uint32_t loc) {
 void parse_term_sup(Parser* parser, uint32_t loc) {
   expect(parser, "&", "for superposition");
 
-  uint8_t label = parse_uint(parser) & 0xF; // Ensure it fits in 4 bits
+  uint8_t label = parse_uint(parser) & 0x3; // Only first 2 bits (0-3)
   expect(parser, "{", "after label in superposition");
 
   uint32_t sup_node = ic_alloc(parser->ic, 2);
@@ -278,7 +278,9 @@ void parse_term_sup(Parser* parser, uint32_t loc) {
   parse_term(parser, rgt_loc);
   expect(parser, "}", "after terms in superposition");
 
-  store_term(parser, loc, SUP, label, sup_node);
+  // Use the appropriate superposition tag based on label
+  TermTag sup_tag = SUP_TAG(label);
+  store_term(parser, loc, sup_tag, sup_node);
 }
 
 // Parse a lambda
@@ -294,18 +296,18 @@ void parse_term_lam(Parser* parser, uint32_t loc) {
 
   uint32_t lam_node = ic_alloc(parser->ic, 1);
 
-  Term var_term = ic_make_term(VAR, 0, lam_node);
+  Term var_term = ic_make_term(VAR, lam_node);
   bind_var(parser, name, var_term);
 
   parse_term(parser, lam_node);
-  store_term(parser, loc, LAM, 0, lam_node);
+  store_term(parser, loc, LAM, lam_node);
 }
 
 // Parse a collapser
 void parse_term_col(Parser* parser, uint32_t loc) {
   expect(parser, "!&", "for collapser");
 
-  uint8_t label = parse_uint(parser) & 0xF; // Ensure it fits in 4 bits
+  uint8_t label = parse_uint(parser) & 0x3; // Only first 2 bits (0-3)
   expect(parser, "{", "after label in collapser");
 
   static char var1[MAX_NAME_LEN], var2[MAX_NAME_LEN];
@@ -327,8 +329,8 @@ void parse_term_col(Parser* parser, uint32_t loc) {
   uint32_t col_node = ic_alloc(parser->ic, 1);
 
   // Create collapse variable terms that point to the col_node, NOT to the loc
-  Term co0_term = ic_make_term(CO0, label, col_node);
-  Term co1_term = ic_make_term(CO1, label, col_node);
+  Term co0_term = ic_make_co0(label, col_node);
+  Term co1_term = ic_make_co1(label, col_node);
   bind_var(parser, var1, co0_term);
   bind_var(parser, var2, co1_term);
 
@@ -358,7 +360,7 @@ void parse_term_app(Parser* parser, uint32_t loc) {
   parse_term(parser, arg_loc);
   expect(parser, ")", "after application");
 
-  store_term(parser, loc, APP, 0, app_node);
+  store_term(parser, loc, APP, app_node);
 }
 
 
@@ -378,7 +380,7 @@ void parse_term_let(Parser* parser, uint32_t loc) {
   uint32_t arg_loc = app_node + 1; // value
 
   // Create variable term for the lambda parameter
-  bind_var(parser, name, ic_make_term(VAR, 0, lam_node));
+  bind_var(parser, name, ic_make_term(VAR, lam_node));
 
   // Parse the value into arg_loc
   parse_term(parser, arg_loc);
@@ -389,10 +391,10 @@ void parse_term_let(Parser* parser, uint32_t loc) {
   parse_term(parser, lam_node);
 
   // Store the lambda at fun_loc
-  store_term(parser, fun_loc, LAM, 0, lam_node);
+  store_term(parser, fun_loc, LAM, lam_node);
 
   // Store the application at loc
-  store_term(parser, loc, APP, 0, app_node);
+  store_term(parser, loc, APP, app_node);
 }
 
 // Main term parser - dispatcher for specific term types (moved from parse/term.c)

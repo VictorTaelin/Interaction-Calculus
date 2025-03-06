@@ -5,6 +5,10 @@
 #include "ic.h"
 #include "show.h"
 
+// For backward compatibility with the showing code
+#define CO0 100  // Just a value not used for any other tag
+#define CO1 101  // Just a value not used for any other tag
+
 // Maximum string length for term representation
 #define MAX_STR_LEN 65536
 
@@ -68,22 +72,30 @@ char* add_variable(VarNameTable* table, uint32_t location, TermTag type) {
     table->names = (char**)realloc(table->names, table->capacity * sizeof(char*));
   }
 
+  // For compatibility, we only store the basic types (VAR, CO0, CO1) in the table
+  TermTag basicType = type;
+  if (IS_CO0(type)) {
+    basicType = CO0;
+  } else if (IS_CO1(type)) {
+    basicType = CO1;
+  }
+
   // Check if the variable is already in the table
   for (uint32_t i = 0; i < table->count; i++) {
-    if (table->locations[i] == location && table->types[i] == type) {
+    if (table->locations[i] == location && table->types[i] == basicType) {
       return table->names[i];
     }
   }
 
   // Add the new variable
   table->locations[table->count] = location;
-  table->types[table->count] = type;
+  table->types[table->count] = basicType;
 
   // Generate a name for the variable based on its type
   char* name = (char*)malloc(16);
-  if (type == CO0) {
+  if (basicType == CO0) {
     sprintf(name, "a%u", table->count);
-  } else if (type == CO1) {
+  } else if (basicType == CO1) {
     sprintf(name, "b%u", table->count);
   } else {
     sprintf(name, "x%u", table->count);
@@ -96,8 +108,16 @@ char* add_variable(VarNameTable* table, uint32_t location, TermTag type) {
 
 // Get a variable name from the table
 char* get_var_name(VarNameTable* table, uint32_t location, TermTag type) {
+  // Convert to basic type for lookup
+  TermTag basicType = type;
+  if (IS_CO0(type)) {
+    basicType = CO0;
+  } else if (IS_CO1(type)) {
+    basicType = CO1;
+  }
+
   for (uint32_t i = 0; i < table->count; i++) {
-    if (table->locations[i] == location && table->types[i] == type) {
+    if (table->locations[i] == location && table->types[i] == basicType) {
       return table->names[i];
     }
   }
@@ -138,21 +158,34 @@ void assign_var_ids(IC* ic, Term term, VarNameTable* var_table, ColTable* col_ta
   uint8_t lab = TERM_LAB(term);
 
   switch (tag) {
-    case VAR:
-    case CO0:
-    case CO1: {
+    case VAR: {
+      uint32_t loc = val;
+      Term subst = ic->heap[loc];
+      if (TERM_SUB(subst)) {
+        assign_var_ids(ic, ic_clear_sub(subst), var_table, col_table);
+      }
+      // For VAR, nothing else to do
+      break;
+    }
+
+    // Handle all CO0 variants (CX0-CX3)
+    case CX0:
+    case CX1:
+    case CX2:
+    case CX3:
+    // Handle all CO1 variants (CY0-CY3)
+    case CY0:
+    case CY1:
+    case CY2:
+    case CY3: {
       uint32_t loc = val;
       Term subst = ic->heap[loc];
       if (TERM_SUB(subst)) {
         assign_var_ids(ic, ic_clear_sub(subst), var_table, col_table);
       } else {
-        if (tag == CO0 || tag == CO1) {
-          uint8_t lab = TERM_LAB(term);
-          if (register_collapser(col_table, loc, lab)) {
-            assign_var_ids(ic, subst, var_table, col_table);
-          }
+        if (register_collapser(col_table, loc, lab)) {
+          assign_var_ids(ic, subst, var_table, col_table);
         }
-        // For VAR, do nothing
       }
       break;
     }
@@ -171,13 +204,16 @@ void assign_var_ids(IC* ic, Term term, VarNameTable* var_table, ColTable* col_ta
       break;
     }
 
-    case SUP: {
+    // Handle all superposition variants (SP0-SP3)
+    case SP0:
+    case SP1:
+    case SP2:
+    case SP3: {
       uint32_t sup_loc = val;
       assign_var_ids(ic, ic->heap[sup_loc], var_table, col_table);
       assign_var_ids(ic, ic->heap[sup_loc + 1], var_table, col_table);
       break;
     }
-
 
     default:
       break;
@@ -221,15 +257,35 @@ void stringify_term(IC* ic, Term term, VarNameTable* var_table, char* buffer, in
   uint8_t lab = TERM_LAB(term);
 
   switch (tag) {
-    case VAR:
-    case CO0:
-    case CO1: {
+    case VAR: {
       uint32_t loc = val;
       Term subst = ic->heap[loc];
       if (TERM_SUB(subst)) {
         stringify_term(ic, ic_clear_sub(subst), var_table, buffer, pos, max_len);
       } else {
-        char* name = get_var_name(var_table, loc, tag);
+        char* name = get_var_name(var_table, loc, VAR);
+        *pos += snprintf(buffer + *pos, max_len - *pos, "%s", name);
+      }
+      break;
+    }
+
+    // Handle all CO0 variants (CX0-CX3)
+    case CX0:
+    case CX1:
+    case CX2:
+    case CX3:
+    // Handle all CO1 variants (CY0-CY3)
+    case CY0:
+    case CY1:
+    case CY2:
+    case CY3: {
+      TermTag co_type = (tag >= CX0 && tag <= CX3) ? CO0 : CO1;
+      uint32_t loc = val;
+      Term subst = ic->heap[loc];
+      if (TERM_SUB(subst)) {
+        stringify_term(ic, ic_clear_sub(subst), var_table, buffer, pos, max_len);
+      } else {
+        char* name = get_var_name(var_table, loc, co_type);
         *pos += snprintf(buffer + *pos, max_len - *pos, "%s", name);
       }
       break;
@@ -252,7 +308,11 @@ void stringify_term(IC* ic, Term term, VarNameTable* var_table, char* buffer, in
       break;
     }
 
-    case SUP: {
+    // Handle all superposition variants (SP0-SP3)
+    case SP0:
+    case SP1:
+    case SP2:
+    case SP3: {
       *pos += snprintf(buffer + *pos, max_len - *pos, "&%u{", lab);
       stringify_term(ic, ic->heap[val], var_table, buffer, pos, max_len);
       *pos += snprintf(buffer + *pos, max_len - *pos, ",");
@@ -260,7 +320,6 @@ void stringify_term(IC* ic, Term term, VarNameTable* var_table, char* buffer, in
       *pos += snprintf(buffer + *pos, max_len - *pos, "}");
       break;
     }
-
 
     default:
       *pos += snprintf(buffer + *pos, max_len - *pos, "<?unknown term>");

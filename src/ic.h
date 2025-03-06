@@ -26,14 +26,24 @@
 // Core Types and Constants
 // -----------------------------------------------------------------------------
 
-// Term tags
+// Term tags for new, compact memory format
 typedef enum {
-  VAR, // Variable
-  CO0, // Collapser first variable
-  CO1, // Collapser second variable
-  APP, // Application
-  LAM, // Lambda
-  SUP, // Superposition
+  VAR = 0x0, // Variable
+  LAM = 0x1, // Lambda
+  APP = 0x2, // Application
+  ERA = 0x3, // Erasure (not used yet)
+  SP0 = 0x4, // Superposition with label 0
+  SP1 = 0x5, // Superposition with label 1
+  SP2 = 0x6, // Superposition with label 2
+  SP3 = 0x7, // Superposition with label 3
+  CX0 = 0x8, // Collapser first variable with label 0
+  CX1 = 0x9, // Collapser first variable with label 1
+  CX2 = 0xA, // Collapser first variable with label 2
+  CX3 = 0xB, // Collapser first variable with label 3
+  CY0 = 0xC, // Collapser second variable with label 0
+  CY1 = 0xD, // Collapser second variable with label 1
+  CY2 = 0xE, // Collapser second variable with label 2
+  CY3 = 0xF, // Collapser second variable with label 3
 } TermTag;
 
 // Term 32-bit packed representation
@@ -41,21 +51,27 @@ typedef uint32_t Term;
 
 // Term components
 #define TERM_SUB_MASK 0x80000000UL // 1-bit: Is this a substitution?
-#define TERM_TAG_MASK 0x70000000UL // 3-bits: Term tag
-#define TERM_LAB_MASK 0x0F000000UL // 4-bits: Label for superpositions
-#define TERM_VAL_MASK 0x00FFFFFFUL // 24-bits: Value/pointer
+#define TERM_TAG_MASK 0x78000000UL // 4-bits: Term tag
+#define TERM_VAL_MASK 0x07FFFFFFUL // 27-bits: Value/pointer
 
 // Term component extraction
 #define TERM_SUB(term) (((term) & TERM_SUB_MASK) != 0)
-#define TERM_TAG(term) ((TermTag)(((term) & TERM_TAG_MASK) >> 28))
-#define TERM_LAB(term) (((term) & TERM_LAB_MASK) >> 24)
+#define TERM_TAG(term) ((TermTag)(((term) & TERM_TAG_MASK) >> 27))
 #define TERM_VAL(term) ((term) & TERM_VAL_MASK)
 
+// Label helpers (for compatibility with existing code)
+#define TERM_LAB(term) ((TERM_TAG(term) & 0x3)) // Extract label from tag (last 2 bits)
+#define IS_SUP(tag) ((tag) >= SP0 && (tag) <= SP3)
+#define IS_CO0(tag) ((tag) >= CX0 && (tag) <= CX3)
+#define IS_CO1(tag) ((tag) >= CY0 && (tag) <= CY3)
+#define SUP_TAG(lab) ((TermTag)(SP0 + ((lab) & 0x3)))
+#define CO0_TAG(lab) ((TermTag)(CX0 + ((lab) & 0x3)))
+#define CO1_TAG(lab) ((TermTag)(CY0 + ((lab) & 0x3)))
+
 // Term creation
-#define MAKE_TERM(sub, tag, lab, val) \
+#define MAKE_TERM(sub, tag, val) \
   (((sub) ? TERM_SUB_MASK : 0) | \
-   (((uint32_t)(tag) << 28)) | \
-   (((uint32_t)(lab) << 24)) | \
+   (((uint32_t)(tag) << 27)) | \
    ((uint32_t)(val) & TERM_VAL_MASK))
 
 // -----------------------------------------------------------------------------
@@ -144,13 +160,12 @@ static inline uint32_t ic_alloc(IC* ic, uint32_t n) {
 // Term Manipulation Functions
 // -----------------------------------------------------------------------------
 
-// Create a term with the given tag, label, and value.
-// @param tag Term type tag
-// @param lab Label value (for SUP, CO0, CO1)
+// Create a term with the given tag and value.
+// @param tag Term type tag (includes label for SUP, CX, CY)
 // @param val Value/pointer into the heap
 // @return The constructed term
-static inline Term ic_make_term(TermTag tag, uint8_t lab, uint32_t val) {
-  return MAKE_TERM(false, tag, lab, val);
+static inline Term ic_make_term(TermTag tag, uint32_t val) {
+  return MAKE_TERM(false, tag, val);
 }
 
 // Create a substitution term.
@@ -165,6 +180,30 @@ static inline Term ic_make_sub(Term term) {
 // @return The term with its substitution bit cleared
 static inline Term ic_clear_sub(Term term) {
   return term & ~TERM_SUB_MASK;
+}
+
+// Helper to create a term with the appropriate superposition tag for a label
+// @param lab Label value (0-3)
+// @param val Value/pointer into the heap
+// @return The constructed superposition term
+static inline Term ic_make_sup(uint8_t lab, uint32_t val) {
+  return ic_make_term(SUP_TAG(lab), val);
+}
+
+// Helper to create a CO0 term with the appropriate tag for a label
+// @param lab Label value (0-3)
+// @param val Value/pointer into the heap
+// @return The constructed CO0 term
+static inline Term ic_make_co0(uint8_t lab, uint32_t val) {
+  return ic_make_term(CO0_TAG(lab), val);
+}
+
+// Helper to create a CO1 term with the appropriate tag for a label
+// @param lab Label value (0-3)
+// @param val Value/pointer into the heap
+// @return The constructed CO1 term
+static inline Term ic_make_co1(uint8_t lab, uint32_t val) {
+  return ic_make_term(CO1_TAG(lab), val);
 }
 
 // -----------------------------------------------------------------------------
@@ -200,6 +239,7 @@ static inline Term ic_app_sup(IC* ic, Term app, Term sup) {
   uint32_t app_loc = TERM_VAL(app);
   uint32_t sup_loc = TERM_VAL(sup);
   uint8_t sup_lab = TERM_LAB(sup);
+  TermTag sup_tag = TERM_TAG(sup);
 
   Term arg = ic->heap[app_loc + 1];
   Term lft = ic->heap[sup_loc + 0];
@@ -213,8 +253,8 @@ static inline Term ic_app_sup(IC* ic, Term app, Term sup) {
   ic->heap[col_loc] = arg;
 
   // Create CO0 and CO1 terms
-  Term x0 = ic_make_term(CO0, sup_lab, col_loc);
-  Term x1 = ic_make_term(CO1, sup_lab, col_loc);
+  Term x0 = ic_make_co0(sup_lab, col_loc);
+  Term x1 = ic_make_co1(sup_lab, col_loc);
 
   // Reuse sup_loc for app0
   ic->heap[sup_loc + 1] = x0; // lft is already in heap[sup_loc + 0]
@@ -224,10 +264,11 @@ static inline Term ic_app_sup(IC* ic, Term app, Term sup) {
   ic->heap[app1_loc + 1] = x1;
 
   // Reuse app_loc for the result superposition
-  ic->heap[app_loc + 0] = ic_make_term(APP, 0, sup_loc);
-  ic->heap[app_loc + 1] = ic_make_term(APP, 0, app1_loc);
+  ic->heap[app_loc + 0] = ic_make_term(APP, sup_loc);
+  ic->heap[app_loc + 1] = ic_make_term(APP, app1_loc);
 
-  return ic_make_term(SUP, sup_lab, app_loc);
+  // Use same superposition tag as input
+  return ic_make_term(sup_tag, app_loc);
 }
 
 //! &L{r,s} = λx.f;
@@ -244,7 +285,8 @@ static inline Term ic_col_lam(IC* ic, Term col, Term lam) {
   uint32_t col_loc = TERM_VAL(col);
   uint32_t lam_loc = TERM_VAL(lam);
   uint8_t col_lab = TERM_LAB(col);
-  uint8_t is_co0 = TERM_TAG(col) == CO0;
+  TermTag col_tag = TERM_TAG(col);
+  uint8_t is_co0 = IS_CO0(col_tag);
 
   Term bod = ic->heap[lam_loc + 0];
 
@@ -256,26 +298,26 @@ static inline Term ic_col_lam(IC* ic, Term col, Term lam) {
   uint32_t col_new_loc = alloc_start + 4;
 
   // Set up the superposition
-  ic->heap[sup_loc + 0] = ic_make_term(VAR, 0, lam0_loc);
-  ic->heap[sup_loc + 1] = ic_make_term(VAR, 0, lam1_loc);
+  ic->heap[sup_loc + 0] = ic_make_term(VAR, lam0_loc);
+  ic->heap[sup_loc + 1] = ic_make_term(VAR, lam1_loc);
 
   // Replace lambda's variable with the superposition
-  ic->heap[lam_loc] = ic_make_sub(ic_make_term(SUP, col_lab, sup_loc));
+  ic->heap[lam_loc] = ic_make_sub(ic_make_sup(col_lab, sup_loc));
 
   // Set up the new collapser
   ic->heap[col_new_loc] = bod;
 
   // Set up new lambda bodies
-  ic->heap[lam0_loc] = ic_make_term(CO0, col_lab, col_new_loc);
-  ic->heap[lam1_loc] = ic_make_term(CO1, col_lab, col_new_loc);
+  ic->heap[lam0_loc] = ic_make_co0(col_lab, col_new_loc);
+  ic->heap[lam1_loc] = ic_make_co1(col_lab, col_new_loc);
 
   // Create and return the appropriate lambda
   if (is_co0) {
-    ic->heap[col_loc] = ic_make_sub(ic_make_term(LAM, 0, lam1_loc));
-    return ic_make_term(LAM, 0, lam0_loc);
+    ic->heap[col_loc] = ic_make_sub(ic_make_term(LAM, lam1_loc));
+    return ic_make_term(LAM, lam0_loc);
   } else {
-    ic->heap[col_loc] = ic_make_sub(ic_make_term(LAM, 0, lam0_loc));
-    return ic_make_term(LAM, 0, lam1_loc);
+    ic->heap[col_loc] = ic_make_sub(ic_make_term(LAM, lam0_loc));
+    return ic_make_term(LAM, lam1_loc);
   }
 }
 
@@ -301,7 +343,9 @@ static inline Term ic_col_sup(IC* ic, Term col, Term sup) {
   uint32_t sup_loc = TERM_VAL(sup);
   uint8_t col_lab = TERM_LAB(col);
   uint8_t sup_lab = TERM_LAB(sup);
-  uint8_t is_co0 = TERM_TAG(col) == CO0;
+  TermTag col_tag = TERM_TAG(col);
+  TermTag sup_tag = TERM_TAG(sup);
+  uint8_t is_co0 = IS_CO0(col_tag);
 
   Term lft = ic->heap[sup_loc + 0];
   Term rgt = ic->heap[sup_loc + 1];
@@ -327,23 +371,23 @@ static inline Term ic_col_sup(IC* ic, Term col, Term sup) {
     uint32_t col_rgt_loc = sup_loc + 1;
 
     // Set up the first superposition (for CO0)
-    ic->heap[sup0_loc + 0] = ic_make_term(CO0, col_lab, col_lft_loc);
-    ic->heap[sup0_loc + 1] = ic_make_term(CO0, col_lab, col_rgt_loc);
+    ic->heap[sup0_loc + 0] = ic_make_co0(col_lab, col_lft_loc);
+    ic->heap[sup0_loc + 1] = ic_make_co0(col_lab, col_rgt_loc);
 
     // Set up the second superposition (for CO1)
-    ic->heap[sup1_loc + 0] = ic_make_term(CO1, col_lab, col_lft_loc);
-    ic->heap[sup1_loc + 1] = ic_make_term(CO1, col_lab, col_rgt_loc);
+    ic->heap[sup1_loc + 0] = ic_make_co1(col_lab, col_lft_loc);
+    ic->heap[sup1_loc + 1] = ic_make_co1(col_lab, col_rgt_loc);
 
     // Set up original collapsers to point to lft and rgt
     ic->heap[col_lft_loc] = lft;
     ic->heap[col_rgt_loc] = rgt;
 
     if (is_co0) {
-      ic->heap[col_loc] = ic_make_sub(ic_make_term(SUP, sup_lab, sup1_loc));
-      return ic_make_term(SUP, sup_lab, sup0_loc);
+      ic->heap[col_loc] = ic_make_sub(ic_make_sup(sup_lab, sup1_loc));
+      return ic_make_sup(sup_lab, sup0_loc);
     } else {
-      ic->heap[col_loc] = ic_make_sub(ic_make_term(SUP, sup_lab, sup0_loc));
-      return ic_make_term(SUP, sup_lab, sup1_loc);
+      ic->heap[col_loc] = ic_make_sub(ic_make_sup(sup_lab, sup0_loc));
+      return ic_make_sup(sup_lab, sup1_loc);
     }
   }
 }
@@ -381,8 +425,16 @@ static inline Term ic_whnf(IC* ic, Term term) {
         break; // No substitution, so it's in WHNF
       }
 
-      case CO0:
-      case CO1: {
+      // Handle all CO0 variants (CX0-CX3)
+      case CX0:
+      case CX1:
+      case CX2:
+      case CX3:
+      // Handle all CO1 variants (CY0-CY3)
+      case CY0:
+      case CY1:
+      case CY2:
+      case CY3: {
         uint32_t col_loc = TERM_VAL(next);
         Term val = heap[col_loc];
         if (TERM_SUB(val)) {
@@ -416,16 +468,36 @@ static inline Term ic_whnf(IC* ic, Term term) {
             case APP:
               switch (tag) {
                 case LAM: next = ic_app_lam(ic, prev, next); continue;
-                case SUP: next = ic_app_sup(ic, prev, next); continue;
+                
+                // Handle all superposition variants (SP0-SP3)
+                case SP0:
+                case SP1:
+                case SP2:
+                case SP3: next = ic_app_sup(ic, prev, next); continue;
+                
                 default: break;
               }
               break;
               
-            case CO0:
-            case CO1:
+            // Handle all CO0 variants (CX0-CX3)
+            case CX0:
+            case CX1:
+            case CX2:
+            case CX3:
+            // Handle all CO1 variants (CY0-CY3)
+            case CY0:
+            case CY1:
+            case CY2:
+            case CY3:
               switch (tag) {
                 case LAM: next = ic_col_lam(ic, prev, next); continue;
-                case SUP: next = ic_col_sup(ic, prev, next); continue;
+                
+                // Handle all superposition variants (SP0-SP3)
+                case SP0:
+                case SP1:
+                case SP2:
+                case SP3: next = ic_col_sup(ic, prev, next); continue;
+                
                 default: break;
               }
               break;
@@ -452,7 +524,7 @@ static inline Term ic_whnf(IC* ic, Term term) {
         uint32_t hloc = TERM_VAL(host);
 
         // Update the heap with the reduced term
-        if (htag == APP || htag == CO0 || htag == CO1) {
+        if (htag == APP || IS_CO0(htag) || IS_CO1(htag)) {
           heap[hloc] = next;
         }
         next = host;
@@ -482,7 +554,7 @@ static inline Term ic_normal(IC* ic, Term term) {
   heap[root_loc] = term;
 
   // Push initial location to stack as a "location"
-  stack[stack_pos++] = MAKE_TERM(false, 0, 0, root_loc);
+  stack[stack_pos++] = ic_make_term(VAR, root_loc);
 
   while (stack_pos > 0) {
     // Pop current location from stack
@@ -505,12 +577,12 @@ static inline Term ic_normal(IC* ic, Term term) {
 
     // Push subterm locations based on term type
     if (tag == LAM) {
-      stack[stack_pos++] = MAKE_TERM(false, 0, 0, val);
+      stack[stack_pos++] = ic_make_term(VAR, val);
     }
-    else if (tag == APP || tag == SUP) {
+    else if (tag == APP || IS_SUP(tag)) {
       // Both APP and SUP need to push two locations
-      stack[stack_pos++] = MAKE_TERM(false, 0, 0, val);
-      stack[stack_pos++] = MAKE_TERM(false, 0, 0, val + 1);
+      stack[stack_pos++] = ic_make_term(VAR, val);
+      stack[stack_pos++] = ic_make_term(VAR, val + 1);
     }
   }
 

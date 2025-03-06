@@ -321,6 +321,45 @@ def col_sup(col, sup):
     return (su0_val if col.tag == CO0 else su1_val)
 ```
 
+# NOTE: NEW, COMPACT MEMORY FORMAT
+
+We're refactoring IC32 to a new, more compact memory format.
+
+Each Term will still have 32 bits, but will be split as:
+
+- sub (1-bit)
+- tag (4-bit)
+- val (28-bit)
+
+The 'lab' bit will not exist anymore. Instead, tags will be:
+
+- VAR: 0x0
+- LAM: 0x1
+- APP: 0x2
+- ERA: 0x3
+- SP0: 0x4
+- SP1: 0x5
+- SP2: 0x6
+- SP3: 0x7
+- CX0: 0x8
+- CX1: 0x9
+- CX2: 0xA
+- CX3: 0xB
+- CY0: 0xC
+- CY1: 0xD
+- CY2: 0xE
+- CY3: 0xF
+
+Where:
+- SP{N} represents a SUP term with label N
+- CX{N} represents a CO0 term with label N
+- CY{N} represents a CO1 term with label N
+
+This allows IC32 to have 4 labels, and an addressable space of 2^27 terms (512
+MB), rather than just 2^24 terms (64 MB).
+
+The 'sub' flag remains the same.
+
 # Parsing IC32
 
 On IC32, all bound variables have global range. For example, consider the term:
