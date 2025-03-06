@@ -21,7 +21,7 @@
 #include <string.h>
 
 // Default heap and stack sizes
-#define IC_DEFAULT_HEAP_SIZE (1 << 28) // 256M terms
+#define IC_DEFAULT_HEAP_SIZE (1 << 24) // 16M terms
 #define IC_DEFAULT_STACK_SIZE (1 << 24) // 16M terms
 
 // -----------------------------------------------------------------------------
