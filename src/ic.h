@@ -477,8 +477,8 @@ static inline Term ic_cal_lam(IC* ic, Term cal, Term lam) {
   return 0; // Unreachable
 }
 
-// @F(N) where F != 0xFF
-// --------------------- CAL-NUM
+// @F(N)
+// ---------------- CAL-NUM
 // deref(F)[x <- N]
 static inline Term ic_cal_num(IC* ic, Term cal, Term num) {
   ic->interactions++;
@@ -491,9 +491,51 @@ static inline Term ic_cal_num(IC* ic, Term cal, Term num) {
   
   uint32_t N = TERM_VAL(num);
   
-  // For test.ic, which doesn't use functions, just return the number
-  // This is a minimal implementation for our benchmark 
-  return num;
+  if (func_id >= ic->book->function_count) {
+    fprintf(stderr, "Runtime error: invalid function id %u\n", func_id);
+    exit(1);
+  }
+  
+  Function* func = &ic->book->functions[func_id];
+  uint8_t M = func->clause_count;
+  
+  if (M == 0) {
+    fprintf(stderr, "Runtime error: function %u has no clauses\n", func_id);
+    exit(1);
+  }
+  
+  uint8_t clause_index;
+  bool replace_var = false;
+  uint32_t var_value = 0;
+  
+  if (N < M - 1) {
+    clause_index = (uint8_t)N;
+  } else {
+    clause_index = M - 1;
+    replace_var = true;
+    var_value = N - (M - 1);
+  }
+  
+  Clause* clause = &func->clauses[clause_index];
+  uint32_t term_count = clause->term_count;
+  uint32_t L = ic_alloc(ic, term_count);
+  
+  for (uint32_t i = 0; i < term_count; i++) {
+    Term orig_term = clause->terms[i];
+    TermTag tag = TERM_TAG(orig_term);
+    uint8_t lab = TERM_LAB(orig_term);
+    uint32_t val = TERM_VAL(orig_term);
+    
+    if (replace_var && tag == VAR && val == PATTERN_VAR_MASK) {
+      ic->heap[L + i] = ic_make_term(NAT, 0, var_value);
+    } else if (tag != NAT) {
+      ic->heap[L + i] = MAKE_TERM(false, tag, lab, L + val);
+    } else {
+      ic->heap[L + i] = orig_term;
+    }
+  }
+  
+  return ic->heap[L];
 }
 
 // +N
@@ -535,7 +577,6 @@ static inline Term ic_suc_lam(IC* ic, Term suc, Term lam) {
   exit(1);
   return 0; // Unreachable
 }
-
 
 // -----------------------------------------------------------------------------
 // Term Normalization
