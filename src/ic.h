@@ -1,4 +1,3 @@
-//./../HVM-Nano.md//
 
 #ifndef IC_H
 #define IC_H
