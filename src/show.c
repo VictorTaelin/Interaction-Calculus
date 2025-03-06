@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
-#include "ic.h"
+#include "hvmn.h"
 #include "show.h"
 
 // Maximum string length for term representation
@@ -105,9 +105,9 @@ char* get_var_name(VarNameTable* table, uint32_t location, TermTag type) {
 }
 
 // Forward declarations
-void assign_var_ids(IC* ic, Term term, VarNameTable* var_table, ColTable* col_table);
-void stringify_term(IC* ic, Term term, VarNameTable* var_table, char* buffer, int* pos, int max_len);
-void stringify_collapsers(IC* ic, ColTable* col_table, VarNameTable* var_table, char* buffer, int* pos, int max_len);
+void assign_var_ids(HVMN* hvmn, Term term, VarNameTable* var_table, ColTable* col_table);
+void stringify_term(HVMN* hvmn, Term term, VarNameTable* var_table, char* buffer, int* pos, int max_len);
+void stringify_collapsers(HVMN* hvmn, ColTable* col_table, VarNameTable* var_table, char* buffer, int* pos, int max_len);
 
 // Register a collapser in the table
 bool register_collapser(ColTable* table, uint32_t location, uint8_t label) {
@@ -132,7 +132,7 @@ bool register_collapser(ColTable* table, uint32_t location, uint8_t label) {
 }
 
 // Assign IDs to variables and register collapsers
-void assign_var_ids(IC* ic, Term term, VarNameTable* var_table, ColTable* col_table) {
+void assign_var_ids(HVMN* hvmn, Term term, VarNameTable* var_table, ColTable* col_table) {
   TermTag tag = TERM_TAG(term);
   uint32_t val = TERM_VAL(term);
   uint8_t lab = TERM_LAB(term);
@@ -142,14 +142,14 @@ void assign_var_ids(IC* ic, Term term, VarNameTable* var_table, ColTable* col_ta
     case CO0:
     case CO1: {
       uint32_t loc = val;
-      Term subst = ic->heap[loc];
+      Term subst = hvmn->heap[loc];
       if (TERM_SUB(subst)) {
-        assign_var_ids(ic, ic_clear_sub(subst), var_table, col_table);
+        assign_var_ids(hvmn, hvmn_clear_sub(subst), var_table, col_table);
       } else {
         if (tag == CO0 || tag == CO1) {
           uint8_t lab = TERM_LAB(term);
           if (register_collapser(col_table, loc, lab)) {
-            assign_var_ids(ic, subst, var_table, col_table);
+            assign_var_ids(hvmn, subst, var_table, col_table);
           }
         }
         // For VAR, do nothing
@@ -160,21 +160,21 @@ void assign_var_ids(IC* ic, Term term, VarNameTable* var_table, ColTable* col_ta
     case LAM: {
       uint32_t lam_loc = val;
       add_variable(var_table, lam_loc, VAR);
-      assign_var_ids(ic, ic->heap[lam_loc], var_table, col_table);
+      assign_var_ids(hvmn, hvmn->heap[lam_loc], var_table, col_table);
       break;
     }
 
     case APP: {
       uint32_t app_loc = val;
-      assign_var_ids(ic, ic->heap[app_loc], var_table, col_table);
-      assign_var_ids(ic, ic->heap[app_loc + 1], var_table, col_table);
+      assign_var_ids(hvmn, hvmn->heap[app_loc], var_table, col_table);
+      assign_var_ids(hvmn, hvmn->heap[app_loc + 1], var_table, col_table);
       break;
     }
 
     case SUP: {
       uint32_t sup_loc = val;
-      assign_var_ids(ic, ic->heap[sup_loc], var_table, col_table);
-      assign_var_ids(ic, ic->heap[sup_loc + 1], var_table, col_table);
+      assign_var_ids(hvmn, hvmn->heap[sup_loc], var_table, col_table);
+      assign_var_ids(hvmn, hvmn->heap[sup_loc + 1], var_table, col_table);
       break;
     }
 
@@ -185,7 +185,7 @@ void assign_var_ids(IC* ic, Term term, VarNameTable* var_table, ColTable* col_ta
 
     case CAL: {
       uint32_t cal_loc = val;
-      assign_var_ids(ic, ic->heap[cal_loc], var_table, col_table);
+      assign_var_ids(hvmn, hvmn->heap[cal_loc], var_table, col_table);
       break;
     }
 
@@ -195,7 +195,7 @@ void assign_var_ids(IC* ic, Term term, VarNameTable* var_table, ColTable* col_ta
 }
 
 // Stringify collapsers
-void stringify_collapsers(IC* ic, ColTable* col_table, VarNameTable* var_table, char* buffer, int* pos, int max_len) {
+void stringify_collapsers(HVMN* hvmn, ColTable* col_table, VarNameTable* var_table, char* buffer, int* pos, int max_len) {
   // First, add all collapser variables
   for (uint32_t i = 0; i < col_table->count; i++) {
     uint32_t col_loc = col_table->locations[i];
@@ -207,7 +207,7 @@ void stringify_collapsers(IC* ic, ColTable* col_table, VarNameTable* var_table, 
   for (uint32_t i = 0; i < col_table->count; i++) {
     uint32_t col_loc = col_table->locations[i];
     uint8_t lab = col_table->labels[i];
-    Term val_term = ic->heap[col_loc];
+    Term val_term = hvmn->heap[col_loc];
 
     // Get variable names
     char* var0 = get_var_name(var_table, col_loc, CO0);
@@ -217,7 +217,7 @@ void stringify_collapsers(IC* ic, ColTable* col_table, VarNameTable* var_table, 
     *pos += snprintf(buffer + *pos, max_len - *pos, "! &%u{%s,%s} = ", lab, var0, var1);
 
     // Add the value
-    stringify_term(ic, val_term, var_table, buffer, pos, max_len);
+    stringify_term(hvmn, val_term, var_table, buffer, pos, max_len);
 
     // Add separator
     *pos += snprintf(buffer + *pos, max_len - *pos, ";\n");
@@ -225,7 +225,7 @@ void stringify_collapsers(IC* ic, ColTable* col_table, VarNameTable* var_table, 
 }
 
 // Stringify a term
-void stringify_term(IC* ic, Term term, VarNameTable* var_table, char* buffer, int* pos, int max_len) {
+void stringify_term(HVMN* hvmn, Term term, VarNameTable* var_table, char* buffer, int* pos, int max_len) {
   TermTag tag = TERM_TAG(term);
   uint32_t val = TERM_VAL(term);
   uint8_t lab = TERM_LAB(term);
@@ -235,9 +235,9 @@ void stringify_term(IC* ic, Term term, VarNameTable* var_table, char* buffer, in
     case CO0:
     case CO1: {
       uint32_t loc = val;
-      Term subst = ic->heap[loc];
+      Term subst = hvmn->heap[loc];
       if (TERM_SUB(subst)) {
-        stringify_term(ic, ic_clear_sub(subst), var_table, buffer, pos, max_len);
+        stringify_term(hvmn, hvmn_clear_sub(subst), var_table, buffer, pos, max_len);
       } else {
         char* name = get_var_name(var_table, loc, tag);
         *pos += snprintf(buffer + *pos, max_len - *pos, "%s", name);
@@ -249,24 +249,24 @@ void stringify_term(IC* ic, Term term, VarNameTable* var_table, char* buffer, in
       uint32_t lam_loc = val;
       char* var_name = get_var_name(var_table, lam_loc, VAR);
       *pos += snprintf(buffer + *pos, max_len - *pos, "λ%s.", var_name);
-      stringify_term(ic, ic->heap[lam_loc], var_table, buffer, pos, max_len);
+      stringify_term(hvmn, hvmn->heap[lam_loc], var_table, buffer, pos, max_len);
       break;
     }
 
     case APP: {
       *pos += snprintf(buffer + *pos, max_len - *pos, "(");
-      stringify_term(ic, ic->heap[val], var_table, buffer, pos, max_len);
+      stringify_term(hvmn, hvmn->heap[val], var_table, buffer, pos, max_len);
       *pos += snprintf(buffer + *pos, max_len - *pos, " ");
-      stringify_term(ic, ic->heap[val + 1], var_table, buffer, pos, max_len);
+      stringify_term(hvmn, hvmn->heap[val + 1], var_table, buffer, pos, max_len);
       *pos += snprintf(buffer + *pos, max_len - *pos, ")");
       break;
     }
 
     case SUP: {
       *pos += snprintf(buffer + *pos, max_len - *pos, "&%u{", lab);
-      stringify_term(ic, ic->heap[val], var_table, buffer, pos, max_len);
+      stringify_term(hvmn, hvmn->heap[val], var_table, buffer, pos, max_len);
       *pos += snprintf(buffer + *pos, max_len - *pos, ",");
-      stringify_term(ic, ic->heap[val + 1], var_table, buffer, pos, max_len);
+      stringify_term(hvmn, hvmn->heap[val + 1], var_table, buffer, pos, max_len);
       *pos += snprintf(buffer + *pos, max_len - *pos, "}");
       break;
     }
@@ -280,11 +280,11 @@ void stringify_term(IC* ic, Term term, VarNameTable* var_table, char* buffer, in
     case CAL: {
       if (lab == SUC) { // Special case for increment (SUC)
         *pos += snprintf(buffer + *pos, max_len - *pos, "+");
-        stringify_term(ic, ic->heap[val], var_table, buffer, pos, max_len);
+        stringify_term(hvmn, hvmn->heap[val], var_table, buffer, pos, max_len);
       } else {
         char func_name = 'A' + lab; // Convert function ID to name (A-P)
         *pos += snprintf(buffer + *pos, max_len - *pos, "@%c(", func_name);
-        stringify_term(ic, ic->heap[val], var_table, buffer, pos, max_len);
+        stringify_term(hvmn, hvmn->heap[val], var_table, buffer, pos, max_len);
         *pos += snprintf(buffer + *pos, max_len - *pos, ")");
       }
       break;
@@ -297,7 +297,7 @@ void stringify_term(IC* ic, Term term, VarNameTable* var_table, char* buffer, in
 }
 
 // Main function to convert a term to string
-char* term_to_string(IC* ic, Term term) {
+char* term_to_string(HVMN* hvmn, Term term) {
   // Initialize tables
   VarNameTable var_table;
   ColTable col_table;
@@ -305,17 +305,17 @@ char* term_to_string(IC* ic, Term term) {
   init_col_table(&col_table);
 
   // Assign IDs to variables and register collapsers
-  assign_var_ids(ic, term, &var_table, &col_table);
+  assign_var_ids(hvmn, term, &var_table, &col_table);
 
   // Allocate buffer for the string representation
   char* buffer = (char*)malloc(MAX_STR_LEN);
   int pos = 0;
 
   // First stringify all collapsers
-  stringify_collapsers(ic, &col_table, &var_table, buffer, &pos, MAX_STR_LEN);
+  stringify_collapsers(hvmn, &col_table, &var_table, buffer, &pos, MAX_STR_LEN);
 
   // Then stringify the main term
-  stringify_term(ic, term, &var_table, buffer, &pos, MAX_STR_LEN);
+  stringify_term(hvmn, term, &var_table, buffer, &pos, MAX_STR_LEN);
 
   // Free tables
   free_var_table(&var_table);
@@ -325,8 +325,8 @@ char* term_to_string(IC* ic, Term term) {
 }
 
 // Display a term to the specified output stream
-void show_term(FILE* stream, IC* ic, Term term) {
-  char* str = term_to_string(ic, term);
+void show_term(FILE* stream, HVMN* hvmn, Term term) {
+  char* str = term_to_string(hvmn, term);
   fprintf(stream, "%s", str);
   free(str);
 }
