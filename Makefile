@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -w -std=c99 -O3 -march=native -mtune=native -flto
+CFLAGS = -w -std=c99 -O3 -march=native -mtune=native -flto -ffast-math -funroll-loops -finline-functions -fpeel-loops
 SRC_DIR = src
 OBJ_DIR = obj
 BIN_DIR = bin
