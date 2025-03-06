@@ -19,8 +19,8 @@
 #include <string.h>
 
 // Default heap and stack sizes
-#define IC_DEFAULT_HEAP_SIZE (1 << 27) // 128M terms
-#define IC_DEFAULT_STACK_SIZE (1 << 24) // 16M terms
+#define IC_DEFAULT_HEAP_SIZE (1 << 27)
+#define IC_DEFAULT_STACK_SIZE (1 << 24)
 
 // -----------------------------------------------------------------------------
 // Core Types and Constants
@@ -414,43 +414,38 @@ static inline Term ic_whnf(IC* ic, Term term) {
   Term prev;
   TermTag ptag;
   
+  // Reduces to WHNF
   while (1) {
     tag = TERM_TAG(next);
     
-    // On variables: substitute
-    // On eliminators: move to field
-    if (tag == VAR) {
+    // If Var: substitute
+    // If Col: substitute or reduce value
+    if (tag == VAR || IS_COL(tag)) {
       val_loc = TERM_VAL(next);
       val = heap[val_loc];
       if (TERM_SUB(val)) {
         next = ic_clear_sub(val);
         continue;
-      }
-    } else if (IS_COL(tag)) {
-      val_loc = TERM_VAL(next);
-      val = heap[val_loc];
-      if (TERM_SUB(val)) {
-        next = ic_clear_sub(val);
-        continue;
-      } else {
+      } else if (tag != VAR) {
         stack[stack_pos++] = next;
         next = val;
         continue;
       }
+    // If App: reduce function
     } else if (tag == APP) {
       val_loc = TERM_VAL(next);
       stack[stack_pos++] = next;
-      next = heap[val_loc]; // Reduce the function part
+      next = heap[val_loc];
       continue;
     }
     
-    // Empty stack: term is in WHNF
+    // Otherwise, if stack is empty, it is WHNF 
     if (stack_pos == stop) {
       ic->stack_pos = stack_pos;
       return next;
     }
     
-    // Interaction Dispatcher
+    // Otherwise, try dispatching interaction
     prev = stack[--stack_pos];
     ptag = TERM_TAG(prev);
     if (ptag == APP) {
@@ -471,16 +466,8 @@ static inline Term ic_whnf(IC* ic, Term term) {
       }
     }
     
-    // No interaction: push term back to stack
+    // Otherwise, update parents and return
     stack[stack_pos++] = prev;
-    
-    // Check if we're done
-    if (stack_pos == stop) {
-      ic->stack_pos = stack_pos;
-      return next;
-    }
-    
-    // Update parent chain
     while (stack_pos > stop) {
       prev = stack[--stack_pos];
       ptag = TERM_TAG(prev);
@@ -490,7 +477,6 @@ static inline Term ic_whnf(IC* ic, Term term) {
       }
       next = prev;
     }
-    
     ic->stack_pos = stack_pos;
     return next;
   }
