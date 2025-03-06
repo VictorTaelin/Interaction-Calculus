@@ -1,9 +1,9 @@
 # IC Project Guide
 
 ## Important Files
-- `HVM-Nano.md` - Project Spec (ALWAYS READ IT)
+- `IC.md` - Project Spec (ALWAYS READ IT)
 - `src/main.c` - Program entry point (CLI)
-- `src/ic.h` - The complete HVM-Nano runtime
+- `src/ic.h` - The complete IC runtime
 - `src/parse.[c|h]` - Term parsing
 - `src/show.[c|h]` - Term stringification
 
@@ -15,7 +15,7 @@
 
 ## Code Style
 - Use C99 standard with portable implementation 
-- Implement 32-bit term representation as specified in HVM-Nano.md
+- Implement 32-bit term representation as specified in IC.md
 - Use `snake_case` for functions and variables
 - Constants should be in `UPPER_CASE`
 - Use 2 space indentation
