@@ -19,7 +19,7 @@
 #include <string.h>
 
 // Default heap and stack sizes
-#define IC_DEFAULT_HEAP_SIZE (1 << 24) // 16M terms
+#define IC_DEFAULT_HEAP_SIZE (1 << 27) // 128M terms
 #define IC_DEFAULT_STACK_SIZE (1 << 24) // 16M terms
 
 // -----------------------------------------------------------------------------
@@ -36,14 +36,14 @@ typedef enum {
   SP1 = 0x5, // Superposition with label 1
   SP2 = 0x6, // Superposition with label 2
   SP3 = 0x7, // Superposition with label 3
-  CX0 = 0x8, // Collapser first variable with label 0
-  CX1 = 0x9, // Collapser first variable with label 1
-  CX2 = 0xA, // Collapser first variable with label 2
-  CX3 = 0xB, // Collapser first variable with label 3
-  CY0 = 0xC, // Collapser second variable with label 0
-  CY1 = 0xD, // Collapser second variable with label 1
-  CY2 = 0xE, // Collapser second variable with label 2
-  CY3 = 0xF, // Collapser second variable with label 3
+  CX0 = 0x8, // Collapser variable 0 with label 0
+  CX1 = 0x9, // Collapser variable 0 with label 1
+  CX2 = 0xA, // Collapser variable 0 with label 2
+  CX3 = 0xB, // Collapser variable 0 with label 3
+  CY0 = 0xC, // Collapser variable 1 with label 0
+  CY1 = 0xD, // Collapser variable 1 with label 1
+  CY2 = 0xE, // Collapser variable 1 with label 2
+  CY3 = 0xF, // Collapser variable 1 with label 3
 } TermTag;
 
 // Term 32-bit packed representation
@@ -64,6 +64,7 @@ typedef uint32_t Term;
 #define IS_SUP(tag) ((tag) >= SP0 && (tag) <= SP3)
 #define IS_CO0(tag) ((tag) >= CX0 && (tag) <= CX3)
 #define IS_CO1(tag) ((tag) >= CY0 && (tag) <= CY3)
+#define IS_COL(tag) ((tag) >= CX0 && (tag) <= CY3)
 #define SUP_TAG(lab) ((TermTag)(SP0 + ((lab) & 0x3)))
 #define CO0_TAG(lab) ((TermTag)(CX0 + ((lab) & 0x3)))
 #define CO1_TAG(lab) ((TermTag)(CY0 + ((lab) & 0x3)))
@@ -146,11 +147,10 @@ static inline void ic_free(IC* ic) {
 // @param n Number of terms to allocate
 // @return Location in the heap
 static inline uint32_t ic_alloc(IC* ic, uint32_t n) {
-  if (ic->heap_pos + n >= ic->heap_size) {
-    fprintf(stderr, "Error: Out of memory (tried to allocate %u terms, %u/%u used)\n", n, ic->heap_pos, ic->heap_size);
-    exit(1);
-  }
-
+  //if (ic->heap_pos + n >= ic->heap_size) {
+    //fprintf(stderr, "Error: Out of memory (tried to allocate %u terms, %u/%u used)\n", n, ic->heap_pos, ic->heap_size);
+    //exit(1);
+  //}
   uint32_t ptr = ic->heap_pos;
   ic->heap_pos += n;
   return ptr;
@@ -392,14 +392,11 @@ static inline Term ic_col_sup(IC* ic, Term col, Term sup) {
   }
 }
 
-
 // -----------------------------------------------------------------------------
 // Term Normalization
 // -----------------------------------------------------------------------------
 
 // Reduce a term to weak head normal form (WHNF).
-// WHNF means reducing until the outermost constructor is a value (LAM, SUP, etc.),
-// or until no more reductions are possible.
 // 
 // @param ic The IC context
 // @param term The term to reduce
@@ -410,131 +407,94 @@ static inline Term ic_whnf(IC* ic, Term term) {
   Term* heap = ic->heap;
   Term* stack = ic->stack;
   uint32_t stack_pos = stop;
-
+  
+  TermTag tag;
+  uint32_t val_loc;
+  Term val;
+  Term prev;
+  TermTag ptag;
+  
   while (1) {
-    TermTag tag = TERM_TAG(next);
-
-    switch (tag) {
-      case VAR: {
-        uint32_t var_loc = TERM_VAL(next);
-        Term subst = heap[var_loc];
-        if (TERM_SUB(subst)) {
-          next = ic_clear_sub(subst);
-          continue;
-        }
-        break; // No substitution, so it's in WHNF
-      }
-
-      // Handle all CO0 variants (CX0-CX3)
-      case CX0:
-      case CX1:
-      case CX2:
-      case CX3:
-      // Handle all CO1 variants (CY0-CY3)
-      case CY0:
-      case CY1:
-      case CY2:
-      case CY3: {
-        uint32_t col_loc = TERM_VAL(next);
-        Term val = heap[col_loc];
-        if (TERM_SUB(val)) {
-          next = ic_clear_sub(val);
-          continue;
-        } else {
-          stack[stack_pos++] = next;
-          next = val;
-          continue;
-        }
-      }
-
-      case APP: {
-        uint32_t app_loc = TERM_VAL(next);
-        stack[stack_pos++] = next;
-        next = heap[app_loc]; // Reduce the function part
+    tag = TERM_TAG(next);
+    
+    // On variables: substitute
+    // On eliminators: move to field
+    if (tag == VAR) {
+      val_loc = TERM_VAL(next);
+      val = heap[val_loc];
+      if (TERM_SUB(val)) {
+        next = ic_clear_sub(val);
         continue;
       }
-
-      default: {
-        if (stack_pos == stop) {
-          ic->stack_pos = stack_pos; // Update stack position before return
-          return next; // Stack empty, term is in WHNF
-        // Interaction Dispatcher
-        } else {
-          Term prev = stack[--stack_pos];
-          TermTag ptag = TERM_TAG(prev);
-          
-          // Use switch for more efficient dispatching
-          switch (ptag) {
-            case APP:
-              switch (tag) {
-                case LAM: next = ic_app_lam(ic, prev, next); continue;
-                
-                // Handle all superposition variants (SP0-SP3)
-                case SP0:
-                case SP1:
-                case SP2:
-                case SP3: next = ic_app_sup(ic, prev, next); continue;
-                
-                default: break;
-              }
-              break;
-              
-            // Handle all CO0 variants (CX0-CX3)
-            case CX0:
-            case CX1:
-            case CX2:
-            case CX3:
-            // Handle all CO1 variants (CY0-CY3)
-            case CY0:
-            case CY1:
-            case CY2:
-            case CY3:
-              switch (tag) {
-                case LAM: next = ic_col_lam(ic, prev, next); continue;
-                
-                // Handle all superposition variants (SP0-SP3)
-                case SP0:
-                case SP1:
-                case SP2:
-                case SP3: next = ic_col_sup(ic, prev, next); continue;
-                
-                default: break;
-              }
-              break;
-              
-            default:
-              break;
-          }
-
-          // No interaction found for benchmark code, proceed to stack traversal
-          stack[stack_pos++] = prev;
-          break;
-        }
+    } else if (IS_COL(tag)) {
+      val_loc = TERM_VAL(next);
+      val = heap[val_loc];
+      if (TERM_SUB(val)) {
+        next = ic_clear_sub(val);
+        continue;
+      } else {
+        stack[stack_pos++] = next;
+        next = val;
+        continue;
       }
+    } else if (tag == APP) {
+      val_loc = TERM_VAL(next);
+      stack[stack_pos++] = next;
+      next = heap[val_loc]; // Reduce the function part
+      continue;
     }
-
-    // After processing, check stack and update heap if needed
+    
+    // Empty stack: term is in WHNF
     if (stack_pos == stop) {
       ic->stack_pos = stack_pos;
-      return next; // Stack empty, return WHNF
-    } else {
-      while (stack_pos > stop) {
-        Term host = stack[--stack_pos];
-        TermTag htag = TERM_TAG(host);
-        uint32_t hloc = TERM_VAL(host);
-
-        // Update the heap with the reduced term
-        if (htag == APP || IS_CO0(htag) || IS_CO1(htag)) {
-          heap[hloc] = next;
-        }
-        next = host;
-      }
-      ic->stack_pos = stack_pos;
-      return next; // Return updated original term
+      return next;
     }
+    
+    // Interaction Dispatcher
+    prev = stack[--stack_pos];
+    ptag = TERM_TAG(prev);
+    if (ptag == APP) {
+      if (tag == LAM) {
+        next = ic_app_lam(ic, prev, next);
+        continue;
+      } else if (IS_SUP(tag)) {
+        next = ic_app_sup(ic, prev, next);
+        continue;
+      }
+    } else if (IS_COL(ptag)) {
+      if (tag == LAM) {
+        next = ic_col_lam(ic, prev, next);
+        continue;
+      } else if (IS_SUP(tag)) {
+        next = ic_col_sup(ic, prev, next);
+        continue;
+      }
+    }
+    
+    // No interaction: push term back to stack
+    stack[stack_pos++] = prev;
+    
+    // Check if we're done
+    if (stack_pos == stop) {
+      ic->stack_pos = stack_pos;
+      return next;
+    }
+    
+    // Update parent chain
+    while (stack_pos > stop) {
+      prev = stack[--stack_pos];
+      ptag = TERM_TAG(prev);
+      val_loc = TERM_VAL(prev);
+      if (ptag == APP || IS_COL(ptag)) {
+        heap[val_loc] = next;
+      }
+      next = prev;
+    }
+    
+    ic->stack_pos = stack_pos;
+    return next;
   }
 }
-
 
 // Reduce a term to full normal form by recursively applying WHNF
 // to all subterms.
@@ -577,11 +537,9 @@ static inline Term ic_normal(IC* ic, Term term) {
 
     // Push subterm locations based on term type
     if (tag == LAM) {
-      stack[stack_pos++] = ic_make_term(VAR, val);
-    }
-    else if (tag == APP || IS_SUP(tag)) {
-      // Both APP and SUP need to push two locations
-      stack[stack_pos++] = ic_make_term(VAR, val);
+      stack[stack_pos++] = ic_make_term(VAR, val + 0);
+    } else if (tag == APP || IS_SUP(tag)) {
+      stack[stack_pos++] = ic_make_term(VAR, val + 0);
       stack[stack_pos++] = ic_make_term(VAR, val + 1);
     }
   }
