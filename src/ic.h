@@ -1,16 +1,18 @@
+//./../HVM-Nano.md//
+
 #ifndef IC_H
 #define IC_H
 
-/**
- * Interaction Calculus (IC) - Core header-only implementation
- * 
- * This file contains the full implementation of the Interaction Calculus:
- * - Term representation and bit manipulation
- * - Memory management
- * - Core interactions (app_lam, app_sup, col_lam, col_sup)
- * - Weak Head Normal Form (WHNF) reduction
- * - Full Normal Form reduction
- */
+// -----------------------------------------------------------------------------
+// Interaction Calculus (IC) - Core header-only implementation
+// 
+// This file contains the full implementation of the Interaction Calculus:
+// - Term representation and bit manipulation
+// - Memory management
+// - Core interactions (app_lam, app_sup, col_lam, col_sup)
+// - Weak Head Normal Form (WHNF) reduction
+// - Full Normal Form reduction
+// -----------------------------------------------------------------------------
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -29,13 +31,13 @@
 // Term tags
 typedef enum {
   VAR, // Variable
-  SUP, // Superposition
   CO0, // Collapser first variable
   CO1, // Collapser second variable
-  LAM, // Lambda
   APP, // Application
+  CAL, // Function call
+  LAM, // Lambda
   NAT, // Natural number (NUM or SUC)
-  CAL  // Function call
+  SUP, // Superposition
 } TermTag;
 
 // Term 32-bit packed representation
@@ -73,25 +75,19 @@ typedef uint32_t Term;
 // Special value used to represent the pattern-bound variable
 #define PATTERN_VAR_MASK 0x00FFFFFFUL
 
-/**
- * Represents a single clause in a function
- */
+// Represents a single clause in a function
 typedef struct {
   Term* terms;         // Array of terms in the clause body
   uint32_t term_count; // Number of terms in the clause
 } Clause;
 
-/**
- * Represents a global function with pattern-matching clauses
- */
+// Represents a global function with pattern-matching clauses
 typedef struct {
   Clause clauses[MAX_CLAUSES]; // Array of clauses for this function
   uint8_t clause_count;        // Number of clauses
 } Function;
 
-/**
- * The book of all global functions
- */
+// The book of all global functions
 typedef struct {
   Function functions[MAX_FUNCTIONS]; // Array of all functions
   uint8_t function_count;            // Number of functions in the book
@@ -101,10 +97,8 @@ typedef struct {
 // IC Structure
 // -----------------------------------------------------------------------------
 
-/**
- * The main Interaction Calculus context structure.
- * Contains all state needed for term evaluation.
- */
+// The main Interaction Calculus context structure.
+// Contains all state needed for term evaluation.
 typedef struct {
   // Memory management
   Term* heap;          // Heap memory for terms
@@ -126,17 +120,18 @@ typedef struct {
 
 // Function declarations to avoid circular dependencies
 static inline void ic_free(IC* ic);
+static inline Term ic_suc_num(IC* ic, Term suc, Term num);
+static inline Term ic_suc_sup(IC* ic, Term suc, Term sup);
+static inline Term ic_suc_lam(IC* ic, Term suc, Term lam);
 
 // -----------------------------------------------------------------------------
 // Memory Management Functions
 // -----------------------------------------------------------------------------
 
-/**
- * Create a new IC context with the specified heap and stack sizes.
- * @param heap_size Number of terms in the heap
- * @param stack_size Number of terms in the stack
- * @return A new IC context or NULL if allocation failed
- */
+// Create a new IC context with the specified heap and stack sizes.
+// @param heap_size Number of terms in the heap
+// @param stack_size Number of terms in the stack
+// @return A new IC context or NULL if allocation failed
 static inline IC* ic_new(uint32_t heap_size, uint32_t stack_size) {
   IC* ic = (IC*)malloc(sizeof(IC));
   if (!ic) return NULL;
@@ -167,10 +162,8 @@ static inline IC* ic_new(uint32_t heap_size, uint32_t stack_size) {
   return ic;
 }
 
-/**
- * Free all resources associated with an IC context.
- * @param ic The IC context to free
- */
+// Free all resources associated with an IC context.
+// @param ic The IC context to free
 static inline void ic_free(IC* ic) {
   if (!ic) return;
 
@@ -193,12 +186,10 @@ static inline void ic_free(IC* ic) {
   free(ic);
 }
 
-/**
- * Allocate n consecutive terms in memory.
- * @param ic The IC context
- * @param n Number of terms to allocate
- * @return Location in the heap
- */
+// Allocate n consecutive terms in memory.
+// @param ic The IC context
+// @param n Number of terms to allocate
+// @return Location in the heap
 static inline uint32_t ic_alloc(IC* ic, uint32_t n) {
   if (ic->heap_pos + n >= ic->heap_size) {
     fprintf(stderr, "Error: Out of memory (tried to allocate %u terms, %u/%u used)\n", n, ic->heap_pos, ic->heap_size);
@@ -214,31 +205,25 @@ static inline uint32_t ic_alloc(IC* ic, uint32_t n) {
 // Term Manipulation Functions
 // -----------------------------------------------------------------------------
 
-/**
- * Create a term with the given tag, label, and value.
- * @param tag Term type tag
- * @param lab Label value (for SUP, CO0, CO1)
- * @param val Value/pointer into the heap
- * @return The constructed term
- */
+// Create a term with the given tag, label, and value.
+// @param tag Term type tag
+// @param lab Label value (for SUP, CO0, CO1)
+// @param val Value/pointer into the heap
+// @return The constructed term
 static inline Term ic_make_term(TermTag tag, uint8_t lab, uint32_t val) {
   return MAKE_TERM(false, tag, lab, val);
 }
 
-/**
- * Create a substitution term.
- * @param term The term to convert to a substitution
- * @return The term with its substitution bit set
- */
+// Create a substitution term.
+// @param term The term to convert to a substitution
+// @return The term with its substitution bit set
 static inline Term ic_make_sub(Term term) {
   return term | TERM_SUB_MASK;
 }
 
-/**
- * Remove the substitution bit from a term.
- * @param term The term to clear the substitution bit from
- * @return The term with its substitution bit cleared
- */
+// Remove the substitution bit from a term.
+// @param term The term to clear the substitution bit from
+// @return The term with its substitution bit cleared
 static inline Term ic_clear_sub(Term term) {
   return term & ~TERM_SUB_MASK;
 }
@@ -424,11 +409,9 @@ static inline Term ic_col_sup(IC* ic, Term col, Term sup) {
   }
 }
 
-/**
- * (N a)
- * ----- APP-NUM
- * ⊥
- */
+// (N a)
+// ----- APP-NUM
+// ⊥
 static inline Term ic_app_num(IC* ic, Term app, Term num) {
   ic->interactions++;
   fprintf(stderr, "Runtime error: application of a number\n");
@@ -436,13 +419,11 @@ static inline Term ic_app_num(IC* ic, Term app, Term num) {
   return 0; // Unreachable
 }
 
-/**
- * ! &L{x,y} = N; K
- * ---------------- COL-NUM
- * x <- N
- * y <- N
- * K
- */
+// ! &L{x,y} = N; K
+// ---------------- COL-NUM
+// x <- N
+// y <- N
+// K
 static inline Term ic_col_num(IC* ic, Term col, Term num) {
   ic->interactions++;
   uint32_t col_loc = TERM_VAL(col);
@@ -450,15 +431,19 @@ static inline Term ic_col_num(IC* ic, Term col, Term num) {
   return num;
 }
 
-/**
- * @F(&L{a,b})
- * --------------- CAL-SUP
- * &L{@F(a) @F(b)}
- */
+// @F(&L{a,b})
+// --------------- CAL-SUP
+// &L{@F(a) @F(b)}
 static inline Term ic_cal_sup(IC* ic, Term cal, Term sup) {
   ic->interactions++;
-  uint32_t cal_loc = TERM_VAL(cal);
   uint8_t func_id = TERM_LAB(cal);
+  
+  // Special case for the increment function (0xFF)
+  if (func_id == 0xFF) {
+    return ic_suc_sup(ic, cal, sup);
+  }
+  
+  uint32_t cal_loc = TERM_VAL(cal);
   uint32_t sup_loc = TERM_VAL(sup);
   uint8_t sup_lab = TERM_LAB(sup);
   Term a = ic->heap[sup_loc + 0];
@@ -475,26 +460,35 @@ static inline Term ic_cal_sup(IC* ic, Term cal, Term sup) {
   return ic_make_term(SUP, sup_lab, new_sup_loc);
 }
 
-/**
- * @F(λx.f)
- * -------- CAL-LAM
- * ⊥
- */
+// @F(λx.f)
+// -------- CAL-LAM
+// ⊥
 static inline Term ic_cal_lam(IC* ic, Term cal, Term lam) {
   ic->interactions++;
+  uint8_t func_id = TERM_LAB(cal);
+  
+  // Special case for the increment function (0xFF)
+  if (func_id == 0xFF) {
+    return ic_suc_lam(ic, cal, lam);
+  }
+  
   fprintf(stderr, "Runtime error: function call on a lambda\n");
   exit(1);
   return 0; // Unreachable
 }
 
-/**
- * @F(N)
- * ---------------- CAL-NUM
- * deref(F)[x <- N]
- */
+// @F(N) where F != 0xFF
+// --------------------- CAL-NUM
+// deref(F)[x <- N]
 static inline Term ic_cal_num(IC* ic, Term cal, Term num) {
   ic->interactions++;
   uint8_t func_id = TERM_LAB(cal);
+  
+  // Special case for the increment function (0xFF)
+  if (func_id == 0xFF) {
+    return ic_suc_num(ic, cal, num);
+  }
+  
   uint32_t N = TERM_VAL(num);
   
   // For test.ic, which doesn't use functions, just return the number
@@ -502,22 +496,18 @@ static inline Term ic_cal_num(IC* ic, Term cal, Term num) {
   return num;
 }
 
-/**
- * +N
- * --- SUC-NUM
- * N+1
- */
+// +N
+// --- SUC-NUM
+// N+1
 static inline Term ic_suc_num(IC* ic, Term suc, Term num) {
   ic->interactions++;
   uint32_t N = TERM_VAL(num);
   return ic_make_term(NAT, 0, N + 1);
 }
 
-/**
- * +{x,y}
- * ------- SUC-SUP
- * {+x,+y}
- */
+// +{x,y}
+// ------- SUC-SUP
+// {+x,+y}
 static inline Term ic_suc_sup(IC* ic, Term suc, Term sup) {
   ic->interactions++;
   uint32_t sup_loc = TERM_VAL(sup);
@@ -528,19 +518,17 @@ static inline Term ic_suc_sup(IC* ic, Term suc, Term sup) {
   uint32_t suc_y_loc = ic_alloc(ic, 1);
   ic->heap[suc_x_loc] = x;
   ic->heap[suc_y_loc] = y;
-  Term suc_x = ic_make_term(NAT, 1, suc_x_loc);
-  Term suc_y = ic_make_term(NAT, 1, suc_y_loc);
+  Term suc_x = ic_make_term(CAL, 0xFF, suc_x_loc);
+  Term suc_y = ic_make_term(CAL, 0xFF, suc_y_loc);
   uint32_t new_sup_loc = ic_alloc(ic, 2);
   ic->heap[new_sup_loc + 0] = suc_x;
   ic->heap[new_sup_loc + 1] = suc_y;
   return ic_make_term(SUP, sup_lab, new_sup_loc);
 }
 
-/**
- * +λx.f
- * ----- SUC-LAM
- * ⊥
- */
+// +λx.f
+// ----- SUC-LAM
+// ⊥
 static inline Term ic_suc_lam(IC* ic, Term suc, Term lam) {
   ic->interactions++;
   fprintf(stderr, "Runtime error: successor of a lambda\n");
@@ -553,15 +541,13 @@ static inline Term ic_suc_lam(IC* ic, Term suc, Term lam) {
 // Term Normalization
 // -----------------------------------------------------------------------------
 
-/**
- * Reduce a term to weak head normal form (WHNF).
- * WHNF means reducing until the outermost constructor is a value (LAM, SUP, etc.),
- * or until no more reductions are possible.
- * 
- * @param ic The IC context
- * @param term The term to reduce
- * @return The term in WHNF
- */
+// Reduce a term to weak head normal form (WHNF).
+// WHNF means reducing until the outermost constructor is a value (LAM, SUP, etc.),
+// or until no more reductions are possible.
+// 
+// @param ic The IC context
+// @param term The term to reduce
+// @return The term in WHNF
 static inline Term ic_whnf(IC* ic, Term term) {
   uint32_t stop = ic->stack_pos;
   Term next = term;
@@ -597,37 +583,54 @@ static inline Term ic_whnf(IC* ic, Term term) {
         }
       }
 
-      case APP: {
+      case APP: case CAL: {
         uint32_t app_loc = TERM_VAL(next);
         stack[stack_pos++] = next;
         next = heap[app_loc]; // Reduce the function part
         continue;
       }
 
-      default: { // SUP, LAM, CAL, NAT
+      default: {
         if (stack_pos == stop) {
           ic->stack_pos = stack_pos; // Update stack position before return
           return next; // Stack empty, term is in WHNF
+        // Interaction Dispatcher
         } else {
           Term prev = stack[--stack_pos];
           TermTag ptag = TERM_TAG(prev);
           
-          // Keep it simple and direct for the benchmark
-          if (ptag == APP && tag == LAM) {
-            next = ic_app_lam(ic, prev, next);
-            continue;
-          } 
-          else if (ptag == APP && tag == SUP) {
-            next = ic_app_sup(ic, prev, next); 
-            continue;
-          }
-          else if ((ptag == CO0 || ptag == CO1) && tag == LAM) {
-            next = ic_col_lam(ic, prev, next);
-            continue;
-          }
-          else if ((ptag == CO0 || ptag == CO1) && tag == SUP) {
-            next = ic_col_sup(ic, prev, next);
-            continue;
+          // Use switch for more efficient dispatching
+          switch (ptag) {
+            case APP:
+              switch (tag) {
+                case LAM: next = ic_app_lam(ic, prev, next); continue;
+                case SUP: next = ic_app_sup(ic, prev, next); continue;
+                case NAT: next = ic_app_num(ic, prev, next); continue;
+                default: break;
+              }
+              break;
+              
+            case CO0:
+            case CO1:
+              switch (tag) {
+                case LAM: next = ic_col_lam(ic, prev, next); continue;
+                case SUP: next = ic_col_sup(ic, prev, next); continue;
+                case NAT: next = ic_col_num(ic, prev, next); continue;
+                default: break;
+              }
+              break;
+              
+            case CAL:
+              switch (tag) {
+                case LAM: next = ic_cal_lam(ic, prev, next); continue;
+                case SUP: next = ic_cal_sup(ic, prev, next); continue;
+                case NAT: next = ic_cal_num(ic, prev, next); continue;
+                default: break;
+              }
+              break;
+              
+            default:
+              break;
           }
 
           // No interaction found for benchmark code, proceed to stack traversal
@@ -648,7 +651,7 @@ static inline Term ic_whnf(IC* ic, Term term) {
         uint32_t hloc = TERM_VAL(host);
 
         // Update the heap with the reduced term
-        if (htag == APP || htag == CO0 || htag == CO1) {
+        if (htag == APP || htag == CO0 || htag == CO1 || htag == CAL) {
           heap[hloc] = next;
         }
         next = host;
@@ -659,14 +662,13 @@ static inline Term ic_whnf(IC* ic, Term term) {
   }
 }
 
-/**
- * Reduce a term to full normal form by recursively applying WHNF
- * to all subterms.
- * 
- * @param ic The IC context
- * @param term The term to normalize
- * @return The fully normalized term
- */
+
+// Reduce a term to full normal form by recursively applying WHNF
+// to all subterms.
+// 
+// @param ic The IC context
+// @param term The term to normalize
+// @return The fully normalized term
 static inline Term ic_normal(IC* ic, Term term) {
   // Reset stack
   ic->stack_pos = 0;
@@ -716,10 +718,8 @@ static inline Term ic_normal(IC* ic, Term term) {
   return heap[root_loc];
 }
 
-/**
- * Create a new IC context with default heap and stack sizes.
- * @return A new IC context or NULL if allocation failed
- */
+// Create a new IC context with default heap and stack sizes.
+// @return A new IC context or NULL if allocation failed
 static inline IC* ic_default_new() {
   return ic_new(IC_DEFAULT_HEAP_SIZE, IC_DEFAULT_STACK_SIZE);
 }

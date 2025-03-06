@@ -179,11 +179,7 @@ void assign_var_ids(IC* ic, Term term, VarNameTable* var_table, ColTable* col_ta
     }
 
     case NAT: {
-      if (lab == 1) { // SUC
-        uint32_t suc_loc = val;
-        assign_var_ids(ic, ic->heap[suc_loc], var_table, col_table);
-      }
-      // For NUM (lab == 0), do nothing
+      // For NAT, there are no child terms to process
       break;
     }
 
@@ -276,21 +272,21 @@ void stringify_term(IC* ic, Term term, VarNameTable* var_table, char* buffer, in
     }
 
     case NAT: {
-      if (lab == 0) { // NUM
-        // For NUM, the value is stored directly in the term
-        *pos += snprintf(buffer + *pos, max_len - *pos, "%u", val);
-      } else { // SUC
-        *pos += snprintf(buffer + *pos, max_len - *pos, "+");
-        stringify_term(ic, ic->heap[val], var_table, buffer, pos, max_len);
-      }
+      // For NAT, the value is stored directly in the term
+      *pos += snprintf(buffer + *pos, max_len - *pos, "%u", val);
       break;
     }
 
     case CAL: {
-      char func_name = 'A' + lab; // Convert function ID to name (A-P)
-      *pos += snprintf(buffer + *pos, max_len - *pos, "@%c(", func_name);
-      stringify_term(ic, ic->heap[val], var_table, buffer, pos, max_len);
-      *pos += snprintf(buffer + *pos, max_len - *pos, ")");
+      if (lab == 0xFF) { // Special case for increment (SUC)
+        *pos += snprintf(buffer + *pos, max_len - *pos, "+");
+        stringify_term(ic, ic->heap[val], var_table, buffer, pos, max_len);
+      } else {
+        char func_name = 'A' + lab; // Convert function ID to name (A-P)
+        *pos += snprintf(buffer + *pos, max_len - *pos, "@%c(", func_name);
+        stringify_term(ic, ic->heap[val], var_table, buffer, pos, max_len);
+        *pos += snprintf(buffer + *pos, max_len - *pos, ")");
+      }
       break;
     }
 

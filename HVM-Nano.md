@@ -73,21 +73,21 @@ f
 --------------- CAL-SUP
 &L{@F(a) @F(b)}
 
-@F(N)
+@F(N) where F != 0xFF
 ---------------- CAL-NUM
 deref(F)[x <- N]
-
-+λx.f
------ SUC-LAM
-⊥
 
 +N
 --- SUC-NUM
 N+1
 
-+{x,y}
-------- SUC-SUP
-{+x,+y}
++&L{a,b}
+--------- SUC-SUP
+&L{+a,+b}
+
++λx.f
+----- SUC-LAM
+⊥
 ```
 
 The collapsing interactions are listed below:
@@ -332,14 +332,14 @@ The tag field can be:
 - `CO1`
 - `LAM`
 - `APP`
-- `NAT` (overloaded for NUM and SUC terms)
+- `NAT`
 - `CAL`
 
 The lab field stores:
 
 - On SUP, CO0 and CO1 terms: a label.
-- On CAL terms: the function id.
-- On NAT terms: a flag (0 if NUM, 1 if SUC).
+- On CAL terms: the function id (special value 0xFF is reserved for the increment operation).
+- On NAT terms: unused (always 0).
 
 The val field depends on the variant:
 
@@ -349,8 +349,7 @@ The val field depends on the variant:
 - `SUP`: points to a Sup Node ({lft: Term, rgt: Term})
 - `LAM`: points to a Lam Node ({bod: Term})
 - `APP`: points to an App Node ({fun: Term, arg: Term})
-- `NUM`: stores its numeric value, unboxed
-- `SUC`: points to a Suc Node ({pre: Term})
+- `NAT`: stores its numeric value, unboxed
 - `CAL`: points to a Cal Node ({arg: Term})
 
 A Node is a consecutive block of its child terms. For example, the SUP term
@@ -367,6 +366,9 @@ part of the AST, and they don't store a body; they "float" on the heap. In other
 words, `λx. !&0{x0,x1}=x; &0{x0,x1}` and `!&0{x0,x1}=x; λx. &0{x0,x1}` are both
 valid, and stored identically on memory. As such, the only way to access a Col
 Node is via its bound variables, CO0 and CO1.
+
+Note that there is no SUC term. Instead, we consider that a CAL with a max label
+is a SUC term, pointing to a Suc Node.
 
 Before the collapse, the Col Node stores just the collapsed value (no body).
 After a collapse is triggered (when we access it via a CO0 or CO1 vars), the

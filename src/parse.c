@@ -370,7 +370,7 @@ void parse_term_app(Parser* parser, uint32_t loc) {
   store_term(parser, loc, APP, 0, app_node);
 }
 
-// Parse a number literal (NUM)
+// Parse a number literal (NAT)
 void parse_term_num(Parser* parser, uint32_t loc) {
   uint32_t value = 0;
   bool has_digit = false;
@@ -384,22 +384,22 @@ void parse_term_num(Parser* parser, uint32_t loc) {
     parse_error(parser, "Expected number");
   }
 
-  // For NUM terms, store the value directly in the term with label=0
+  // For NAT terms, store the value directly in the term with label=0
   store_term(parser, loc, NAT, 0, value);
 }
 
-// Parse a successor term (SUC)
+// Parse a successor term (SUC) - now implemented as a special CAL
 void parse_term_suc(Parser* parser, uint32_t loc) {
   expect(parser, "+", "for successor");
 
   // Allocate space for the predecessor term
-  uint32_t suc_node = ic_alloc(parser->ic, 1);
+  uint32_t cal_node = ic_alloc(parser->ic, 1);
 
   // Parse the predecessor term
-  parse_term(parser, suc_node);
+  parse_term(parser, cal_node);
 
-  // Store the SUC term with label=1 for SUC
-  store_term(parser, loc, NAT, 1, suc_node);
+  // Store the term as a CAL with special label 0xFF (the built-in increment function)
+  store_term(parser, loc, CAL, 0xFF, cal_node);
 }
 
 // Parse a function call (CAL)
