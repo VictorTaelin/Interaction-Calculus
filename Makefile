@@ -12,8 +12,8 @@ ifneq ($(NVCC_CHECK),)
   NVCC := $(NVCC_CHECK)
   NVCCFLAGS = -O3 --std=c++11 -w
   CUDA_CFLAGS = -DHAVE_CUDA
-  CUDA_SRCS = $(SRC_DIR)/hvmn.cu
-  CUDA_OBJS = $(OBJ_DIR)/hvmn.o
+  CUDA_SRCS = $(SRC_DIR)/ic.cu
+  CUDA_OBJS = $(OBJ_DIR)/ic.o
   CUDA_LDFLAGS = -lcudart
   HAS_CUDA = 1
 else
@@ -34,8 +34,8 @@ ifeq ($(UNAME), Darwin)
     # Compile Metal on macOS
     METAL_CFLAGS = -DHAVE_METAL
     METAL_LDFLAGS = -framework Metal -framework Foundation -lc++
-    METAL_SRCS = $(SRC_DIR)/hvmn_metal.mm $(SRC_DIR)/hvmn.metal
-    METAL_OBJS = $(OBJ_DIR)/hvmn_metal.o
+    METAL_SRCS = $(SRC_DIR)/ic_metal.mm $(SRC_DIR)/ic.metal
+    METAL_OBJS = $(OBJ_DIR)/ic_metal.o
     HAS_METAL = 1
 
     # Use clang for Objective-C++ compilation
@@ -46,7 +46,7 @@ ifeq ($(UNAME), Darwin)
     # Metal compiler
     METAL_COMPILER = xcrun -sdk macosx metal
     METAL_COMPILER_FLAGS = -O
-    METAL_OUTPUT = $(BIN_DIR)/hvmn.metallib
+    METAL_OUTPUT = $(BIN_DIR)/ic.metallib
   else
     # No Metal available
     METAL_SRCS =
@@ -66,7 +66,7 @@ endif
 
 # Main source files
 SRCS = $(SRC_DIR)/main.c \
-       $(SRC_DIR)/hvmn.c \
+       $(SRC_DIR)/ic.c \
        $(SRC_DIR)/show.c \
        $(SRC_DIR)/parse.c
 
@@ -80,7 +80,7 @@ PARSE_OBJS = $(PARSE_SRCS:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
 
 # Executable
 TARGET = $(BIN_DIR)/main
-TARGET_LN = $(BIN_DIR)/hvmn
+TARGET_LN = $(BIN_DIR)/ic
 
 # Directories
 DIRS = $(OBJ_DIR) $(BIN_DIR) $(OBJ_DIR)/parse \
@@ -116,7 +116,7 @@ $(TARGET_LN): $(TARGET)
 	ln -sf main $(TARGET_LN)
 
 # Compile Metal shader library
-$(METAL_OUTPUT): $(SRC_DIR)/hvmn.metal | $(BIN_DIR)
+$(METAL_OUTPUT): $(SRC_DIR)/ic.metal | $(BIN_DIR)
 	$(METAL_COMPILER) $(METAL_COMPILER_FLAGS) -o $@ $<
 
 # Compile C files
@@ -140,13 +140,13 @@ endif
 
 # Compile CUDA
 ifeq ($(HAS_CUDA),1)
-$(OBJ_DIR)/hvmn.o: $(SRC_DIR)/hvmn.cu
+$(OBJ_DIR)/ic.o: $(SRC_DIR)/ic.cu
 	$(NVCC) $(NVCCFLAGS) -c -o $@ $<
 endif
 
 # Compile Metal Objective-C++
 ifeq ($(HAS_METAL),1)
-$(OBJ_DIR)/hvmn_metal.o: $(SRC_DIR)/hvmn_metal.mm
+$(OBJ_DIR)/ic_metal.o: $(SRC_DIR)/ic_metal.mm
 	$(OBJCXX) $(OBJCXXFLAGS) $(METAL_CFLAGS) -c -o $@ $<
 endif
 

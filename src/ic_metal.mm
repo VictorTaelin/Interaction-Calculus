@@ -1,9 +1,9 @@
 #import <Foundation/Foundation.h>
 #import <Metal/Metal.h>
-#include "hvmn.h"
+#include "ic.h"
 
 /**
- * HVM-Nano (HVMN) - Metal Objective-C++ bridge file
+ * Interaction Calculus (IC) - Metal Objective-C++ bridge file
  * 
  * This file provides the bridge between the main C implementation
  * and the Metal GPU implementation for accelerated normalization:
@@ -54,7 +54,7 @@ static bool initMetal() {
     
     // Load Metal library from the default bundle
     NSError* error = nil;
-    NSString* metalLibraryPath = [[NSBundle mainBundle] pathForResource:@"hvmn" ofType:@"metallib"];
+    NSString* metalLibraryPath = [[NSBundle mainBundle] pathForResource:@"ic" ofType:@"metallib"];
     
     if (metalLibraryPath) {
       // Load pre-compiled library if available
@@ -62,7 +62,7 @@ static bool initMetal() {
       metalContext.library = [metalContext.device newLibraryWithURL:metalLibraryURL error:&error];
     } else {
       // If no pre-compiled library, load the source code and compile it
-      NSString* shaderSource = [[NSBundle mainBundle] pathForResource:@"hvmn" ofType:@"metal"];
+      NSString* shaderSource = [[NSBundle mainBundle] pathForResource:@"ic" ofType:@"metal"];
       
       if (shaderSource) {
         metalContext.library = [metalContext.device newLibraryWithSource:shaderSource
@@ -70,7 +70,7 @@ static bool initMetal() {
                                                                   error:&error];
       } else {
         // As a last resort, use the shader source from the implementation file
-        NSString* shaderPath = [[NSBundle mainBundle] pathForResource:@"hvmn" ofType:@"metal"];
+        NSString* shaderPath = [[NSBundle mainBundle] pathForResource:@"ic" ofType:@"metal"];
         NSString* shaderSource = [NSString stringWithContentsOfFile:shaderPath
                                                          encoding:NSUTF8StringEncoding
                                                             error:&error];
@@ -114,7 +114,7 @@ static bool initMetal() {
  * Check if Metal is available on this system.
  * @return 1 if Metal is available, 0 otherwise
  */
-extern "C" int hvmn_metal_available() {
+extern "C" int ic_metal_available() {
   @autoreleasepool {
     id<MTLDevice> device = MTLCreateSystemDefaultDevice();
     return device != nil;
@@ -123,11 +123,11 @@ extern "C" int hvmn_metal_available() {
 
 /**
  * Normalize a term using Metal.
- * @param hvmn The HVMN context
+ * @param ic The IC context
  * @param term The term to normalize
  * @return The normalized term
  */
-extern "C" Term hvmn_normal_metal(HVMN* hvmn, Term term) {
+extern "C" Term ic_normal_metal(IC* ic, Term term) {
   @autoreleasepool {
     // Initialize Metal if not already done
     if (!metalContext.initialized) {
@@ -138,9 +138,9 @@ extern "C" Term hvmn_normal_metal(HVMN* hvmn, Term term) {
     }
     
     // Get heap and stack parameters
-    uint32_t heap_size = hvmn->heap_size;
-    uint32_t stack_size = hvmn->stack_size;
-    uint32_t heap_pos = hvmn->heap_pos;
+    uint32_t heap_size = ic->heap_size;
+    uint32_t stack_size = ic->stack_size;
+    uint32_t heap_pos = ic->heap_pos;
     uint32_t stack_pos = 0;
     uint32_t interactions = 0; // Use uint32_t for Metal compatibility
     
@@ -182,7 +182,7 @@ extern "C" Term hvmn_normal_metal(HVMN* hvmn, Term term) {
     
     // Copy heap data to the Metal buffer
     Term* heapData = (Term*)metalContext.heapBuffer.contents;
-    memcpy(heapData, hvmn->heap, hvmn->heap_pos * sizeof(Term));
+    memcpy(heapData, ic->heap, ic->heap_pos * sizeof(Term));
     
     // Set up Metal command execution
     id<MTLCommandBuffer> commandBuffer = [metalContext.commandQueue commandBuffer];
@@ -224,15 +224,15 @@ extern "C" Term hvmn_normal_metal(HVMN* hvmn, Term term) {
     stack_pos = *(uint32_t*)metalContext.stackPosBuffer.contents;
     interactions = *(uint32_t*)metalContext.interactionsBuffer.contents;
     
-    // Copy data back from Metal buffer to HVMN heap
-    memcpy(hvmn->heap, heapData, heap_pos * sizeof(Term));
+    // Copy data back from Metal buffer to IC heap
+    memcpy(ic->heap, heapData, heap_pos * sizeof(Term));
     
-    // Update HVMN state
-    hvmn->heap_pos = heap_pos;
-    hvmn->interactions += interactions;
+    // Update IC state
+    ic->heap_pos = heap_pos;
+    ic->interactions += interactions;
     
     // Return the normalized term
-    return hvmn->heap[0];
+    return ic->heap[0];
   }
 }
 
@@ -241,7 +241,7 @@ extern "C" Term hvmn_normal_metal(HVMN* hvmn, Term term) {
  * @param metal_file_path Path to the Metal shader file
  * @return true if compilation was successful, false otherwise
  */
-extern "C" bool hvmn_metal_compile_shader(const char* metal_file_path) {
+extern "C" bool ic_metal_compile_shader(const char* metal_file_path) {
   @autoreleasepool {
     // Initialize Metal if not already done
     if (!metalContext.initialized) {

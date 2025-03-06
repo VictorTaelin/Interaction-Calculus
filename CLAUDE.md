@@ -1,17 +1,17 @@
-# HVMN Project Guide
+# IC Project Guide
 
 ## Important Files
 - `HVM-Nano.md` - Project Spec (ALWAYS READ IT)
 - `src/main.c` - Program entry point (CLI)
-- `src/hvmn.h` - The complete HVM-Nano runtime
+- `src/ic.h` - The complete HVM-Nano runtime
 - `src/parse.[c|h]` - Term parsing
 - `src/show.[c|h]` - Term stringification
 
 ## Build Commands
 - Build the project: `make`
 - Clean build artifacts: `make clean`
-- Run with default test term: `./bin/hvmn`
-- Run with custom test term: `./bin/hvmn "((λf.λx.\!&0{f0,f1}=f;(f0 (f1 x)) λB.λT.λF.((B F) T)) λa.λb.a)"`
+- Run with default test term: `./bin/main`
+- Run with custom test term: `./bin/main "((λf.λx.\!&0{f0,f1}=f;(f0 (f1 x)) λB.λT.λF.((B F) T)) λa.λb.a)"`
 
 ## Code Style
 - Use C99 standard with portable implementation 

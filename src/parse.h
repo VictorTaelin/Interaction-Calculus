@@ -1,7 +1,7 @@
 #ifndef PARSE_H
 #define PARSE_H
 
-#include "hvmn.h"
+#include "ic.h"
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -26,7 +26,7 @@ typedef struct {
 
 // Parser state structure
 typedef struct {
-  HVMN* hvmn;          // HVM-Nano context
+  IC* ic;              // Interaction Calculus context
   const char* input;   // Input string
   size_t pos;          // Current position
   size_t line;         // Current line number
@@ -41,7 +41,7 @@ typedef struct {
 } Parser;
 
 // Initialize a parser with the given input string
-void init_parser(Parser* parser, HVMN* hvmn, const char* input);
+void init_parser(Parser* parser, IC* ic, const char* input);
 
 // Function book parsing
 void parse_book(Parser* parser);
@@ -49,8 +49,8 @@ void parse_function(Parser* parser);
 uint8_t get_function_id(const char* name);
 
 // Main parsing functions
-Term parse_string(HVMN* hvmn, const char* input);
-Term parse_file(HVMN* hvmn, const char* filename);
+Term parse_string(IC* ic, const char* input);
+Term parse_file(IC* ic, const char* filename);
 uint32_t parse_term_alloc(Parser* parser);
 void parse_term(Parser* parser, uint32_t loc);
 

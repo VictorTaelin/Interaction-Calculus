@@ -65,7 +65,7 @@ void resolve_var_uses(Parser* parser) {
       snprintf(error, sizeof(error), "Undefined variable: %s", parser->lcs[i].name);
       parse_error(parser, error);
     }
-    parser->hvmn->heap[parser->lcs[i].loc] = *binding;
+    parser->ic->heap[parser->lcs[i].loc] = *binding;
   }
 }
 
@@ -148,8 +148,8 @@ bool expect(Parser* parser, const char* token, const char* error_context) {
 }
 
 // Initialize a parser with the given input string
-void init_parser(Parser* parser, HVMN* hvmn, const char* input) {
-  parser->hvmn = hvmn;
+void init_parser(Parser* parser, IC* ic, const char* input) {
+  parser->ic = ic;
   parser->input = input;
   parser->pos = 0;
   parser->line = 1;
@@ -205,7 +205,7 @@ bool peek_is(Parser* parser, char c) {
 
 // Store a term at the given location
 void store_term(Parser* parser, uint32_t loc, TermTag tag, uint8_t label, uint32_t value) {
-  parser->hvmn->heap[loc] = hvmn_make_term(tag, label, value);
+  parser->ic->heap[loc] = ic_make_term(tag, label, value);
 }
 
 // Parse an unsigned integer
@@ -277,7 +277,7 @@ void parse_term_sup(Parser* parser, uint32_t loc) {
   uint8_t label = parse_uint(parser) & 0xF; // Ensure it fits in 4 bits
   expect(parser, "{", "after label in superposition");
 
-  uint32_t sup_node = hvmn_alloc(parser->hvmn, 2);
+  uint32_t sup_node = ic_alloc(parser->ic, 2);
   uint32_t lft_loc = sup_node;
   uint32_t rgt_loc = sup_node + 1;
 
@@ -301,9 +301,9 @@ void parse_term_lam(Parser* parser, uint32_t loc) {
   char* name = parse_name(parser);
   expect(parser, ".", "after name in lambda");
 
-  uint32_t lam_node = hvmn_alloc(parser->hvmn, 1);
+  uint32_t lam_node = ic_alloc(parser->ic, 1);
 
-  Term var_term = hvmn_make_term(VAR, 0, lam_node);
+  Term var_term = ic_make_term(VAR, 0, lam_node);
   bind_var(parser, name, var_term);
 
   parse_term(parser, lam_node);
@@ -333,11 +333,11 @@ void parse_term_col(Parser* parser, uint32_t loc) {
   expect(parser, "=", "after names in collapser");
 
   // Allocate a node specifically for the collapse value
-  uint32_t col_node = hvmn_alloc(parser->hvmn, 1);
+  uint32_t col_node = ic_alloc(parser->ic, 1);
 
   // Create collapse variable terms that point to the col_node, NOT to the loc
-  Term co0_term = hvmn_make_term(CO0, label, col_node);
-  Term co1_term = hvmn_make_term(CO1, label, col_node);
+  Term co0_term = ic_make_term(CO0, label, col_node);
+  Term co1_term = ic_make_term(CO1, label, col_node);
   bind_var(parser, var1, co0_term);
   bind_var(parser, var2, co1_term);
 
@@ -353,7 +353,7 @@ void parse_term_col(Parser* parser, uint32_t loc) {
 void parse_term_app(Parser* parser, uint32_t loc) {
   expect(parser, "(", "for application");
 
-  uint32_t app_node = hvmn_alloc(parser->hvmn, 2);
+  uint32_t app_node = ic_alloc(parser->ic, 2);
   uint32_t fun_loc = app_node;
   uint32_t arg_loc = app_node + 1;
 
@@ -393,7 +393,7 @@ void parse_term_suc(Parser* parser, uint32_t loc) {
   expect(parser, "+", "for successor");
 
   // Allocate space for the predecessor term
-  uint32_t cal_node = hvmn_alloc(parser->hvmn, 1);
+  uint32_t cal_node = ic_alloc(parser->ic, 1);
 
   // Parse the predecessor term
   parse_term(parser, cal_node);
@@ -415,7 +415,7 @@ void parse_term_cal(Parser* parser, uint32_t loc) {
   expect(parser, "(", "after function name in call");
 
   // Allocate space for the argument
-  uint32_t cal_node = hvmn_alloc(parser->hvmn, 1);
+  uint32_t cal_node = ic_alloc(parser->ic, 1);
 
   // Parse the argument
   parse_term(parser, cal_node);
@@ -434,15 +434,15 @@ void parse_term_let(Parser* parser, uint32_t loc) {
   expect(parser, "=", "after name in let expression");
 
   // Allocate nodes for the application and lambda
-  uint32_t app_node = hvmn_alloc(parser->hvmn, 2);
-  uint32_t lam_node = hvmn_alloc(parser->hvmn, 1);
+  uint32_t app_node = ic_alloc(parser->ic, 2);
+  uint32_t lam_node = ic_alloc(parser->ic, 1);
 
   // Set up the application structure
   uint32_t fun_loc = app_node;     // lambda function
   uint32_t arg_loc = app_node + 1; // value
 
   // Create variable term for the lambda parameter
-  bind_var(parser, name, hvmn_make_term(VAR, 0, lam_node));
+  bind_var(parser, name, ic_make_term(VAR, 0, lam_node));
 
   // Parse the value into arg_loc
   parse_term(parser, arg_loc);
@@ -520,10 +520,10 @@ void parse_function(Parser* parser) {
   uint8_t func_id = get_function_id(name);
 
   // Check if function already exists
-  if (func_id >= parser->hvmn->book->function_count) {
+  if (func_id >= parser->ic->book->function_count) {
     // New function
-    parser->hvmn->book->function_count = func_id + 1;
-    parser->hvmn->book->functions[func_id].clause_count = 0;
+    parser->ic->book->function_count = func_id + 1;
+    parser->ic->book->functions[func_id].clause_count = 0;
   }
 
   // Parse and open parenthesis
@@ -561,7 +561,7 @@ void parse_function(Parser* parser) {
   }
 
   // Get the current clause
-  uint8_t clause_idx = parser->hvmn->book->functions[func_id].clause_count;
+  uint8_t clause_idx = parser->ic->book->functions[func_id].clause_count;
 
   // Patterns should be consecutive
   if (pattern_num != clause_idx) {
@@ -582,24 +582,24 @@ void parse_function(Parser* parser) {
   }
 
   // Record the starting position in the heap before parsing
-  uint32_t heap_start = parser->hvmn->heap_pos;
+  uint32_t heap_start = parser->ic->heap_pos;
 
   // Parse the clause body directly into the heap
-  uint32_t clause_loc = hvmn_alloc(parser->hvmn, 1);
+  uint32_t clause_loc = ic_alloc(parser->ic, 1);
   parse_term(parser, clause_loc);
 
   // Resolve variable uses for this clause
   resolve_var_uses(parser);
 
   // Calculate the number of terms used by this clause
-  uint32_t term_count = parser->hvmn->heap_pos - heap_start;
+  uint32_t term_count = parser->ic->heap_pos - heap_start;
 
   // Clear variable bindings and uses for the next clause
   parser->vrs_count = 0;
   parser->lcs_count = 0;
 
   // Allocate memory for all terms in the clause
-  Clause* clause = &parser->hvmn->book->functions[func_id].clauses[clause_idx];
+  Clause* clause = &parser->ic->book->functions[func_id].clauses[clause_idx];
   clause->terms = (Term*)malloc(term_count * sizeof(Term));
   if (!clause->terms) {
     parse_error(parser, "Memory allocation failed for function clause");
@@ -610,7 +610,7 @@ void parse_function(Parser* parser) {
   
   // Copy all terms from the heap to the clause, adjusting pointers to be relative
   for (uint32_t i = 0; i < term_count; i++) {
-    Term term = parser->hvmn->heap[heap_start + i];
+    Term term = parser->ic->heap[heap_start + i];
     TermTag tag = TERM_TAG(term);
     uint32_t val = TERM_VAL(term);
     
@@ -630,7 +630,7 @@ void parse_function(Parser* parser) {
   }
 
   // Increment clause count
-  parser->hvmn->book->functions[func_id].clause_count++;
+  parser->ic->book->functions[func_id].clause_count++;
 }
 
 // Parse the book of functions
@@ -650,15 +650,15 @@ void parse_book(Parser* parser) {
 
 // Allocate space for a term and parse into it
 uint32_t parse_term_alloc(Parser* parser) {
-  uint32_t loc = hvmn_alloc(parser->hvmn, 1);
+  uint32_t loc = ic_alloc(parser->ic, 1);
   parse_term(parser, loc);
   return loc;
 }
 
 // Parse a string into a term
-Term parse_string(HVMN* hvmn, const char* input) {
+Term parse_string(IC* ic, const char* input) {
   Parser parser;
-  init_parser(&parser, hvmn, input);
+  init_parser(&parser, ic, input);
 
   // First parse the book of functions
   parse_book(&parser);
@@ -677,11 +677,11 @@ Term parse_string(HVMN* hvmn, const char* input) {
   // Resolve variable uses for the main term
   resolve_var_uses(&parser);
 
-  return parser.hvmn->heap[term_loc];
+  return parser.ic->heap[term_loc];
 }
 
 // Parse a file into a term
-Term parse_file(HVMN* hvmn, const char* filename) {
+Term parse_file(IC* ic, const char* filename) {
   FILE* file = fopen(filename, "r");
   if (!file) {
     fprintf(stderr, "Error: Could not open file '%s'\n", filename);
@@ -708,7 +708,7 @@ Term parse_file(HVMN* hvmn, const char* filename) {
   buffer[read_size] = '\0';
 
   // Parse the string
-  Term term = parse_string(hvmn, buffer);
+  Term term = parse_string(ic, buffer);
 
   // Free the buffer
   free(buffer);
