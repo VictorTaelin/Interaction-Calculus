@@ -43,11 +43,6 @@ typedef struct {
 // Initialize a parser with the given input string
 void init_parser(Parser* parser, IC* ic, const char* input);
 
-// Function book parsing
-void parse_book(Parser* parser);
-void parse_function(Parser* parser);
-uint8_t get_function_id(const char* name);
-
 // Main parsing functions
 Term parse_string(IC* ic, const char* input);
 Term parse_file(IC* ic, const char* filename);
@@ -87,8 +82,5 @@ void parse_term_col(Parser* parser, uint32_t loc);
 void parse_term_lam(Parser* parser, uint32_t loc);
 void parse_term_app(Parser* parser, uint32_t loc);
 void parse_term_let(Parser* parser, uint32_t loc);
-void parse_term_num(Parser* parser, uint32_t loc);  // Parse a number literal (NUM)
-void parse_term_suc(Parser* parser, uint32_t loc);  // Parse a successor (SUC)
-void parse_term_cal(Parser* parser, uint32_t loc);  // Parse a function call (CAL)
 
 #endif // PARSE_H

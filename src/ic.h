@@ -1,4 +1,3 @@
-
 #ifndef IC_H
 #define IC_H
 
@@ -33,9 +32,7 @@ typedef enum {
   CO0, // Collapser first variable
   CO1, // Collapser second variable
   APP, // Application
-  CAL, // Function call
   LAM, // Lambda
-  NAT, // Natural number (NUM or SUC)
   SUP, // Superposition
 } TermTag;
 
@@ -45,8 +42,7 @@ typedef uint32_t Term;
 // Term components
 #define TERM_SUB_MASK 0x80000000UL // 1-bit: Is this a substitution?
 #define TERM_TAG_MASK 0x70000000UL // 3-bits: Term tag
-#define TERM_LAB_MASK 0x0F000000UL // 4-bits: Label for superpositions/functions
-#define SUC 0xF                    // Special label for successor (SUC) nodes
+#define TERM_LAB_MASK 0x0F000000UL // 4-bits: Label for superpositions
 #define TERM_VAL_MASK 0x00FFFFFFUL // 24-bits: Value/pointer
 
 // Term component extraction
@@ -61,37 +57,6 @@ typedef uint32_t Term;
    (((uint32_t)(tag) << 28)) | \
    (((uint32_t)(lab) << 24)) | \
    ((uint32_t)(val) & TERM_VAL_MASK))
-
-// -----------------------------------------------------------------------------
-// Function Book Structure
-// -----------------------------------------------------------------------------
-
-// Maximum number of clauses per function
-#define MAX_CLAUSES 16
-
-// Maximum number of functions in the book
-#define MAX_FUNCTIONS 16
-
-// Special value used to represent the pattern-bound variable
-#define PATTERN_VAR_MASK 0x00FFFFFFUL
-
-// Represents a single clause in a function
-typedef struct {
-  Term* terms;         // Array of terms in the clause body
-  uint32_t term_count; // Number of terms in the clause
-} Clause;
-
-// Represents a global function with pattern-matching clauses
-typedef struct {
-  Clause clauses[MAX_CLAUSES]; // Array of clauses for this function
-  uint8_t clause_count;        // Number of clauses
-} Function;
-
-// The book of all global functions
-typedef struct {
-  Function functions[MAX_FUNCTIONS]; // Array of all functions
-  uint8_t function_count;            // Number of functions in the book
-} Book;
 
 // -----------------------------------------------------------------------------
 // IC Structure
@@ -110,9 +75,6 @@ typedef struct {
   uint32_t stack_size;  // Total size of the stack
   uint32_t stack_pos;   // Current stack position
 
-  // Function book
-  Book* book;          // Book of global functions
-
   // Statistics
   uint64_t interactions; // Interaction counter
 
@@ -120,9 +82,6 @@ typedef struct {
 
 // Function declarations to avoid circular dependencies
 static inline void ic_free(IC* ic);
-static inline Term ic_suc_num(IC* ic, Term suc, Term num);
-static inline Term ic_suc_sup(IC* ic, Term suc, Term sup);
-static inline Term ic_suc_lam(IC* ic, Term suc, Term lam);
 
 // -----------------------------------------------------------------------------
 // Memory Management Functions
@@ -143,13 +102,6 @@ static inline IC* ic_new(uint32_t heap_size, uint32_t stack_size) {
   ic->interactions = 0;
   ic->stack_pos = 0;
 
-  // Initialize book
-  ic->book = (Book*)calloc(1, sizeof(Book));
-  if (!ic->book) {
-    free(ic);
-    return NULL;
-  }
-
   // Allocate heap and stack
   ic->heap = (Term*)calloc(heap_size, sizeof(Term));
   ic->stack = (Term*)malloc(stack_size * sizeof(Term));
@@ -169,19 +121,6 @@ static inline void ic_free(IC* ic) {
 
   if (ic->heap) free(ic->heap);
   if (ic->stack) free(ic->stack);
-
-  // Free the book and its contents
-  if (ic->book) {
-    for (uint8_t i = 0; i < ic->book->function_count; i++) {
-      Function* func = &ic->book->functions[i];
-      for (uint8_t j = 0; j < func->clause_count; j++) {
-        if (func->clauses[j].terms) {
-          free(func->clauses[j].terms);
-        }
-      }
-    }
-    free(ic->book);
-  }
 
   free(ic);
 }
@@ -409,174 +348,6 @@ static inline Term ic_col_sup(IC* ic, Term col, Term sup) {
   }
 }
 
-// (N a)
-// ----- APP-NUM
-// ⊥
-static inline Term ic_app_num(IC* ic, Term app, Term num) {
-  ic->interactions++;
-  fprintf(stderr, "Runtime error: application of a number\n");
-  exit(1);
-  return 0; // Unreachable
-}
-
-// ! &L{x,y} = N; K
-// ---------------- COL-NUM
-// x <- N
-// y <- N
-// K
-static inline Term ic_col_num(IC* ic, Term col, Term num) {
-  ic->interactions++;
-  uint32_t col_loc = TERM_VAL(col);
-  ic->heap[col_loc] = ic_make_sub(num);
-  return num;
-}
-
-// @F(&L{a,b})
-// --------------- CAL-SUP
-// &L{@F(a) @F(b)}
-static inline Term ic_cal_sup(IC* ic, Term cal, Term sup) {
-  uint8_t func_id = TERM_LAB(cal);
-  
-  // Special case for the increment function (SUC)
-  if (func_id == SUC) {
-    return ic_suc_sup(ic, cal, sup);
-  }
-  ic->interactions++;
-  
-  uint32_t cal_loc = TERM_VAL(cal);
-  uint32_t sup_loc = TERM_VAL(sup);
-  uint8_t sup_lab = TERM_LAB(sup);
-  Term a = ic->heap[sup_loc + 0];
-  Term b = ic->heap[sup_loc + 1];
-  uint32_t cal_a_loc = ic_alloc(ic, 1);
-  uint32_t cal_b_loc = ic_alloc(ic, 1);
-  ic->heap[cal_a_loc] = a;
-  ic->heap[cal_b_loc] = b;
-  Term cal_a = ic_make_term(CAL, func_id, cal_a_loc);
-  Term cal_b = ic_make_term(CAL, func_id, cal_b_loc);
-  uint32_t new_sup_loc = ic_alloc(ic, 2);
-  ic->heap[new_sup_loc + 0] = cal_a;
-  ic->heap[new_sup_loc + 1] = cal_b;
-  return ic_make_term(SUP, sup_lab, new_sup_loc);
-}
-
-// @F(λx.f)
-// -------- CAL-LAM
-// ⊥
-static inline Term ic_cal_lam(IC* ic, Term cal, Term lam) {
-  uint8_t func_id = TERM_LAB(cal);
-  
-  // Special case for the increment function (SUC)
-  if (func_id == SUC) {
-    return ic_suc_lam(ic, cal, lam);
-  }
-  ic->interactions++;
-  
-  fprintf(stderr, "Runtime error: function call on a lambda\n");
-  exit(1);
-  return 0; // Unreachable
-}
-
-// @F(N)
-// ---------------- CAL-NUM
-// deref(F)[x <- N]
-static inline Term ic_cal_num(IC* ic, Term cal, Term num) {
-  uint8_t func_id = TERM_LAB(cal);
-  
-  // Special case for the increment function (SUC)
-  if (func_id == SUC) {
-    return ic_suc_num(ic, cal, num);
-  }
-  ic->interactions++;
-  
-  uint32_t N = TERM_VAL(num);
-  
-  if (func_id >= ic->book->function_count) {
-    fprintf(stderr, "Runtime error: invalid function id %u\n", func_id);
-    exit(1);
-  }
-  
-  Function* func = &ic->book->functions[func_id];
-  uint8_t M = func->clause_count;
-  
-  if (M == 0) {
-    fprintf(stderr, "Runtime error: function %u has no clauses\n", func_id);
-    exit(1);
-  }
-  
-  uint8_t clause_index;
-  bool replace_var = false;
-  uint32_t var_value = 0;
-  
-  if (N < M - 1) {
-    clause_index = (uint8_t)N;
-  } else {
-    clause_index = M - 1;
-    replace_var = true;
-    var_value = N - (M - 1);
-  }
-  
-  Clause* clause = &func->clauses[clause_index];
-  uint32_t term_count = clause->term_count;
-  uint32_t L = ic_alloc(ic, term_count);
-  
-  for (uint32_t i = 0; i < term_count; i++) {
-    Term orig_term = clause->terms[i];
-    TermTag tag = TERM_TAG(orig_term);
-    uint8_t lab = TERM_LAB(orig_term);
-    uint32_t val = TERM_VAL(orig_term);
-    
-    if (replace_var && tag == VAR && val == PATTERN_VAR_MASK) {
-      ic->heap[L + i] = ic_make_term(NAT, 0, var_value);
-    } else if (tag != NAT) {
-      ic->heap[L + i] = MAKE_TERM(false, tag, lab, L + val);
-    } else {
-      ic->heap[L + i] = orig_term;
-    }
-  }
-  
-  return ic->heap[L];
-}
-
-// +N
-// --- SUC-NUM
-// N+1
-static inline Term ic_suc_num(IC* ic, Term suc, Term num) {
-  ic->interactions++;
-  uint32_t N = TERM_VAL(num);
-  return ic_make_term(NAT, 0, N + 1);
-}
-
-// +{x,y}
-// ------- SUC-SUP
-// {+x,+y}
-static inline Term ic_suc_sup(IC* ic, Term suc, Term sup) {
-  ic->interactions++;
-  uint32_t sup_loc = TERM_VAL(sup);
-  uint8_t sup_lab = TERM_LAB(sup);
-  Term x = ic->heap[sup_loc + 0];
-  Term y = ic->heap[sup_loc + 1];
-  uint32_t suc_x_loc = ic_alloc(ic, 1);
-  uint32_t suc_y_loc = ic_alloc(ic, 1);
-  ic->heap[suc_x_loc] = x;
-  ic->heap[suc_y_loc] = y;
-  Term suc_x = ic_make_term(CAL, SUC, suc_x_loc);
-  Term suc_y = ic_make_term(CAL, SUC, suc_y_loc);
-  uint32_t new_sup_loc = ic_alloc(ic, 2);
-  ic->heap[new_sup_loc + 0] = suc_x;
-  ic->heap[new_sup_loc + 1] = suc_y;
-  return ic_make_term(SUP, sup_lab, new_sup_loc);
-}
-
-// +λx.f
-// ----- SUC-LAM
-// ⊥
-static inline Term ic_suc_lam(IC* ic, Term suc, Term lam) {
-  ic->interactions++;
-  fprintf(stderr, "Runtime error: successor of a lambda\n");
-  exit(1);
-  return 0; // Unreachable
-}
 
 // -----------------------------------------------------------------------------
 // Term Normalization
@@ -624,7 +395,7 @@ static inline Term ic_whnf(IC* ic, Term term) {
         }
       }
 
-      case APP: case CAL: {
+      case APP: {
         uint32_t app_loc = TERM_VAL(next);
         stack[stack_pos++] = next;
         next = heap[app_loc]; // Reduce the function part
@@ -646,7 +417,6 @@ static inline Term ic_whnf(IC* ic, Term term) {
               switch (tag) {
                 case LAM: next = ic_app_lam(ic, prev, next); continue;
                 case SUP: next = ic_app_sup(ic, prev, next); continue;
-                case NAT: next = ic_app_num(ic, prev, next); continue;
                 default: break;
               }
               break;
@@ -656,16 +426,6 @@ static inline Term ic_whnf(IC* ic, Term term) {
               switch (tag) {
                 case LAM: next = ic_col_lam(ic, prev, next); continue;
                 case SUP: next = ic_col_sup(ic, prev, next); continue;
-                case NAT: next = ic_col_num(ic, prev, next); continue;
-                default: break;
-              }
-              break;
-              
-            case CAL:
-              switch (tag) {
-                case LAM: next = ic_cal_lam(ic, prev, next); continue;
-                case SUP: next = ic_cal_sup(ic, prev, next); continue;
-                case NAT: next = ic_cal_num(ic, prev, next); continue;
                 default: break;
               }
               break;
@@ -692,7 +452,7 @@ static inline Term ic_whnf(IC* ic, Term term) {
         uint32_t hloc = TERM_VAL(host);
 
         // Update the heap with the reduced term
-        if (htag == APP || htag == CO0 || htag == CO1 || htag == CAL) {
+        if (htag == APP || htag == CO0 || htag == CO1) {
           heap[hloc] = next;
         }
         next = host;

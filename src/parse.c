@@ -254,15 +254,6 @@ void skip(Parser* parser) {
 // Term parsing functions (moved from parse/term/*)
 //-----------------------------------------------------------------------------
 
-// Map a function name (A-P) to its function ID (0-15)
-uint8_t get_function_id(const char* name) {
-  // For simplicity, we only support uppercase letters A-P as function names
-  if (strlen(name) != 1 || name[0] < 'A' || name[0] > 'P') {
-    fprintf(stderr, "Error: Function names must be uppercase letters A-P\n");
-    exit(1);
-  }
-  return (uint8_t)(name[0] - 'A'); // A=0, B=1, ..., P=15
-}
 
 // Parse a variable
 void parse_term_var(Parser* parser, uint32_t loc) {
@@ -370,61 +361,6 @@ void parse_term_app(Parser* parser, uint32_t loc) {
   store_term(parser, loc, APP, 0, app_node);
 }
 
-// Parse a number literal (NAT)
-void parse_term_num(Parser* parser, uint32_t loc) {
-  uint32_t value = 0;
-  bool has_digit = false;
-
-  while (isdigit(peek_char(parser))) {
-    value = value * 10 + (next_char(parser) - '0');
-    has_digit = true;
-  }
-
-  if (!has_digit) {
-    parse_error(parser, "Expected number");
-  }
-
-  // For NAT terms, store the value directly in the term with label=0
-  store_term(parser, loc, NAT, 0, value);
-}
-
-// Parse a successor term (SUC) - now implemented as a special CAL
-void parse_term_suc(Parser* parser, uint32_t loc) {
-  expect(parser, "+", "for successor");
-
-  // Allocate space for the predecessor term
-  uint32_t cal_node = ic_alloc(parser->ic, 1);
-
-  // Parse the predecessor term
-  parse_term(parser, cal_node);
-
-  // Store the term as a CAL with special label SUC (the built-in increment function)
-  store_term(parser, loc, CAL, SUC, cal_node);
-}
-
-// Parse a function call (CAL)
-void parse_term_cal(Parser* parser, uint32_t loc) {
-  expect(parser, "@", "for function call");
-
-  // Parse function name
-  char* name = parse_name(parser);
-
-  // Look up function ID
-  uint8_t func_id = get_function_id(name);
-
-  expect(parser, "(", "after function name in call");
-
-  // Allocate space for the argument
-  uint32_t cal_node = ic_alloc(parser->ic, 1);
-
-  // Parse the argument
-  parse_term(parser, cal_node);
-
-  expect(parser, ")", "after argument in function call");
-
-  // Store the CAL term with the function ID as the label
-  store_term(parser, loc, CAL, func_id, cal_node);
-}
 
 // Parse a let expression (syntax sugar for application of lambda)
 void parse_term_let(Parser* parser, uint32_t loc) {
@@ -485,12 +421,6 @@ void parse_term(Parser* parser, uint32_t loc) {
     }
   } else if (c == '&') {
     parse_term_sup(parser, loc);
-  } else if (c == '@') {
-    parse_term_cal(parser, loc);
-  } else if (c == '+') {
-    parse_term_suc(parser, loc);
-  } else if (isdigit(c)) {
-    parse_term_num(parser, loc);
   } else if (c == 0xCE) {
     unsigned char next_byte = (unsigned char)parser->input[parser->pos + 1];
     if (next_byte == 0xBB) {
@@ -507,142 +437,6 @@ void parse_term(Parser* parser, uint32_t loc) {
   }
 }
 
-//-----------------------------------------------------------------------------
-// Function book parsing
-//-----------------------------------------------------------------------------
-
-// Parse a function definition (@A(0) = ... @A(1+n) = ...)
-void parse_function(Parser* parser) {
-  expect(parser, "@", "for function definition");
-
-  // Parse function name
-  char* name = parse_name(parser);
-  uint8_t func_id = get_function_id(name);
-
-  // Check if function already exists
-  if (func_id >= parser->ic->book->function_count) {
-    // New function
-    parser->ic->book->function_count = func_id + 1;
-    parser->ic->book->functions[func_id].clause_count = 0;
-  }
-
-  // Parse and open parenthesis
-  if (!expect(parser, "(", "after function name")) {
-    return;
-  }
-
-  // Parse pattern number
-  if (!isdigit(peek_char(parser))) {
-    parse_error(parser, "Expected number in function pattern");
-    return;
-  }
-
-  uint32_t pattern_num = parse_uint(parser);
-
-  // Check for pattern variable
-  bool has_variable = false;
-  char var_name[MAX_NAME_LEN] = "";
-
-  if (consume(parser, "+")) {
-    has_variable = true;
-    char* name = parse_name(parser);
-    strncpy(var_name, name, MAX_NAME_LEN - 1);
-    var_name[MAX_NAME_LEN - 1] = '\0';
-  }
-
-  // Close parenthesis
-  if (!expect(parser, ")", "after function pattern")) {
-    return;
-  }
-
-  // Require equals sign
-  if (!expect(parser, "=", "after function pattern")) {
-    return;
-  }
-
-  // Get the current clause
-  uint8_t clause_idx = parser->ic->book->functions[func_id].clause_count;
-
-  // Patterns should be consecutive
-  if (pattern_num != clause_idx) {
-    parse_error(parser, "Function patterns must be consecutive starting from 0");
-    return;
-  }
-
-  if (clause_idx >= MAX_CLAUSES) {
-    parse_error(parser, "Too many clauses for a single function");
-    return;
-  }
-
-  // If we have a pattern variable, bind it as a variable with the special value
-  if (has_variable) {
-    // Create a VAR term with the special PATTERN_VAR_MASK value
-    Term pattern_var = MAKE_TERM(false, VAR, 0, PATTERN_VAR_MASK);
-    bind_var(parser, var_name, pattern_var);
-  }
-
-  // Record the starting position in the heap before parsing
-  uint32_t heap_start = parser->ic->heap_pos;
-
-  // Parse the clause body directly into the heap
-  uint32_t clause_loc = ic_alloc(parser->ic, 1);
-  parse_term(parser, clause_loc);
-
-  // Resolve variable uses for this clause
-  resolve_var_uses(parser);
-
-  // Calculate the number of terms used by this clause
-  uint32_t term_count = parser->ic->heap_pos - heap_start;
-
-  // Clear variable bindings and uses for the next clause
-  parser->vrs_count = 0;
-  parser->lcs_count = 0;
-
-  // Allocate memory for all terms in the clause
-  Clause* clause = &parser->ic->book->functions[func_id].clauses[clause_idx];
-  clause->terms = (Term*)malloc(term_count * sizeof(Term));
-  if (!clause->terms) {
-    parse_error(parser, "Memory allocation failed for function clause");
-    return;
-  }
-  
-  clause->term_count = term_count;
-  
-  // Copy all terms from the heap to the clause, adjusting pointers to be relative
-  for (uint32_t i = 0; i < term_count; i++) {
-    Term term = parser->ic->heap[heap_start + i];
-    TermTag tag = TERM_TAG(term);
-    uint32_t val = TERM_VAL(term);
-    
-    // If this is a pointer to another term in the same clause, make it relative
-    if ((tag == VAR && val != PATTERN_VAR_MASK) || 
-        tag == LAM || tag == APP || tag == SUP || tag == CAL || 
-        (tag == NAT && TERM_LAB(term) == 1)) {
-      
-      if (val >= heap_start && val < heap_start + term_count) {
-        // Convert to a relative offset from the start of the clause
-        val -= heap_start;
-        term = MAKE_TERM(TERM_SUB(term), tag, TERM_LAB(term), val);
-      }
-    }
-    
-    clause->terms[i] = term;
-  }
-
-  // Increment clause count
-  parser->ic->book->functions[func_id].clause_count++;
-}
-
-// Parse the book of functions
-void parse_book(Parser* parser) {
-  skip(parser);
-
-  // Parse functions as long as we see @ character
-  while (peek_char(parser) == '@') {
-    parse_function(parser);
-    skip(parser);
-  }
-}
 
 //-----------------------------------------------------------------------------
 // Public parsing functions
@@ -660,16 +454,7 @@ Term parse_string(IC* ic, const char* input) {
   Parser parser;
   init_parser(&parser, ic, input);
 
-  // First parse the book of functions
-  parse_book(&parser);
-
   skip(&parser);
-  
-  // Check for main term marker
-  if (peek_char(&parser) == '>') {
-    next_char(&parser); // Skip the '>' character
-    skip(&parser);
-  }
 
   // Parse the main term
   uint32_t term_loc = parse_term_alloc(&parser);

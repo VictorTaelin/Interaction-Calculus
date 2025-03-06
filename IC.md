@@ -1,12 +1,12 @@
-# HVM-Nano
+# Interaction Calculus
 
-The HVM-Nano is a minimal runtime for the Interaction Calculus, a term rewriting
-system inspired by the Lambda Calculus (λC), but with some key differences:
+The Interaction Calculus is a minimal term rewriting system inspired by the
+Lambda Calculus (λC), but with some key differences:
 1. Vars are affine: they can only occur up to one time.
 2. Vars are global: they can occur anywhere in the program.
 3. There is a new core primitive: the superposition.
 
-An HVM-Nano term is defined by the following grammar:
+An IC term is defined by the following grammar:
 
 ```
 Term ::=
@@ -15,9 +15,6 @@ Term ::=
   | APP: "(" Term " " Term ")"
   | SUP: "&" Label "{" Term "," Term "}"
   | COL: "!" "&" Label "{" Name "," Name "}" "=" Term ";" Term
-  | NUM: Numb
-  | SUC: "+" Term
-  | CAL: "@" Name "(" Term ")"
 ```
 
 Where:
@@ -26,9 +23,6 @@ Where:
 - APP represents a application.
 - SUP represents a superposition.
 - COL represents a collapse.
-- NUM represents a number literal.
-- SUC represents a number's successor.
-- CAL represents a function call.
 
 Lambdas are curried, and work like their λC counterpart, except with a relaxed
 scope, and with affine usage. Applications eliminate lambdas, like in λC,
@@ -45,10 +39,7 @@ interaction: there are no runtime errors on the Interaction Calculus.
 
 The 'Label' is just a numeric value. It affects the COL-SUP interaction.
 
-For practical purposes, HVM-Nano also extends the Interaction Calculus with
-numbers and functions, which aren't part of the original theory. 
-
-The main interaction rules are listed below:
+The interaction rules are listed below:
 
 ```
 (λx.f a)
@@ -61,38 +52,6 @@ f
 ! &L{c0,c1} = c;
 &L{(a c0),(b c1)}
 
-(N a)
------ APP-NUM
-⊥
-
-@F(λx.f)
--------- CAL-LAM
-⊥
-
-@F(&L{a,b})
---------------- CAL-SUP
-&L{@F(a) @F(b)}
-
-@F(N)
----------------- CAL-NUM
-deref(F)[x <- N]
-
-+N
---- SUC-NUM
-N+1
-
-+&L{a,b}
---------- SUC-SUP
-&L{+a,+b}
-
-+λx.f
------ SUC-LAM
-⊥
-```
-
-The collapsing interactions are listed below:
-
-```
 ! &L{r,s} = λx.f;
 K
 ----------------- COL-LAM
@@ -116,12 +75,6 @@ x <- &R{a0,b0}
 y <- &R{a1,b1}
 ! &L{a0,a1} = a;
 ! &L{b0,b1} = b;
-K
-
-! &L{x,y} = N; K
----------------- COL-NUM
-x <- N
-y <- N
 K
 ```
 
@@ -290,32 +243,9 @@ The following term can be used to test all interactions:
 λa.λb.a
 ```
 
-# Global Functions
+# IC32: a 32-Bit Runtime
 
-HVM-Nano features global functions that pattern-match on a numberic argument:
-
-```
-// identity
-@A(0+i) = i
-
-// predecessor
-@B(0)   = 0
-@B(1+x) = x
-
-// is-even
-@C(0)   = λt. λf. t
-@C(1)   = λt. λf. f
-@C(2+n) = @C(n)
-```
-
-Note that:
-- The first clause must be 0.
-- Each clause must increment by 1.
-- The last clause must be 'K+var'.
-
-# HVM-Nano-32: a 32-Bit Runtime
-
-HVM-Nano-32 is implemented in portable C.
+IC32 is implemented in portable C.
 
 It represents terms with u32-pointers, which store 4 fields:
 
@@ -332,14 +262,10 @@ The tag field can be:
 - `CO1`
 - `LAM`
 - `APP`
-- `NAT`
-- `CAL`
 
 The lab field stores:
 
 - On SUP, CO0 and CO1 terms: a label.
-- On CAL terms: the function id, or SUC
-- On NAT terms: unused (always 0).
 
 The val field depends on the variant:
 
@@ -349,9 +275,6 @@ The val field depends on the variant:
 - `SUP`: points to a Sup Node ({lft: Term, rgt: Term})
 - `LAM`: points to a Lam Node ({bod: Term})
 - `APP`: points to an App Node ({fun: Term, arg: Term})
-- `NAT`: stores its numeric value, unboxed
-- `CAL`: points to a Cal Node ({arg: Term}) if lab!=SUC
-- `CAL`: points to a Suc Node ({arg: Term}) if lab==SUC
 
 A Node is a consecutive block of its child terms. For example, the SUP term
 points to the memory location where its two child terms are stored.
@@ -367,9 +290,6 @@ part of the AST, and they don't store a body; they "float" on the heap. In other
 words, `λx. !&0{x0,x1}=x; &0{x0,x1}` and `!&0{x0,x1}=x; λx. &0{x0,x1}` are both
 valid, and stored identically on memory. As such, the only way to access a Col
 Node is via its bound variables, CO0 and CO1.
-
-Note that there is no SUC term. Instead, we represent SUC as a CAL with a max
-label, pointing to a Suc Node.
 
 Before the collapse, the Col Node stores just the collapsed value (no body).
 After a collapse is triggered (when we access it via a CO0 or CO1 vars), the
@@ -401,44 +321,9 @@ def col_sup(col, sup):
     return (su0_val if col.tag == CO0 else su1_val)
 ```
 
-# Global Functions
+# Parsing IC32
 
-Global Functions are parsed before the main term, and stored in a global
-structure called 'Book', which holds an array mapping function ids to Function
-objects. A Function object stores an array of arrays of Terms, representing, for
-each clause, its body.
-
-The function book is accessed on the CAL-NUM interaction, which selects the nth
-clause of the called function, allocates enough space for its body, and copies
-it into the heap, adjusting the vals of its terms, and replacing the bound var
-by the call's argument, decreased by the pattern number.
-
-For example, if we have the following function:
-
-```
-@F(0)   = λx. x
-@F(1+n) = λt. (t n)
-```
-
-Then, that function would be stored on the Book as:
-
-```
-book[0] = {
-  0: [LAM(1), VAR(0)],
-  1: [LAM(1), APP(2), VAR(0), VAR(0xFFFFFF)],
-}
-```
-
-Then, calling it as `@F((λx.x 5))` would:
-1. Take the whnf of `(λx.x 5)`, resulting in `5`.
-2. Select the second clause (`λt. (t n)`), as it matches the pattern `1+n` with `n=4`.
-3. Allocate 4 nodes on loc `L`, and fill it as `LAM(L+1), APP(L+2), VAR(L+0), NAT(4)`.
-
-Note we're using VAR(0xFFFFFF) to represent the pattern-bound variable.
-
-# Parsing HVM-Nano
-
-On HVM-Nano, all bound variables have global range. For example, consider the term:
+On IC32, all bound variables have global range. For example, consider the term:
 
 λt.((t x) λx.λy.y)
 
@@ -506,26 +391,15 @@ def parse_col(loc):
   vars[co1] = Term(CO1, lab, loc)
 ```
 
-HVM-Nano files are parsed as a series of functions, followed by a main term:
+# Stringifying IC32
 
-```
-@A(0)   = ...
-@A(1+x) = ...
-@B(0)   = ...
-@B(1+x) = ...
-...
-> main
-```
+Converting IC32 terms to strings faces two challenges:
 
-# Stringifying HVM-Nano
-
-Converting HVM-Nano terms to strings faces two challenges:
-
-First, HVM-Nano terms and nodes don't store variable names. As such, we must
+First, IC32 terms and nodes don't store variable names. As such, we must
 generate fresh, unique variable names during stringification, and maintain a
 mapping from each binder's memory location to its assigned name.
 
-Second, on HVM-Nano, Col Nodes aren't part of the main program's AST. Instead,
+Second, on IC32, Col Nodes aren't part of the main program's AST. Instead,
 they "float" on the heap, and are only reachable via CO0 and CO1 variables.
 Because of that, by stringifying a term naively, col nodes will be missing.
 
