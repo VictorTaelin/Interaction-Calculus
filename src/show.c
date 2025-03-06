@@ -81,9 +81,9 @@ char* add_variable(VarNameTable* table, uint32_t location, TermTag type) {
 
   // Generate a name for the variable based on its type
   char* name = (char*)malloc(16);
-  if (type == CO0) {
+  if (ic_is_col_x(type)) {
     sprintf(name, "a%u", table->count);
-  } else if (type == CO1) {
+  } else if (ic_is_col_y(type)) {
     sprintf(name, "b%u", table->count);
   } else {
     sprintf(name, "x%u", table->count);
@@ -135,24 +135,32 @@ bool register_collapser(ColTable* table, uint32_t location, uint8_t label) {
 void assign_var_ids(IC* ic, Term term, VarNameTable* var_table, ColTable* col_table) {
   TermTag tag = TERM_TAG(term);
   uint32_t val = TERM_VAL(term);
-  uint8_t lab = TERM_LAB(term);
 
   switch (tag) {
-    case VAR:
-    case CO0:
-    case CO1: {
+    case VAR: {
       uint32_t loc = val;
-      Term subst = ic->heap[loc];
-      if (TERM_SUB(subst)) {
-        assign_var_ids(ic, ic_clear_sub(subst), var_table, col_table);
+      if (ic_is_subst(ic, loc)) {
+        assign_var_ids(ic, ic->heap[loc], var_table, col_table);
+      }
+      break;
+    }
+
+    case CX0:
+    case CY0:
+    case CX1:
+    case CY1:
+    case CX2:
+    case CY2:
+    case CX3:
+    case CY3: {
+      uint32_t loc = val;
+      uint8_t lab = ic_get_label(tag);
+      if (ic_is_subst(ic, loc)) {
+        assign_var_ids(ic, ic->heap[loc], var_table, col_table);
       } else {
-        if (tag == CO0 || tag == CO1) {
-          uint8_t lab = TERM_LAB(term);
-          if (register_collapser(col_table, loc, lab)) {
-            assign_var_ids(ic, subst, var_table, col_table);
-          }
+        if (register_collapser(col_table, loc, lab)) {
+          assign_var_ids(ic, ic->heap[loc], var_table, col_table);
         }
-        // For VAR, do nothing
       }
       break;
     }
@@ -171,13 +179,15 @@ void assign_var_ids(IC* ic, Term term, VarNameTable* var_table, ColTable* col_ta
       break;
     }
 
-    case SUP: {
+    case SP0:
+    case SP1:
+    case SP2:
+    case SP3: {
       uint32_t sup_loc = val;
       assign_var_ids(ic, ic->heap[sup_loc], var_table, col_table);
       assign_var_ids(ic, ic->heap[sup_loc + 1], var_table, col_table);
       break;
     }
-
 
     default:
       break;
@@ -189,8 +199,11 @@ void stringify_collapsers(IC* ic, ColTable* col_table, VarNameTable* var_table, 
   // First, add all collapser variables
   for (uint32_t i = 0; i < col_table->count; i++) {
     uint32_t col_loc = col_table->locations[i];
-    add_variable(var_table, col_loc, CO0);
-    add_variable(var_table, col_loc, CO1);
+    uint8_t col_lab = col_table->labels[i];
+    TermTag col_x_tag = (TermTag)(CX0 + col_lab);
+    TermTag col_y_tag = (TermTag)(CY0 + col_lab);
+    add_variable(var_table, col_loc, col_x_tag);
+    add_variable(var_table, col_loc, col_y_tag);
   }
 
   // Then, stringify each collapser
@@ -200,8 +213,10 @@ void stringify_collapsers(IC* ic, ColTable* col_table, VarNameTable* var_table, 
     Term val_term = ic->heap[col_loc];
 
     // Get variable names
-    char* var0 = get_var_name(var_table, col_loc, CO0);
-    char* var1 = get_var_name(var_table, col_loc, CO1);
+    TermTag col_x_tag = (TermTag)(CX0 + lab);
+    TermTag col_y_tag = (TermTag)(CY0 + lab);
+    char* var0 = get_var_name(var_table, col_loc, col_x_tag);
+    char* var1 = get_var_name(var_table, col_loc, col_y_tag);
 
     // Add collapser header
     *pos += snprintf(buffer + *pos, max_len - *pos, "! &%u{%s,%s} = ", lab, var0, var1);
@@ -218,18 +233,34 @@ void stringify_collapsers(IC* ic, ColTable* col_table, VarNameTable* var_table, 
 void stringify_term(IC* ic, Term term, VarNameTable* var_table, char* buffer, int* pos, int max_len) {
   TermTag tag = TERM_TAG(term);
   uint32_t val = TERM_VAL(term);
-  uint8_t lab = TERM_LAB(term);
 
   switch (tag) {
-    case VAR:
-    case CO0:
-    case CO1: {
+    case VAR: {
       uint32_t loc = val;
-      Term subst = ic->heap[loc];
-      if (TERM_SUB(subst)) {
-        stringify_term(ic, ic_clear_sub(subst), var_table, buffer, pos, max_len);
+      if (ic_is_subst(ic, loc)) {
+        stringify_term(ic, ic->heap[loc], var_table, buffer, pos, max_len);
       } else {
         char* name = get_var_name(var_table, loc, tag);
+        *pos += snprintf(buffer + *pos, max_len - *pos, "%s", name);
+      }
+      break;
+    }
+
+    case CX0:
+    case CY0:
+    case CX1:
+    case CY1:
+    case CX2:
+    case CY2:
+    case CX3:
+    case CY3: {
+      uint32_t loc = val;
+      if (ic_is_subst(ic, loc)) {
+        stringify_term(ic, ic->heap[loc], var_table, buffer, pos, max_len);
+      } else {
+        // Use the tag as is - it already includes the label information
+        TermTag col_tag = tag;
+        char* name = get_var_name(var_table, loc, col_tag);
         *pos += snprintf(buffer + *pos, max_len - *pos, "%s", name);
       }
       break;
@@ -252,7 +283,11 @@ void stringify_term(IC* ic, Term term, VarNameTable* var_table, char* buffer, in
       break;
     }
 
-    case SUP: {
+    case SP0:
+    case SP1:
+    case SP2:
+    case SP3: {
+      uint8_t lab = ic_get_label(tag);
       *pos += snprintf(buffer + *pos, max_len - *pos, "&%u{", lab);
       stringify_term(ic, ic->heap[val], var_table, buffer, pos, max_len);
       *pos += snprintf(buffer + *pos, max_len - *pos, ",");
@@ -260,7 +295,6 @@ void stringify_term(IC* ic, Term term, VarNameTable* var_table, char* buffer, in
       *pos += snprintf(buffer + *pos, max_len - *pos, "}");
       break;
     }
-
 
     default:
       *pos += snprintf(buffer + *pos, max_len - *pos, "<?unknown term>");

@@ -127,13 +127,17 @@ void benchmark_term(IC* ic, Term term, int use_gpu, int thread_count) {
   // Create a snapshot of the initial state
   uint32_t original_heap_pos = ic->heap_pos;
   Term* original_heap_state = (Term*)malloc(original_heap_pos * sizeof(Term));
-  if (!original_heap_state) {
-    fprintf(stderr, "Error: Memory allocation failed for heap snapshot\n");
+  uint8_t* original_subst_state = (uint8_t*)malloc(ic->subst_size);
+  if (!original_heap_state || !original_subst_state) {
+    fprintf(stderr, "Error: Memory allocation failed for heap or subst snapshot\n");
+    if (original_heap_state) free(original_heap_state);
+    if (original_subst_state) free(original_subst_state);
     return;
   }
 
-  // Copy the initial heap state
+  // Copy the initial heap and substitution bitmap state
   memcpy(original_heap_state, ic->heap, original_heap_pos * sizeof(Term));
+  memcpy(original_subst_state, ic->subst, ic->subst_size);
 
   // Get a snapshot of the term as it might get modified during normalization
   Term original_term = term;
@@ -168,9 +172,10 @@ void benchmark_term(IC* ic, Term term, int use_gpu, int thread_count) {
 
   // Run normalization in a loop until 1 second has passed
   while (elapsed_seconds < 1.0) {
-    // Reset heap state to original
+    // Reset heap and substitution bitmap state to original
     ic->heap_pos = original_heap_pos;
     memcpy(ic->heap, original_heap_state, original_heap_pos * sizeof(Term));
+    memcpy(ic->subst, original_subst_state, ic->subst_size);
 
     // Reset interaction counter
     ic->interactions = 0;
@@ -223,6 +228,7 @@ void benchmark_term(IC* ic, Term term, int use_gpu, int thread_count) {
 
   // Clean up
   free(original_heap_state);
+  free(original_subst_state);
 }
 
 void print_usage() {
