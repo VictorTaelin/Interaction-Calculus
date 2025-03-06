@@ -574,12 +574,11 @@ void parse_function(Parser* parser) {
     return;
   }
 
-  // Save the current variable count and position
-  size_t old_vars_count = parser->vrs_count;
-
-  // If we have a pattern variable, bind it to its pattern value
+  // If we have a pattern variable, bind it as a variable with the special value
   if (has_variable) {
-    bind_var(parser, var_name, ic_make_term(NAT, 0, PATTERN_VAR_MASK));
+    // Create a VAR term with the special PATTERN_VAR_MASK value
+    Term pattern_var = MAKE_TERM(false, VAR, 0, PATTERN_VAR_MASK);
+    bind_var(parser, var_name, pattern_var);
   }
 
   // Parse the clause body directly into the heap
@@ -589,83 +588,27 @@ void parse_function(Parser* parser) {
   // Allocate memory for a single term (the body)
   Clause* clause = &parser->ic->book->functions[func_id].clauses[clause_idx];
   clause->terms = (Term*)malloc(sizeof(Term));
+  if (!clause->terms) {
+    parse_error(parser, "Memory allocation failed for function clause");
+    return;
+  }
+  
   clause->term_count = 1;
   clause->terms[0] = parser->ic->heap[clause_loc];
 
-  // Remove the pattern variable binding if it was added
-  if (has_variable) {
-    parser->vrs_count = old_vars_count;
-  }
+  // We're not handling pattern variables right now
 
   // Increment clause count
   parser->ic->book->functions[func_id].clause_count++;
 }
 
-// Determine if this is a function definition or a call
-bool is_function_definition(Parser* parser) {
-  // Save the current position
-  size_t saved_pos = parser->pos;
-  size_t saved_line = parser->line;
-  size_t saved_col = parser->col;
-
-  bool result = false;
-
-  // Skip @Name(num)
-  if (consume(parser, "@")) {
-    // Skip name
-    if (isalpha(peek_char(parser)) || peek_char(parser) == '_') {
-      while (isalnum(peek_char(parser)) || peek_char(parser) == '_') {
-        next_char(parser);
-      }
-
-      // Skip whitespace
-      skip(parser);
-
-      // Check for opening parenthesis
-      if (consume(parser, "(")) {
-        // Skip digits
-        while (isdigit(peek_char(parser))) {
-          next_char(parser);
-        }
-
-        // Check for pattern variable (n+x)
-        if (consume(parser, "+")) {
-          // Skip variable name
-          if (isalpha(peek_char(parser)) || peek_char(parser) == '_') {
-            while (isalnum(peek_char(parser)) || peek_char(parser) == '_') {
-              next_char(parser);
-            }
-          }
-        }
-
-        // Check for closing parenthesis
-        if (consume(parser, ")")) {
-          // Skip whitespace
-          skip(parser);
-
-          // Check if next non-whitespace is '='
-          if (peek_char(parser) == '=') {
-            result = true;
-          }
-        }
-      }
-    }
-  }
-
-  // Restore position
-  parser->pos = saved_pos;
-  parser->line = saved_line;
-  parser->col = saved_col;
-
-  return result;
-}
 
 // Parse the book of functions
 void parse_book(Parser* parser) {
   skip(parser);
 
-  // As long as we see @ for function definitions, parse them
-  while (peek_char(parser) == '@' && is_function_definition(parser)) {
+  // Parse functions as long as we see @ character
+  while (peek_char(parser) == '@') {
     parse_function(parser);
     skip(parser);
   }
@@ -690,7 +633,15 @@ Term parse_string(IC* ic, const char* input) {
   // First parse the book of functions
   parse_book(&parser);
 
-  // Then parse the main term
+  skip(&parser);
+  
+  // Check for main term marker
+  if (peek_char(&parser) == '>') {
+    next_char(&parser); // Skip the '>' character
+    skip(&parser);
+  }
+
+  // Parse the main term
   uint32_t term_loc = parse_term_alloc(&parser);
 
   // Resolve variable references
