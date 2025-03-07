@@ -9,7 +9,7 @@
 // This file contains the full implementation of the Interaction Calculus:
 // - Term representation and bit manipulation
 // - Memory management
-// - Core interactions (app_lam, app_sup, col_lam, col_sup)
+// - Core interactions (app_lam, app_sup, dup_lam, dup_sup)
 // - Weak Head Normal Form (WHNF) reduction
 // - Full Normal Form reduction
 // -----------------------------------------------------------------------------
@@ -38,14 +38,14 @@ typedef enum {
   SP1 = 0x5, // Superposition with label 1
   SP2 = 0x6, // Superposition with label 2
   SP3 = 0x7, // Superposition with label 3
-  CX0 = 0x8, // Collapser variable 0 with label 0
-  CX1 = 0x9, // Collapser variable 0 with label 1
-  CX2 = 0xA, // Collapser variable 0 with label 2
-  CX3 = 0xB, // Collapser variable 0 with label 3
-  CY0 = 0xC, // Collapser variable 1 with label 0
-  CY1 = 0xD, // Collapser variable 1 with label 1
-  CY2 = 0xE, // Collapser variable 1 with label 2
-  CY3 = 0xF, // Collapser variable 1 with label 3
+  CX0 = 0x8, // Duplication variable 0 with label 0
+  CX1 = 0x9, // Duplication variable 0 with label 1
+  CX2 = 0xA, // Duplication variable 0 with label 2
+  CX3 = 0xB, // Duplication variable 0 with label 3
+  CY0 = 0xC, // Duplication variable 1 with label 0
+  CY1 = 0xD, // Duplication variable 1 with label 1
+  CY2 = 0xE, // Duplication variable 1 with label 2
+  CY3 = 0xF, // Duplication variable 1 with label 3
 } TermTag;
 
 // Term 32-bit packed representation
@@ -66,7 +66,7 @@ typedef uint32_t Term;
 #define IS_SUP(tag) ((tag) >= SP0 && (tag) <= SP3)
 #define IS_CO0(tag) ((tag) >= CX0 && (tag) <= CX3)
 #define IS_CO1(tag) ((tag) >= CY0 && (tag) <= CY3)
-#define IS_COL(tag) ((tag) >= CX0 && (tag) <= CY3)
+#define IS_DUP(tag) ((tag) >= CX0 && (tag) <= CY3)
 #define SUP_TAG(lab) ((TermTag)(SP0 + ((lab) & 0x3)))
 #define CO0_TAG(lab) ((TermTag)(CX0 + ((lab) & 0x3)))
 #define CO1_TAG(lab) ((TermTag)(CY0 + ((lab) & 0x3)))
@@ -214,14 +214,14 @@ static inline Term ic_make_co1(uint8_t lab, uint32_t val) {
   return ic_make_term(CO1_TAG(lab), val);
 }
 
-// Allocs a Lam Node
+// Allocs a Lam node
 static inline uint32_t ic_lam(IC* ic, Term bod) {
   uint32_t lam_loc = ic_alloc(ic, 1);
   ic->heap[lam_loc + 0] = bod;
   return lam_loc;
 }
 
-// Allocs an App Node
+// Allocs an App node
 static inline uint32_t ic_app(IC* ic, Term fun, Term arg) {
   uint32_t app_loc = ic_alloc(ic, 2);
   ic->heap[app_loc + 0] = fun;
@@ -229,7 +229,7 @@ static inline uint32_t ic_app(IC* ic, Term fun, Term arg) {
   return app_loc;
 }
 
-// Allocs a Sup Node
+// Allocs a Sup node
 static inline uint32_t ic_sup(IC* ic, Term lft, Term rgt) {
   uint32_t sup_loc = ic_alloc(ic, 2);
   ic->heap[sup_loc + 0] = lft;
@@ -237,11 +237,11 @@ static inline uint32_t ic_sup(IC* ic, Term lft, Term rgt) {
   return sup_loc;
 }
 
-// Allocs a Col Node
-static inline uint32_t ic_col(IC* ic, Term val) {
-  uint32_t col_loc = ic_alloc(ic, 1);
-  ic->heap[col_loc] = val;
-  return col_loc;
+// Allocs a Dup node
+static inline uint32_t ic_dup(IC* ic, Term val) {
+  uint32_t dup_loc = ic_alloc(ic, 1);
+  ic->heap[dup_loc] = val;
+  return dup_loc;
 }
 
 // -----------------------------------------------------------------------------
@@ -284,15 +284,15 @@ static inline Term ic_app_sup(IC* ic, Term app, Term sup) {
   Term rgt = ic->heap[sup_loc + 1];
 
   // Allocate only what's necessary
-  uint32_t col_loc = ic_alloc(ic, 1);
+  uint32_t dup_loc = ic_alloc(ic, 1);
   uint32_t app1_loc = ic_alloc(ic, 2);
 
-  // Store the arg in the collapser location
-  ic->heap[col_loc] = arg;
+  // Store the arg in the duplication location
+  ic->heap[dup_loc] = arg;
 
   // Create CO0 and CO1 terms
-  Term x0 = ic_make_co0(sup_lab, col_loc);
-  Term x1 = ic_make_co1(sup_lab, col_loc);
+  Term x0 = ic_make_co0(sup_lab, dup_loc);
+  Term x1 = ic_make_co1(sup_lab, dup_loc);
 
   // Reuse sup_loc for app0
   ic->heap[sup_loc + 1] = x0; // lft is already in heap[sup_loc + 0]
@@ -311,20 +311,20 @@ static inline Term ic_app_sup(IC* ic, Term app, Term sup) {
 
 //! &L{r,s} = λx.f;
 //K
-//----------------- COL-LAM
+//----------------- DUP-LAM
 //r <- λx0.f0
 //s <- λx1.f1
 //x <- &L{x0,x1}
 //! &L{f0,f1} = f;
 //K
-static inline Term ic_col_lam(IC* ic, Term col, Term lam) {
+static inline Term ic_dup_lam(IC* ic, Term dup, Term lam) {
   ic->interactions++;
 
-  uint32_t col_loc = TERM_VAL(col);
+  uint32_t dup_loc = TERM_VAL(dup);
   uint32_t lam_loc = TERM_VAL(lam);
-  uint8_t col_lab = TERM_LAB(col);
-  TermTag col_tag = TERM_TAG(col);
-  uint8_t is_co0 = IS_CO0(col_tag);
+  uint8_t dup_lab = TERM_LAB(dup);
+  TermTag dup_tag = TERM_TAG(dup);
+  uint8_t is_co0 = IS_CO0(dup_tag);
 
   Term bod = ic->heap[lam_loc + 0];
 
@@ -333,98 +333,98 @@ static inline Term ic_col_lam(IC* ic, Term col, Term lam) {
   uint32_t lam0_loc = alloc_start;
   uint32_t lam1_loc = alloc_start + 1;
   uint32_t sup_loc = alloc_start + 2; // 2 locations
-  uint32_t col_new_loc = alloc_start + 4;
+  uint32_t dup_new_loc = alloc_start + 4;
 
   // Set up the superposition
   ic->heap[sup_loc + 0] = ic_make_term(VAR, lam0_loc);
   ic->heap[sup_loc + 1] = ic_make_term(VAR, lam1_loc);
 
   // Replace lambda's variable with the superposition
-  ic->heap[lam_loc] = ic_make_sub(ic_make_sup(col_lab, sup_loc));
+  ic->heap[lam_loc] = ic_make_sub(ic_make_sup(dup_lab, sup_loc));
 
-  // Set up the new collapser
-  ic->heap[col_new_loc] = bod;
+  // Set up the new duplication
+  ic->heap[dup_new_loc] = bod;
 
   // Set up new lambda bodies
-  ic->heap[lam0_loc] = ic_make_co0(col_lab, col_new_loc);
-  ic->heap[lam1_loc] = ic_make_co1(col_lab, col_new_loc);
+  ic->heap[lam0_loc] = ic_make_co0(dup_lab, dup_new_loc);
+  ic->heap[lam1_loc] = ic_make_co1(dup_lab, dup_new_loc);
 
   // Create and return the appropriate lambda
   if (is_co0) {
-    ic->heap[col_loc] = ic_make_sub(ic_make_term(LAM, lam1_loc));
+    ic->heap[dup_loc] = ic_make_sub(ic_make_term(LAM, lam1_loc));
     return ic_make_term(LAM, lam0_loc);
   } else {
-    ic->heap[col_loc] = ic_make_sub(ic_make_term(LAM, lam0_loc));
+    ic->heap[dup_loc] = ic_make_sub(ic_make_term(LAM, lam0_loc));
     return ic_make_term(LAM, lam1_loc);
   }
 }
 
 //! &L{x,y} = &L{a,b};
 //K
-//-------------------- COL-SUP (if equal labels)
+//-------------------- DUP-SUP (if equal labels)
 //x <- a
 //y <- b
 //K
 
 //! &L{x,y} = &R{a,b};
 //K
-//-------------------- COL-SUP (if different labels)
+//-------------------- DUP-SUP (if different labels)
 //x <- &R{a0,b0} 
 //y <- &R{a1,b1}
 //! &L{a0,a1} = a
 //! &L{b0,b1} = b
 //K
-static inline Term ic_col_sup(IC* ic, Term col, Term sup) {
+static inline Term ic_dup_sup(IC* ic, Term dup, Term sup) {
   ic->interactions++;
 
-  uint32_t col_loc = TERM_VAL(col);
+  uint32_t dup_loc = TERM_VAL(dup);
   uint32_t sup_loc = TERM_VAL(sup);
-  uint8_t col_lab = TERM_LAB(col);
+  uint8_t dup_lab = TERM_LAB(dup);
   uint8_t sup_lab = TERM_LAB(sup);
-  TermTag col_tag = TERM_TAG(col);
+  TermTag dup_tag = TERM_TAG(dup);
   TermTag sup_tag = TERM_TAG(sup);
-  uint8_t is_co0 = IS_CO0(col_tag);
+  uint8_t is_co0 = IS_CO0(dup_tag);
 
   Term lft = ic->heap[sup_loc + 0];
   Term rgt = ic->heap[sup_loc + 1];
 
   // Fast path for matching labels (common case)
-  if (col_lab == sup_lab) {
+  if (dup_lab == sup_lab) {
     // Labels match: simple substitution
     if (is_co0) {
-      ic->heap[col_loc] = ic_make_sub(rgt);
+      ic->heap[dup_loc] = ic_make_sub(rgt);
       return lft;
     } else {
-      ic->heap[col_loc] = ic_make_sub(lft);
+      ic->heap[dup_loc] = ic_make_sub(lft);
       return rgt;
     }
   } else {
-    // Labels don't match: create nested collapsers
+    // Labels don't match: create nested duplications
     uint32_t sup_start = ic_alloc(ic, 4); // 2 sups with 2 terms each
     uint32_t sup0_loc = sup_start;
     uint32_t sup1_loc = sup_start + 2;
 
-    // Use existing locations as collapser locations
-    uint32_t col_lft_loc = sup_loc + 0;
-    uint32_t col_rgt_loc = sup_loc + 1;
+    // Use existing locations as duplication locations
+    uint32_t dup_lft_loc = sup_loc + 0;
+    uint32_t dup_rgt_loc = sup_loc + 1;
 
     // Set up the first superposition (for CO0)
-    ic->heap[sup0_loc + 0] = ic_make_co0(col_lab, col_lft_loc);
-    ic->heap[sup0_loc + 1] = ic_make_co0(col_lab, col_rgt_loc);
+    ic->heap[sup0_loc + 0] = ic_make_co0(dup_lab, dup_lft_loc);
+    ic->heap[sup0_loc + 1] = ic_make_co0(dup_lab, dup_rgt_loc);
 
     // Set up the second superposition (for CO1)
-    ic->heap[sup1_loc + 0] = ic_make_co1(col_lab, col_lft_loc);
-    ic->heap[sup1_loc + 1] = ic_make_co1(col_lab, col_rgt_loc);
+    ic->heap[sup1_loc + 0] = ic_make_co1(dup_lab, dup_lft_loc);
+    ic->heap[sup1_loc + 1] = ic_make_co1(dup_lab, dup_rgt_loc);
 
-    // Set up original collapsers to point to lft and rgt
-    ic->heap[col_lft_loc] = lft;
-    ic->heap[col_rgt_loc] = rgt;
+    // Set up original duplications to point to lft and rgt
+    ic->heap[dup_lft_loc] = lft;
+    ic->heap[dup_rgt_loc] = rgt;
 
     if (is_co0) {
-      ic->heap[col_loc] = ic_make_sub(ic_make_sup(sup_lab, sup1_loc));
+      ic->heap[dup_loc] = ic_make_sub(ic_make_sup(sup_lab, sup1_loc));
       return ic_make_sup(sup_lab, sup0_loc);
     } else {
-      ic->heap[col_loc] = ic_make_sub(ic_make_sup(sup_lab, sup0_loc));
+      ic->heap[dup_loc] = ic_make_sub(ic_make_sup(sup_lab, sup0_loc));
       return ic_make_sup(sup_lab, sup1_loc);
     }
   }
@@ -464,7 +464,7 @@ static inline Term ic_whnf(IC* ic, Term term) {
         next = ic_clear_sub(val);
         continue;
       }
-    } else if (IS_COL(tag)) {
+    } else if (IS_DUP(tag)) {
       val_loc = TERM_VAL(next);
       val = heap[val_loc];
       if (TERM_SUB(val)) {
@@ -499,12 +499,12 @@ static inline Term ic_whnf(IC* ic, Term term) {
         next = ic_app_sup(ic, prev, next);
         continue;
       }
-    } else if (IS_COL(ptag)) {
+    } else if (IS_DUP(ptag)) {
       if (tag == LAM) {
-        next = ic_col_lam(ic, prev, next);
+        next = ic_dup_lam(ic, prev, next);
         continue;
       } else if (IS_SUP(tag)) {
-        next = ic_col_sup(ic, prev, next);
+        next = ic_dup_sup(ic, prev, next);
         continue;
       }
     }
@@ -523,7 +523,7 @@ static inline Term ic_whnf(IC* ic, Term term) {
       prev = stack[--stack_pos];
       ptag = TERM_TAG(prev);
       val_loc = TERM_VAL(prev);
-      if (ptag == APP || IS_COL(ptag)) {
+      if (ptag == APP || IS_DUP(ptag)) {
         heap[val_loc] = next;
       }
       next = prev;

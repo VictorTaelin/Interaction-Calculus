@@ -302,12 +302,12 @@ void parse_term_lam(Parser* parser, uint32_t loc) {
   store_term(parser, loc, LAM, lam_node);
 }
 
-// Parse a collapser
-void parse_term_col(Parser* parser, uint32_t loc) {
-  expect(parser, "!&", "for collapser");
+// Parse a duplication
+void parse_term_dup(Parser* parser, uint32_t loc) {
+  expect(parser, "!&", "for duplication");
 
   uint8_t label = parse_uint(parser) & 0x3; // Only first 2 bits (0-3)
-  expect(parser, "{", "after label in collapser");
+  expect(parser, "{", "after label in duplication");
 
   static char var1[MAX_NAME_LEN], var2[MAX_NAME_LEN];
 
@@ -315,29 +315,29 @@ void parse_term_col(Parser* parser, uint32_t loc) {
   strncpy(var1, temp_name, MAX_NAME_LEN - 1);
   var1[MAX_NAME_LEN - 1] = '\0';
 
-  expect(parser, ",", "between names in collapser");
+  expect(parser, ",", "between names in duplication");
 
   temp_name = parse_name(parser);
   strncpy(var2, temp_name, MAX_NAME_LEN - 1);
   var2[MAX_NAME_LEN - 1] = '\0';
 
-  expect(parser, "}", "after names in collapser");
-  expect(parser, "=", "after names in collapser");
+  expect(parser, "}", "after names in duplication");
+  expect(parser, "=", "after names in duplication");
 
-  // Allocate a node specifically for the collapse value
-  uint32_t col_node = ic_alloc(parser->ic, 1);
+  // Allocate a node specifically for the duplication value
+  uint32_t dup_node = ic_alloc(parser->ic, 1);
 
-  // Create collapse variable terms that point to the col_node, NOT to the loc
-  Term co0_term = ic_make_co0(label, col_node);
-  Term co1_term = ic_make_co1(label, col_node);
+  // Create duplication variable terms that point to the dup_node, NOT to the loc
+  Term co0_term = ic_make_co0(label, dup_node);
+  Term co1_term = ic_make_co1(label, dup_node);
   bind_var(parser, var1, co0_term);
   bind_var(parser, var2, co1_term);
 
-  // Parse the collapse value into col_node
-  parse_term(parser, col_node);
-  expect(parser, ";", "after value in collapser");
+  // Parse the duplication value into dup_node
+  parse_term(parser, dup_node);
+  expect(parser, ";", "after value in duplication");
 
-  // Parse the body of the collapse into loc
+  // Parse the body of the duplication into loc
   parse_term(parser, loc);
 }
 
@@ -413,11 +413,11 @@ void parse_term(Parser* parser, uint32_t loc) {
     parser->pos--; // Restore position
 
     if (next == '&') {
-      parse_term_col(parser, loc);
+      parse_term_dup(parser, loc);
     } else if (isalpha(next) || next == '_') {
       parse_term_let(parser, loc);
     } else {
-      parse_error(parser, "Expected '&' or name after '!' for collapser or let");
+      parse_error(parser, "Expected '&' or name after '!' for duplication or let");
     }
   } else if (c == '&') {
     parse_term_sup(parser, loc);

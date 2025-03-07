@@ -156,7 +156,7 @@ inline Term m_ic_app_sup(device Term* heap, device atomic_uint& interactions,
  * @param interactions Interaction counter
  * @param heap_pos Current heap position
  * @param heap_size Total heap size
- * @param col Collapser term
+ * @param col Duplication term
  * @param lam Lambda term
  * @return Result of the interaction
  */
@@ -211,7 +211,7 @@ inline Term m_ic_col_lam(device Term* heap, device atomic_uint& interactions,
  * @param interactions Interaction counter
  * @param heap_pos Current heap position
  * @param heap_size Total heap size
- * @param col Collapser term
+ * @param col Duplication term
  * @param sup Superposition term
  * @return Result of the interaction
  */
@@ -317,7 +317,7 @@ inline Term m_ic_whnf(device Term* heap, device Term* stack,
       
       case CO0:
       case CO1: {
-        // Collapser case
+        // Duplication case
         const uint32_t col_loc = M_IC_GET_VAL(next);
         const Term val = heap[col_loc];
         if (val & TERM_SUB_MASK) { // Direct bit test

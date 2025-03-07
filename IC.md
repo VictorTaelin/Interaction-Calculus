@@ -14,7 +14,7 @@ Term ::=
   | LAM: "λ" Name "." Term
   | APP: "(" Term " " Term ")"
   | SUP: "&" Label "{" Term "," Term "}"
-  | COL: "!" "&" Label "{" Name "," Name "}" "=" Term ";" Term
+  | DUP: "!" "&" Label "{" Name "," Name "}" "=" Term ";" Term
 ```
 
 Where:
@@ -22,22 +22,22 @@ Where:
 - LAM represents a lambda.
 - APP represents a application.
 - SUP represents a superposition.
-- COL represents a collapse.
+- DUP represents a duplication.
 
 Lambdas are curried, and work like their λC counterpart, except with a relaxed
 scope, and with affine usage. Applications eliminate lambdas, like in λC,
 through the beta-reduce (APP-LAM) interaction.
 
-Superpositions work like pairs. Collapsers eliminate superpositions through
-the collapse (COL-SUP) interaction, which works exactly like a pair projection.
+Superpositions work like pairs. Duplications eliminate superpositions through
+the lapse (DUP-SUP) interaction, which works exactly like a pair projection.
 
-What makes SUPs and COLs unique is how they interact with LAMs and APPs. When a
+What makes SUPs and DUPs unique is how they interact with LAMs and APPs. When a
 SUP is applied to an argument, it reduces through the overlap interaction
 (APP-SUP), and when a LAM is projected, it reduces through the entangle
-interaction (COL-LAM). This gives a computational behavior for every possible
+interaction (DUP-LAM). This gives a computational behavior for every possible
 interaction: there are no runtime errors on the Interaction Calculus.
 
-The 'Label' is just a numeric value. It affects the COL-SUP interaction.
+The 'Label' is just a numeric value. It affects the DUP-SUP interaction.
 
 The interaction rules are listed below:
 
@@ -54,7 +54,7 @@ f
 
 ! &L{r,s} = λx.f;
 K
------------------ COL-LAM
+----------------- DUP-LAM
 r <- λx0.f0
 s <- λx1.f1
 x <- &L{x0,x1}
@@ -63,14 +63,14 @@ K
 
 ! &L{x,y} = &L{a,b};
 K
--------------------- COL-SUP (if equal labels)
+-------------------- DUP-SUP (if equal labels)
 x <- a
 y <- b
 K
 
 ! &L{x,y} = &R{a,b};
 K
--------------------- COL-SUP (if different labels)
+-------------------- DUP-SUP (if different labels)
 x <- &R{a0,b0} 
 y <- &R{a1,b1}
 ! &L{a0,a1} = a;
@@ -98,23 +98,23 @@ def app_sup(app, sup):
   x1 = fresh()
   a0 = App(sup.lft, Var(x0))
   a1 = App(sup.rgt, Var(x1))
-  return Col(sup.lab, x0, x1, app.arg, Sup(a0, a1))
+  return Dup(sup.lab, x0, x1, app.arg, Sup(a0, a1))
 
-def col_lam(col, lam):
+def dup_lam(dup, lam):
   x0 = fresh()
   x1 = fresh()
   f0 = fresh()
   f1 = fresh()
-  sub[col.lft] = Lam(x0, Var(f0))
-  sub[col.rgt] = Lam(x1, Var(f1))
-  sub[lam.nam] = Sup(col.lab, Var(x0), Var(x1))
-  return Col(col.lab, f0, f1, lam.bod, col.bod)
+  sub[dup.lft] = Lam(x0, Var(f0))
+  sub[dup.rgt] = Lam(x1, Var(f1))
+  sub[lam.nam] = Sup(dup.lab, Var(x0), Var(x1))
+  return Dup(dup.lab, f0, f1, lam.bod, dup.bod)
 
-def col_sup(col, sup):
-  if col.lab == sup.lab:
-    sub[col.lft] = sup.lft
-    sub[col.rgt] = sup.rgt
-    return col.bod
+def dup_sup(dup, sup):
+  if dup.lab == sup.lab:
+    sub[dup.lft] = sup.lft
+    sub[dup.rgt] = sup.rgt
+    return dup.bod
 ```
 
 Terms can be reduced to weak head normal form, which means reducing until the
@@ -139,7 +139,7 @@ def whnf(term):
             term = app_sup(term, fun)
           case _:
             return App(fun, arg)
-      case Col(lft, rgt, val, bod):
+      case Dup(lft, rgt, val, bod):
         val = whnf(val)
         match val:
           case Lam(_, _):
@@ -147,7 +147,7 @@ def whnf(term):
           case Sup(_, _):
             term = dup_sup(term, val)
           case _:
-            return Col(lft, rgt, val, bod)
+            return Dup(lft, rgt, val, bod)
       case _:
         return term
 ```
@@ -169,10 +169,10 @@ def normal(term):
       lft_nf = normal(lft)
       rgt_nf = normal(rgt)
       return Sup(lft_nf, rgt_nf)
-    case Col(lft, rgt, val, bod):
+    case Dup(lft, rgt, val, bod):
       val_nf = normal(val)
       bod_nf = normal(bod)
-      return Col(lft, rgt, val_nf, bod_nf)
+      return Dup(lft, rgt, val_nf, bod_nf)
     case _:
       return term
 ```
@@ -211,7 +211,7 @@ Example 3: (superposition)
 
 ```
 !{a,b} = {λx.x,λy.y}; (a b)
---------------------------- COL-SUP
+--------------------------- DUP-SUP
 (λx.x λy.y)
 ----------- APP-LAM
 λy.y
@@ -223,9 +223,9 @@ Example 4: (overlap)
 ({λx.x,λy.y} λz.z)
 ------------------ APP-SUP  
 ! {x0,x1} = λz.z; {(λx.x x0),(λy.y x1)}  
---------------------------------------- COL-LAM  
+--------------------------------------- DUP-LAM  
 ! {f0,f1} = {r,s}; {(λx.x λr.f0),(λy.y λs.f1)}  
----------------------------------------------- COL-SUP  
+---------------------------------------------- DUP-SUP  
 {(λx.x λr.r),(λy.y λs.s)}  
 ------------------------- APP-LAM  
 {λr.r,(λy.y λs.s)}  
@@ -245,9 +245,9 @@ The following term can be used to test all interactions:
 
 # Collapsing
 
-An Interaction Calculus term can be collapsed to a superposed tree of pure
-Lambda Calculus terms without SUPs and COLs, by extending the evaluator with
-the following collapse interactions:
+An Interaction Calculus term can be lapsed to a superposed tree of pure
+Lambda Calculus terms without SUPs and DUPs, by extending the evaluator with
+the following lapse interactions:
 
 ```
 λx.&L{f0,f1}
@@ -271,13 +271,13 @@ x <- &L{x0,x1}
 &L{&R{x0,x1},&R{y0,y1}}
 
 !&L{x0,x1} = x; K
------------------ COL-VAR
+----------------- DUP-VAR
 x0 <- x
 x1 <- x
 K
 
 !&L{a0,a1} = (f x); K
---------------------- COL-APP
+--------------------- DUP-APP
 a0 <- (f0 x0)
 a1 <- (f1 x1)
 !&L{f0,f1} = f;
@@ -300,52 +300,52 @@ The tag field can be:
 
 - `VAR`
 - `SUP`
-- `CO0`
-- `CO1`
+- `DP0`
+- `DP1`
 - `LAM`
 - `APP`
 
 The lab field stores:
 
-- On SUP, CO0 and CO1 terms: a label.
+- On SUP, DP0 and DP1 terms: a label.
 
 The val field depends on the variant:
 
 - `VAR`: points to a Lam node ({bod: Term}) or a substitution
-- `CO0`: points to a Col Node ({val: Term}) or a substitution
-- `CO1`: points to a Col Node ({val: Term}) or a substitution
-- `SUP`: points to a Sup Node ({lft: Term, rgt: Term})
-- `LAM`: points to a Lam Node ({bod: Term})
-- `APP`: points to an App Node ({fun: Term, arg: Term})
+- `DP0`: points to a Dup node ({val: Term}) or a substitution
+- `DP1`: points to a Dup node ({val: Term}) or a substitution
+- `SUP`: points to a Sup node ({lft: Term, rgt: Term})
+- `LAM`: points to a Lam node ({bod: Term})
+- `APP`: points to an App node ({fun: Term, arg: Term})
 
-A Node is a consecutive block of its child terms. For example, the SUP term
+A node is a consecutive block of its child terms. For example, the SUP term
 points to the memory location where its two child terms are stored.
 
-Variable terms (VAR, CO0 and CO1) point to the location where the substitution
+Variable terms (VAR, DP0 and DP1) point to the location where the substitution
 will be placed. As an optimization, that location is always the location of the
-corresponding binder node (like a Lam or Col). When the interaction occurs, we
+corresponding binder node (like a Lam or Dup). When the interaction occurs, we
 replace the binder node by the substituted term, with a 'sub' bit set. Then,
 when we access it from a variable, we retrieve that term, clearing the bit.
 
-Note that there is no COL term. That's because Col Nodes are special: they are't
+Note that there is no DUP term. That's because Dup nodes are special: they are't
 part of the AST, and they don't store a body; they "float" on the heap. In other
 words, `λx. !&0{x0,x1}=x; &0{x0,x1}` and `!&0{x0,x1}=x; λx. &0{x0,x1}` are both
-valid, and stored identically on memory. As such, the only way to access a Col
-Node is via its bound variables, CO0 and CO1.
+valid, and stored identically on memory. As such, the only way to access a Dup
+node is via its bound variables, DP0 and DP1.
 
-Before the collapse, the Col Node stores just the collapsed value (no body).
-After a collapse is triggered (when we access it via a CO0 or CO1 vars), the
-first half of the collapsed term is returned, and the other half is stored where
-the Col Node was, allowing the other var to get it as a substitution. For
-example, the COL-SUP interaction could be implemented as:
+Before the lapse, the Dup node stores just the lapsed value (no body).
+After a lapse is triggered (when we access it via a DP0 or DP1 vars), the
+first half of the lapsed term is returned, and the other half is stored where
+the Dup node was, allowing the other var to get it as a substitution. For
+example, the DUP-SUP interaction could be implemented as:
 
 ```
-def col_sup(col, sup):
-  if col.lab == sup.lab:
+def dup_sup(dup, sup):
+  if dup.lab == sup.lab:
     tm0 = heap[sup.loc + 0]
     tm1 = heap[sup.loc + 1]
-    heap[col.loc] = as_sub(tm1 if col.tag == CO0 else tm0)
-    return (tm0 if col.tag == CO0 else tm1)
+    heap[dup.loc] = as_sub(tm1 if dup.tag == DP0 else tm0)
+    return (tm0 if dup.tag == DP0 else tm1)
   else:
     co0_loc = alloc(1)
     co1_loc = alloc(1)
@@ -355,12 +355,12 @@ def col_sup(col, sup):
     su1_val = Term(SUP, sup.lab, su1_loc)
     heap[co0_loc] = heap[sup.loc + 0]
     heap[co1_loc] = heap[sup.loc + 1]
-    heap[su0_loc + 0] = Term(DP0, col.lab, co0_loc)
-    heap[su0_loc + 1] = Term(DP0, col.lab, co1_loc)
-    heap[su1_loc + 0] = Term(DP1, col.lab, co0_loc)
-    heap[su1_loc + 1] = Term(DP1, col.lab, co1_loc)
-    heap[col.loc] = as_sub(su1_val if col.tag == CO0 else tm1)
-    return (su0_val if col.tag == CO0 else su1_val)
+    heap[su0_loc + 0] = Term(DP0, dup.lab, co0_loc)
+    heap[su0_loc + 1] = Term(DP0, dup.lab, co1_loc)
+    heap[su1_loc + 0] = Term(DP1, dup.lab, co0_loc)
+    heap[su1_loc + 1] = Term(DP1, dup.lab, co1_loc)
+    heap[dup.loc] = as_sub(su1_val if dup.tag == DP0 else tm1)
+    return (su0_val if dup.tag == DP0 else su1_val)
 ```
 
 # NOTE: NEW, COMPACT MEMORY FORMAT
@@ -394,8 +394,8 @@ The 'lab' bit will not exist anymore. Instead, tags will be:
 
 Where:
 - SP{N} represents a SUP term with label N
-- CX{N} represents a CO0 term with label N
-- CY{N} represents a CO1 term with label N
+- CX{N} represents a DP0 term with label N
+- CY{N} represents a DP1 term with label N
 
 This allows IC32 to have 4 labels, and an addressable space of 2^27 terms (512
 MB), rather than just 2^24 terms (64 MB).
@@ -455,8 +455,8 @@ def parse_sup(loc):
   consume("}")
   heap[loc] = Term(SUP, lab, sup)
 
-def parse_col(loc):
-  col = alloc(1)
+def parse_dup(loc):
+  dup = alloc(1)
   consume("!")
   consume("&")
   lab = parse_uint()
@@ -466,10 +466,10 @@ def parse_col(loc):
   co1 = parse_name()
   consume("}")
   consume("=")
-  val = parse_term(col)
+  val = parse_term(dup)
   bod = parse_term(loc)
-  vars[co0] = Term(CO0, lab, loc)
-  vars[co1] = Term(CO1, lab, loc)
+  vars[co0] = Term(DP0, lab, loc)
+  vars[co1] = Term(DP1, lab, loc)
 ```
 
 # Stringifying IC32
@@ -480,19 +480,19 @@ First, IC32 terms and nodes don't store variable names. As such, we must
 generate fresh, unique variable names during stringification, and maintain a
 mapping from each binder's memory location to its assigned name.
 
-Second, on IC32, Col Nodes aren't part of the main program's AST. Instead,
-they "float" on the heap, and are only reachable via CO0 and CO1 variables.
-Because of that, by stringifying a term naively, col nodes will be missing.
+Second, on IC32, Dup nodes aren't part of the main program's AST. Instead,
+they "float" on the heap, and are only reachable via DP0 and DP1 variables.
+Because of that, by stringifying a term naively, Col nodes will be missing.
 
 To solve these, we proceed as follows:
 
 1. Before stringifying, we pass through the full term, and assign a id to each
-variable binder we find (on lam, let, col nodes, etc.)
+variable binder we find (on lam, let, dup, etc.)
 
-2. We also register every col node we found, avoiding duplicates (remember the
-same col node is pointed to by up to 2 variables, CO0 and CO1)
+2. We also register every Dup node we found, avoiding duplicates (remember the
+same dup node is pointed to by up to 2 variables, DP0 and DP1)
 
-Then, to stringify the term, we first stringify each COL node, and then we
+Then, to stringify the term, we first stringify each DUP node, and then we
 stringify the actual term. As such, the result will always be in the form:
 
 ! &{x0 x1} = t0
@@ -501,4 +501,4 @@ stringify the actual term. As such, the result will always be in the form:
 ...
 term
 
-With no COL nodes inside the ASTs of t0, t1, t2 ... and term.
+With no Dup nodes inside the ASTs of t0, t1, t2 ... and term.

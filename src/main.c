@@ -72,7 +72,7 @@ static Term normalize_term(IC* ic, Term term, int use_gpu, int use_collapse, int
       }
     } else {
       term = ic_collapse_sups(ic, term);
-      term = ic_collapse_cols(ic, term);
+      term = ic_collapse_dups(ic, term);
       return term;
     }
   } else {

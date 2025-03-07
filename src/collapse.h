@@ -3,9 +3,9 @@
 
 #include "ic.h"
 
-// Collapser
+// Duplication
 Term ic_collapse_sups(IC* ic, Term term);
-Term ic_collapse_cols(IC* ic, Term term);
+Term ic_collapse_dups(IC* ic, Term term);
 
 // -----------------------------------------------------------------------------
 // Collapse Interactions
@@ -16,6 +16,8 @@ Term ic_collapse_cols(IC* ic, Term term);
 // x <- &L{x0,x1}
 // &L{λx0.f0,λx1.f1}
 static inline Term ic_sup_lam(IC* ic, Term lam, Term sup) {
+  ic->interactions++;
+
   uint32_t lam_loc = TERM_VAL(lam);
   uint32_t sup_loc = TERM_VAL(sup);
   uint8_t sup_lab = TERM_LAB(sup);
@@ -55,6 +57,8 @@ static inline Term ic_sup_lam(IC* ic, Term lam, Term sup) {
 // !&L{f0,f1} = f
 // &L{(f0 x0),(f1 x1)}
 static inline Term ic_sup_app(IC* ic, Term app, Term sup) {
+  ic->interactions++;
+
   uint32_t app_loc = TERM_VAL(app);
   uint8_t sup_lab = TERM_LAB(sup);
   Term fun = ic->heap[app_loc + 0];
@@ -62,13 +66,13 @@ static inline Term ic_sup_app(IC* ic, Term app, Term sup) {
   Term lft = ic->heap[sup_loc + 0];
   Term rgt = ic->heap[sup_loc + 1];
 
-  // Allocate COL node for fun
-  uint32_t col_loc = ic_alloc(ic, 1);
-  ic->heap[col_loc] = fun;
+  // Allocate DUP node for fun
+  uint32_t dup_loc = ic_alloc(ic, 1);
+  ic->heap[dup_loc] = fun;
 
   // Create f0 and f1
-  Term f0 = ic_make_co0(sup_lab, col_loc);
-  Term f1 = ic_make_co1(sup_lab, col_loc);
+  Term f0 = ic_make_co0(sup_lab, dup_loc);
+  Term f1 = ic_make_co1(sup_lab, dup_loc);
 
   // Create app0 = (f0 lft)
   uint32_t app0_loc = ic_alloc(ic, 2);
@@ -94,6 +98,8 @@ static inline Term ic_sup_app(IC* ic, Term app, Term sup) {
 // !&R{y0,y1} = y;
 // &L{&R{x0,x1},&R{y0,y1}}
 static inline Term ic_sup_sup_x(IC* ic, Term outer_sup, Term inner_sup) {
+  ic->interactions++;
+
   uint32_t outer_sup_loc = TERM_VAL(outer_sup);
   uint8_t outer_lab = TERM_LAB(outer_sup);
   uint32_t inner_sup_loc = TERM_VAL(inner_sup);
@@ -102,13 +108,13 @@ static inline Term ic_sup_sup_x(IC* ic, Term outer_sup, Term inner_sup) {
   Term x1 = ic->heap[inner_sup_loc + 1];
   Term y = ic->heap[outer_sup_loc + 1];
 
-  // Allocate COL node for y with label outer_lab
-  uint32_t col_loc = ic_alloc(ic, 1);
-  ic->heap[col_loc] = y;
+  // Allocate DUP node for y with label outer_lab
+  uint32_t dup_loc = ic_alloc(ic, 1);
+  ic->heap[dup_loc] = y;
 
   // Create y0 and y1 with label outer_lab
-  Term y0 = ic_make_co0(outer_lab, col_loc);
-  Term y1 = ic_make_co1(outer_lab, col_loc);
+  Term y0 = ic_make_co0(outer_lab, dup_loc);
+  Term y1 = ic_make_co1(outer_lab, dup_loc);
 
   // Create sup0 = &outer_lab{x0, y0}
   uint32_t sup0_loc = ic_alloc(ic, 2);
@@ -134,6 +140,8 @@ static inline Term ic_sup_sup_x(IC* ic, Term outer_sup, Term inner_sup) {
 // !&R{x0,x1} = x;
 // &L{&R{x0,x1},&R{y0,y1}}
 static inline Term ic_sup_sup_y(IC* ic, Term outer_sup, Term inner_sup) {
+  ic->interactions++;
+
   uint32_t outer_sup_loc = TERM_VAL(outer_sup);
   uint8_t outer_lab = TERM_LAB(outer_sup);
   uint32_t inner_sup_loc = TERM_VAL(inner_sup);
@@ -142,13 +150,13 @@ static inline Term ic_sup_sup_y(IC* ic, Term outer_sup, Term inner_sup) {
   Term y0 = ic->heap[inner_sup_loc + 0];
   Term y1 = ic->heap[inner_sup_loc + 1];
 
-  // Allocate COL node for x with label outer_lab
-  uint32_t col_loc = ic_alloc(ic, 1);
-  ic->heap[col_loc] = x;
+  // Allocate DUP node for x with label outer_lab
+  uint32_t dup_loc = ic_alloc(ic, 1);
+  ic->heap[dup_loc] = x;
 
   // Create x0 and x1 with label outer_lab
-  Term x0 = ic_make_co0(outer_lab, col_loc);
-  Term x1 = ic_make_co1(outer_lab, col_loc);
+  Term x0 = ic_make_co0(outer_lab, dup_loc);
+  Term x1 = ic_make_co1(outer_lab, dup_loc);
 
   // Create sup0 = &outer_lab{x0, y0}
   uint32_t sup0_loc = ic_alloc(ic, 2);
@@ -170,46 +178,49 @@ static inline Term ic_sup_sup_y(IC* ic, Term outer_sup, Term inner_sup) {
 }
 
 // !&L{x0,x1} = x; K
-// ----------------- COL-VAR
+// ----------------- DUP-VAR
 // x0 <- x
 // x1 <- x
 // K
-static inline Term ic_col_var(IC* ic, Term col, Term var) {
-  uint32_t col_loc = TERM_VAL(col);
-  ic->heap[col_loc] = ic_make_sub(var);
+static inline Term ic_dup_var(IC* ic, Term dup, Term var) {
+  ic->interactions++;
+  uint32_t dup_loc = TERM_VAL(dup);
+  ic->heap[dup_loc] = ic_make_sub(var);
   return var;
 }
 
 // !&L{a0,a1} = (f x); K
-// --------------------- COL-APP
+// --------------------- DUP-APP
 // a0 <- (f0 x0)
 // a1 <- (f1 x1)
 // !&L{f0,f1} = f;
 // !&L{x0,x1} = x;
 // K
-static inline Term ic_col_app(IC* ic, Term col, Term app) {
-  uint32_t col_loc = TERM_VAL(col);
-  uint8_t lab = TERM_LAB(col);
-  TermTag tag = TERM_TAG(col);
+static inline Term ic_dup_app(IC* ic, Term dup, Term app) {
+  ic->interactions++;
+
+  uint32_t dup_loc = TERM_VAL(dup);
+  uint8_t lab = TERM_LAB(dup);
+  TermTag tag = TERM_TAG(dup);
   bool is_co0 = IS_CO0(tag);
 
   uint32_t app_loc = TERM_VAL(app);
   Term fun = ic->heap[app_loc + 0];
   Term arg = ic->heap[app_loc + 1];
 
-  // Allocate COL nodes for fun and arg
-  uint32_t col_fun_loc = ic_alloc(ic, 1);
-  ic->heap[col_fun_loc] = fun;
-  uint32_t col_arg_loc = ic_alloc(ic, 1);
-  ic->heap[col_arg_loc] = arg;
+  // Allocate DUP nodes for fun and arg
+  uint32_t dup_fun_loc = ic_alloc(ic, 1);
+  ic->heap[dup_fun_loc] = fun;
+  uint32_t dup_arg_loc = ic_alloc(ic, 1);
+  ic->heap[dup_arg_loc] = arg;
 
   // Create CO0 and CO1 for fun
-  Term f0 = ic_make_co0(lab, col_fun_loc);
-  Term f1 = ic_make_co1(lab, col_fun_loc);
+  Term f0 = ic_make_co0(lab, dup_fun_loc);
+  Term f1 = ic_make_co1(lab, dup_fun_loc);
 
   // Create CO0 and CO1 for arg
-  Term x0 = ic_make_co0(lab, col_arg_loc);
-  Term x1 = ic_make_co1(lab, col_arg_loc);
+  Term x0 = ic_make_co0(lab, dup_arg_loc);
+  Term x1 = ic_make_co1(lab, dup_arg_loc);
 
   // Create app0 = (f0 x0)
   uint32_t app0_loc = ic_alloc(ic, 2);
@@ -225,10 +236,10 @@ static inline Term ic_col_app(IC* ic, Term col, Term app) {
 
   // Set substitution and return
   if (is_co0) {
-    ic->heap[col_loc] = ic_make_sub(app1);
+    ic->heap[dup_loc] = ic_make_sub(app1);
     return app0;
   } else {
-    ic->heap[col_loc] = ic_make_sub(app0);
+    ic->heap[dup_loc] = ic_make_sub(app0);
     return app1;
   }
 }

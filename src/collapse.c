@@ -47,33 +47,33 @@ Term ic_collapse_sups(IC* ic, Term term) {
   }
 }
 
-Term ic_collapse_cols(IC* ic, Term term) {
+Term ic_collapse_dups(IC* ic, Term term) {
   term = ic_whnf(ic, term);
   TermTag tag = TERM_TAG(term);
   uint32_t loc = TERM_VAL(term);
-  if (IS_COL(tag)) {
+  if (IS_DUP(tag)) {
     // Get the value this collapser points to
-    Term val = ic_collapse_cols(ic, ic->heap[loc]);
+    Term val = ic_collapse_dups(ic, ic->heap[loc]);
     TermTag val_tag = TERM_TAG(val);
     if (val_tag == VAR) {
-      //printf(">> COL-VAR\n");
-      return ic_collapse_cols(ic, ic_col_var(ic, term, val));
+      //printf(">> DUP-VAR\n");
+      return ic_collapse_dups(ic, ic_dup_var(ic, term, val));
     } else if (val_tag == APP) {
-      //printf(">> COL-APP\n");
-      return ic_collapse_cols(ic, ic_col_app(ic, term, val));
+      //printf(">> DUP-APP\n");
+      return ic_collapse_dups(ic, ic_dup_app(ic, term, val));
     } else {
       return term;
     }
   } else if (tag == LAM) {
-    ic->heap[loc+0] = ic_collapse_cols(ic, ic->heap[loc+0]);
+    ic->heap[loc+0] = ic_collapse_dups(ic, ic->heap[loc+0]);
     return term;
   } else if (tag == APP) {
-    ic->heap[loc+0] = ic_collapse_cols(ic, ic->heap[loc+0]);
-    ic->heap[loc+1] = ic_collapse_cols(ic, ic->heap[loc+1]);
+    ic->heap[loc+0] = ic_collapse_dups(ic, ic->heap[loc+0]);
+    ic->heap[loc+1] = ic_collapse_dups(ic, ic->heap[loc+1]);
     return term;
   } else if (IS_SUP(tag)) {
-    ic->heap[loc+0] = ic_collapse_cols(ic, ic->heap[loc+0]);
-    ic->heap[loc+1] = ic_collapse_cols(ic, ic->heap[loc+1]);
+    ic->heap[loc+0] = ic_collapse_dups(ic, ic->heap[loc+0]);
+    ic->heap[loc+1] = ic_collapse_dups(ic, ic->heap[loc+1]);
     return term;
   } else {
     return term;
