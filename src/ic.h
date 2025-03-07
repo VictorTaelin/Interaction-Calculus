@@ -1,3 +1,5 @@
+//./../IC.md//
+
 #ifndef IC_H
 #define IC_H
 
@@ -131,6 +133,12 @@ static inline IC* ic_new(uint32_t heap_size, uint32_t stack_size) {
   return ic;
 }
 
+// Create a new IC context with default heap and stack sizes.
+// @return A new IC context or NULL if allocation failed
+static inline IC* ic_default_new() {
+  return ic_new(IC_DEFAULT_HEAP_SIZE, IC_DEFAULT_STACK_SIZE);
+}
+
 // Free all resources associated with an IC context.
 // @param ic The IC context to free
 static inline void ic_free(IC* ic) {
@@ -206,8 +214,38 @@ static inline Term ic_make_co1(uint8_t lab, uint32_t val) {
   return ic_make_term(CO1_TAG(lab), val);
 }
 
+// Allocs a Lam Node
+static inline uint32_t ic_lam(IC* ic, Term bod) {
+  uint32_t lam_loc = ic_alloc(ic, 1);
+  ic->heap[lam_loc + 0] = bod;
+  return lam_loc;
+}
+
+// Allocs an App Node
+static inline uint32_t ic_app(IC* ic, Term fun, Term arg) {
+  uint32_t app_loc = ic_alloc(ic, 2);
+  ic->heap[app_loc + 0] = fun;
+  ic->heap[app_loc + 1] = arg;
+  return app_loc;
+}
+
+// Allocs a Sup Node
+static inline uint32_t ic_sup(IC* ic, Term lft, Term rgt) {
+  uint32_t sup_loc = ic_alloc(ic, 2);
+  ic->heap[sup_loc + 0] = lft;
+  ic->heap[sup_loc + 1] = rgt;
+  return sup_loc;
+}
+
+// Allocs a Col Node
+static inline uint32_t ic_col(IC* ic, Term val) {
+  uint32_t col_loc = ic_alloc(ic, 1);
+  ic->heap[col_loc] = val;
+  return col_loc;
+}
+
 // -----------------------------------------------------------------------------
-// Interaction Functions
+// Core Interactions
 // -----------------------------------------------------------------------------
 
 //(λx.f a)
@@ -407,16 +445,16 @@ static inline Term ic_whnf(IC* ic, Term term) {
   Term* heap = ic->heap;
   Term* stack = ic->stack;
   uint32_t stack_pos = stop;
-  
+
   TermTag tag;
   uint32_t val_loc;
   Term val;
   Term prev;
   TermTag ptag;
-  
+
   while (1) {
     tag = TERM_TAG(next);
-    
+
     // On variables: substitute
     // On eliminators: move to field
     if (tag == VAR) {
@@ -443,13 +481,13 @@ static inline Term ic_whnf(IC* ic, Term term) {
       next = heap[val_loc]; // Reduce the function part
       continue;
     }
-    
+
     // Empty stack: term is in WHNF
     if (stack_pos == stop) {
       ic->stack_pos = stack_pos;
       return next;
     }
-    
+
     // Interaction Dispatcher
     prev = stack[--stack_pos];
     ptag = TERM_TAG(prev);
@@ -470,16 +508,16 @@ static inline Term ic_whnf(IC* ic, Term term) {
         continue;
       }
     }
-    
+
     // No interaction: push term back to stack
     stack[stack_pos++] = prev;
-    
+
     // Check if we're done
     if (stack_pos == stop) {
       ic->stack_pos = stack_pos;
       return next;
     }
-    
+
     // Update parent chain
     while (stack_pos > stop) {
       prev = stack[--stack_pos];
@@ -490,69 +528,13 @@ static inline Term ic_whnf(IC* ic, Term term) {
       }
       next = prev;
     }
-    
+
     ic->stack_pos = stack_pos;
     return next;
   }
 }
 
-// Reduce a term to full normal form by recursively applying WHNF
-// to all subterms.
-// 
-// @param ic The IC context
-// @param term The term to normalize
-// @return The fully normalized term
-static inline Term ic_normal(IC* ic, Term term) {
-  // Reset stack
-  ic->stack_pos = 0;
-  Term* heap = ic->heap;
-  Term* stack = ic->stack;
-  uint32_t stack_pos = 0;
-
-  // Allocate a new node for the initial term
-  uint32_t root_loc = ic_alloc(ic, 1);
-  heap[root_loc] = term;
-
-  // Push initial location to stack as a "location"
-  stack[stack_pos++] = ic_make_term(VAR, root_loc);
-
-  while (stack_pos > 0) {
-    // Pop current location from stack
-    uint32_t loc = TERM_VAL(stack[--stack_pos]);
-
-    // Get term at this location
-    Term current = heap[loc];
-
-    // Reduce to WHNF
-    ic->stack_pos = stack_pos;
-    current = ic_whnf(ic, current);
-    stack_pos = ic->stack_pos;
-
-    // Store the WHNF term back to the heap
-    heap[loc] = current;
-
-    // Get term details
-    TermTag tag = TERM_TAG(current);
-    uint32_t val = TERM_VAL(current);
-
-    // Push subterm locations based on term type
-    if (tag == LAM) {
-      stack[stack_pos++] = ic_make_term(VAR, val + 0);
-    } else if (tag == APP || IS_SUP(tag)) {
-      stack[stack_pos++] = ic_make_term(VAR, val + 0);
-      stack[stack_pos++] = ic_make_term(VAR, val + 1);
-    }
-  }
-
-  // Update stack position and return the fully normalized term
-  ic->stack_pos = stack_pos;
-  return heap[root_loc];
-}
-
-// Create a new IC context with default heap and stack sizes.
-// @return A new IC context or NULL if allocation failed
-static inline IC* ic_default_new() {
-  return ic_new(IC_DEFAULT_HEAP_SIZE, IC_DEFAULT_STACK_SIZE);
-}
+// Evaluates a term to strong normal form.
+Term ic_normal(IC* ic, Term term);
 
 #endif // IC_H

@@ -254,7 +254,6 @@ void skip(Parser* parser) {
 // Term parsing functions (moved from parse/term/*)
 //-----------------------------------------------------------------------------
 
-
 // Parse a variable
 void parse_term_var(Parser* parser, uint32_t loc) {
   char* name = parse_name(parser);
@@ -363,7 +362,6 @@ void parse_term_app(Parser* parser, uint32_t loc) {
   store_term(parser, loc, APP, app_node);
 }
 
-
 // Parse a let expression (syntax sugar for application of lambda)
 void parse_term_let(Parser* parser, uint32_t loc) {
   expect(parser, "!", "for let expression");
@@ -438,7 +436,6 @@ void parse_term(Parser* parser, uint32_t loc) {
     parse_error(parser, error_msg);
   }
 }
-
 
 //-----------------------------------------------------------------------------
 // Public parsing functions

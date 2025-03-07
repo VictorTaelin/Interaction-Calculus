@@ -67,6 +67,7 @@ endif
 # Main source files
 SRCS = $(SRC_DIR)/main.c \
        $(SRC_DIR)/ic.c \
+       $(SRC_DIR)/collapse.c \
        $(SRC_DIR)/show.c \
        $(SRC_DIR)/parse.c
 
