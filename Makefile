@@ -8,14 +8,14 @@ BIN_DIR = bin
 NVCC_CHECK := $(shell which nvcc 2>/dev/null || echo "")
 
 ifneq ($(NVCC_CHECK),)
-  # NVCC is available
+  # NVCC is available but ic.cu has been removed
   NVCC := $(NVCC_CHECK)
   NVCCFLAGS = -O3 --std=c++11 -w
   CUDA_CFLAGS = -DHAVE_CUDA
-  CUDA_SRCS = $(SRC_DIR)/ic.cu
-  CUDA_OBJS = $(OBJ_DIR)/ic.o
+  CUDA_SRCS =
+  CUDA_OBJS =
   CUDA_LDFLAGS = -lcudart
-  HAS_CUDA = 1
+  HAS_CUDA = 0
 else
   # No NVCC available
   CUDA_SRCS =
@@ -71,21 +71,16 @@ SRCS = $(SRC_DIR)/main.c \
        $(SRC_DIR)/show.c \
        $(SRC_DIR)/parse.c
 
-# All parser source files - updated for new structure
-PARSE_SRCS = $(wildcard $(SRC_DIR)/parse/*.c) \
-             $(wildcard $(SRC_DIR)/parse/term/*.c)
-
+# Parser is now included in the main source files
 # Objects
 OBJS = $(SRCS:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
-PARSE_OBJS = $(PARSE_SRCS:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
 
 # Executable
 TARGET = $(BIN_DIR)/main
 TARGET_LN = $(BIN_DIR)/ic
 
 # Directories
-DIRS = $(OBJ_DIR) $(BIN_DIR) $(OBJ_DIR)/parse \
-       $(OBJ_DIR)/parse/term
+DIRS = $(OBJ_DIR) $(BIN_DIR)
 
 .PHONY: all clean check-cuda remote-build remote-run
 
@@ -97,18 +92,18 @@ $(DIRS):
 # Build target with CUDA, Metal, or neither
 ifeq ($(HAS_CUDA),1)
 ifeq ($(HAS_METAL),1)
-$(TARGET): $(OBJS) $(PARSE_OBJS) $(CUDA_OBJS) $(METAL_OBJS) $(METAL_OUTPUT)
-	$(CC) $(CFLAGS) -o $@ $(OBJS) $(PARSE_OBJS) $(CUDA_OBJS) $(METAL_OBJS) $(CUDA_LDFLAGS) $(METAL_LDFLAGS)
+$(TARGET): $(OBJS) $(CUDA_OBJS) $(METAL_OBJS) $(METAL_OUTPUT)
+	$(CC) $(CFLAGS) -o $@ $(OBJS) $(CUDA_OBJS) $(METAL_OBJS) $(CUDA_LDFLAGS) $(METAL_LDFLAGS)
 else
-$(TARGET): $(OBJS) $(PARSE_OBJS) $(CUDA_OBJS)
+$(TARGET): $(OBJS) $(CUDA_OBJS)
 	$(CC) $(CFLAGS) -o $@ $^ $(CUDA_LDFLAGS)
 endif
 else
 ifeq ($(HAS_METAL),1)
-$(TARGET): $(OBJS) $(PARSE_OBJS) $(METAL_OBJS) $(METAL_OUTPUT)
-	$(CC) $(CFLAGS) -o $@ $(OBJS) $(PARSE_OBJS) $(METAL_OBJS) $(METAL_LDFLAGS)
+$(TARGET): $(OBJS) $(METAL_OBJS) $(METAL_OUTPUT)
+	$(CC) $(CFLAGS) -o $@ $(OBJS) $(METAL_OBJS) $(METAL_LDFLAGS)
 else
-$(TARGET): $(OBJS) $(PARSE_OBJS)
+$(TARGET): $(OBJS)
 	$(CC) $(CFLAGS) -o $@ $^
 endif
 endif
@@ -139,11 +134,7 @@ $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
 endif
 endif
 
-# Compile CUDA
-ifeq ($(HAS_CUDA),1)
-$(OBJ_DIR)/ic.o: $(SRC_DIR)/ic.cu
-	$(NVCC) $(NVCCFLAGS) -c -o $@ $<
-endif
+# CUDA compilation has been removed since ic.cu no longer exists
 
 # Compile Metal Objective-C++
 ifeq ($(HAS_METAL),1)
