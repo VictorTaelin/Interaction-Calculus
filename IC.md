@@ -100,21 +100,21 @@ def app_sup(app, sup):
   a1 = App(sup.rgt, Var(x1))
   return Col(sup.lab, x0, x1, app.arg, Sup(a0, a1))
 
-def dup_lam(dup, lam):
+def col_lam(col, lam):
   x0 = fresh()
   x1 = fresh()
   f0 = fresh()
   f1 = fresh()
-  sub[dup.lft] = Lam(x0, Var(f0))
-  sub[dup.rgt] = Lam(x1, Var(f1))
-  sub[lam.nam] = Sup(dup.lab, Var(x0), Var(x1))
-  return Col(dup.lab, f0, f1, lam.bod, dup.bod)
+  sub[col.lft] = Lam(x0, Var(f0))
+  sub[col.rgt] = Lam(x1, Var(f1))
+  sub[lam.nam] = Sup(col.lab, Var(x0), Var(x1))
+  return Col(col.lab, f0, f1, lam.bod, col.bod)
 
-def dup_sup(dup, sup):
-  if dup.lab == sup.lab:
-    sub[dup.lft] = sup.lft
-    sub[dup.rgt] = sup.rgt
-    return dup.bod
+def col_sup(col, sup):
+  if col.lab == sup.lab:
+    sub[col.lft] = sup.lft
+    sub[col.rgt] = sup.rgt
+    return col.bod
 ```
 
 Terms can be reduced to weak head normal form, which means reducing until the
@@ -243,6 +243,16 @@ The following term can be used to test all interactions:
 λa.λb.a
 ```
 
+# Collapsing
+
+An IC term can be collapsed to a list of λC via the Collapse Monad.
+
+TODO: complete this session.
+
+Read:
+- https://gist.github.com/VictorTaelin/60d3bc72fb4edefecd42095e44138b41
+- https://github.com/HigherOrderCO/HVM3/blob/main/src/HVML/Collapse.hs
+
 # IC32: a 32-Bit Runtime
 
 IC32 is implemented in portable C.
@@ -359,6 +369,113 @@ This allows IC32 to have 4 labels, and an addressable space of 2^27 terms (512
 MB), rather than just 2^24 terms (64 MB).
 
 The 'sub' flag remains the same.
+
+# Equality
+
+Two IC terms are equal if any of their collapsed λC terms are.
+
+To implement this efficiently, we use a new type, the EqTree:
+
+```
+EqTree ::=
+  | E_EQL: Term "==" Term
+  | E_SUP: "&" Label "{" EqTree "," EqTree "}"
+  | E_AND: EqTree "&&" EqTree
+  | E_FAL: "0"
+  | E_TRU: "1"
+```
+
+Together with the following equality interactions:
+
+```
+#X == #Y
+---------- eql-idx
+if X=Y : 1
+else   : 0
+
+λax.af == λbx.bf
+---------------- eql-lam
+ax <- #X
+bx <- #X
+af == bf
+
+(af ax) == (bf bx)
+-------------------- eql-app
+af == bf && ax == bx
+
+&L{ax,ay} == b
+-------------------- eql-sup-a
+!&L{bx,by} = b
+ax == bx && ay == by
+
+a == &L{bx,by}
+-------------------- eql-sup-b
+!&L{ax,ay} = a
+ax == bx && ay == by
+```
+
+And the following disjunction interactions:
+
+```
+0 && x
+------ and-0-x
+0
+
+x && 0
+------ and-x-1
+0
+
+1 && 1
+------ and-1-1
+1
+
+&L{ax,ay} && b
+----------------------- and-sup-a
+!&L{bx,by} = b
+&L{ax && bx , ay && by}
+
+a && &L{bx,by}
+----------------------- and-sup-a
+!&L{ax,ay} = a
+&L{ax && bx , ay && by}
+```
+
+And the following superposition permutations:
+
+```
+&R{&L{ax,ay},b}
+----------------------- sup-sup-a (if R>L)
+&R{bx,by} = b
+&L{&R{ax,bx},&R{ay,by}}
+
+&R{a,&L{bx,by}}
+----------------------- sup-sup-b (if R>L)
+&R{ax,ay} = a
+&L{&R{ax,bx},&R{ay,by}}
+```
+
+
+And the additional collapse interactions:
+
+```
+!&L{a0,a1} = #X; K
+------------------ col-idx
+a0 <- #X
+a1 <- #X
+K
+
+!&L{a0,a1} = (af ax); K
+----------------------- col-app
+!&L{af0,af1} = af
+!&L{ax0,ax1} = ax
+a0 <- (af0 ax0)
+a1 <- (af1 ax1)
+K
+```
+
+To check if `A` and `B` are equal, we allocate the initial `A == B` EqTree, and
+perform interactions until the tree is normalized. The result will be a tree of
+sups, 0's and 1's, with 1's placed on universes where the equation holds.
 
 # Parsing IC32
 
