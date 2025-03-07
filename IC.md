@@ -339,7 +339,7 @@ Each Term will still have 32 bits, but will be split as:
 
 - sub (1-bit)
 - tag (4-bit)
-- val (28-bit)
+- val (27-bit)
 
 The 'lab' bit will not exist anymore. Instead, tags will be:
 
@@ -453,7 +453,6 @@ And the following superposition permutations:
 &R{ax,ay} = a
 &L{&R{ax,bx},&R{ay,by}}
 ```
-
 
 And the additional collapse interactions:
 
