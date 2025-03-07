@@ -46,14 +46,14 @@ typedef enum {
   SP1 = 0x5, // Superposition with label 1
   SP2 = 0x6, // Superposition with label 2
   SP3 = 0x7, // Superposition with label 3
-  CX0 = 0x8, // Duplication variable 0 with label 0
-  CX1 = 0x9, // Duplication variable 0 with label 1
-  CX2 = 0xA, // Duplication variable 0 with label 2
-  CX3 = 0xB, // Duplication variable 0 with label 3
-  CY0 = 0xC, // Duplication variable 1 with label 0
-  CY1 = 0xD, // Duplication variable 1 with label 1
-  CY2 = 0xE, // Duplication variable 1 with label 2
-  CY3 = 0xF, // Duplication variable 1 with label 3
+  DX0 = 0x8, // Duplication variable 0 with label 0
+  DX1 = 0x9, // Duplication variable 0 with label 1
+  DX2 = 0xA, // Duplication variable 0 with label 2
+  DX3 = 0xB, // Duplication variable 0 with label 3
+  DY0 = 0xC, // Duplication variable 1 with label 0
+  DY1 = 0xD, // Duplication variable 1 with label 1
+  DY2 = 0xE, // Duplication variable 1 with label 2
+  DY3 = 0xF, // Duplication variable 1 with label 3
 } TermTag;
 
 // Term 32-bit packed representation
@@ -72,12 +72,12 @@ typedef uint32_t Term;
 // Label helpers (for compatibility with existing code)
 #define TERM_LAB(term) ((TERM_TAG(term) & 0x3)) // Extract label from tag (last 2 bits)
 #define IS_SUP(tag) ((tag) >= SP0 && (tag) <= SP3)
-#define IS_CO0(tag) ((tag) >= CX0 && (tag) <= CX3)
-#define IS_CO1(tag) ((tag) >= CY0 && (tag) <= CY3)
-#define IS_DUP(tag) ((tag) >= CX0 && (tag) <= CY3)
+#define IS_DP0(tag) ((tag) >= DX0 && (tag) <= DX3)
+#define IS_DP1(tag) ((tag) >= DY0 && (tag) <= DY3)
+#define IS_DUP(tag) ((tag) >= DX0 && (tag) <= DY3)
 #define SUP_TAG(lab) ((TermTag)(SP0 + ((lab) & 0x3)))
-#define CO0_TAG(lab) ((TermTag)(CX0 + ((lab) & 0x3)))
-#define CO1_TAG(lab) ((TermTag)(CY0 + ((lab) & 0x3)))
+#define DP0_TAG(lab) ((TermTag)(DX0 + ((lab) & 0x3)))
+#define DP1_TAG(lab) ((TermTag)(DY0 + ((lab) & 0x3)))
 
 // Term creation
 #define MAKE_TERM(sub, tag, val) \

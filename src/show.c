@@ -6,8 +6,8 @@
 #include "show.h"
 
 // For backward compatibility with the showing code
-#define CO0 100  // Just a value not used for any other tag
-#define CO1 101  // Just a value not used for any other tag
+#define DP0 100  // Just a value not used for any other tag
+#define DP1 101  // Just a value not used for any other tag
 
 // Maximum string length for term representation
 #define MAX_STR_LEN 65536
@@ -16,7 +16,7 @@
 typedef struct {
   uint32_t count;        // Number of variables encountered
   uint32_t* locations;   // Array of variable locations
-  TermTag* types;        // Array of variable types (VAR, CO0, CO1)
+  TermTag* types;        // Array of variable types (VAR, DP0, DP1)
   char** names;          // Array of variable names
   uint32_t capacity;     // Capacity of the arrays
 } VarNameTable;
@@ -72,12 +72,12 @@ char* add_variable(VarNameTable* table, uint32_t location, TermTag type) {
     table->names = (char**)realloc(table->names, table->capacity * sizeof(char*));
   }
 
-  // For compatibility, we only store the basic types (VAR, CO0, CO1) in the table
+  // For compatibility, we only store the basic types (VAR, DP0, DP1) in the table
   TermTag basicType = type;
-  if (IS_CO0(type)) {
-    basicType = CO0;
-  } else if (IS_CO1(type)) {
-    basicType = CO1;
+  if (IS_DP0(type)) {
+    basicType = DP0;
+  } else if (IS_DP1(type)) {
+    basicType = DP1;
   }
 
   // Check if the variable is already in the table
@@ -93,9 +93,9 @@ char* add_variable(VarNameTable* table, uint32_t location, TermTag type) {
 
   // Generate a name for the variable based on its type
   char* name = (char*)malloc(16);
-  if (basicType == CO0) {
+  if (basicType == DP0) {
     sprintf(name, "a%u", table->count);
-  } else if (basicType == CO1) {
+  } else if (basicType == DP1) {
     sprintf(name, "b%u", table->count);
   } else {
     sprintf(name, "x%u", table->count);
@@ -110,10 +110,10 @@ char* add_variable(VarNameTable* table, uint32_t location, TermTag type) {
 char* get_var_name(VarNameTable* table, uint32_t location, TermTag type) {
   // Convert to basic type for lookup
   TermTag basicType = type;
-  if (IS_CO0(type)) {
-    basicType = CO0;
-  } else if (IS_CO1(type)) {
-    basicType = CO1;
+  if (IS_DP0(type)) {
+    basicType = DP0;
+  } else if (IS_DP1(type)) {
+    basicType = DP1;
   }
 
   for (uint32_t i = 0; i < table->count; i++) {
@@ -168,16 +168,16 @@ void assign_var_ids(IC* ic, Term term, VarNameTable* var_table, DupTable* dup_ta
       break;
     }
 
-    // Handle all CO0 variants (CX0-CX3)
-    case CX0:
-    case CX1:
-    case CX2:
-    case CX3:
-    // Handle all CO1 variants (CY0-CY3)
-    case CY0:
-    case CY1:
-    case CY2:
-    case CY3: {
+    // Handle all DUP X variants (DX0-DX3)
+    case DX0:
+    case DX1:
+    case DX2:
+    case DX3:
+    // Handle all DUP Y variants (DY0-DY3)
+    case DY0:
+    case DY1:
+    case DY2:
+    case DY3: {
       uint32_t loc = val;
       Term subst = ic->heap[loc];
       if (TERM_SUB(subst)) {
@@ -225,8 +225,8 @@ void stringify_duplications(IC* ic, DupTable* dup_table, VarNameTable* var_table
   // First, add all duplication variables
   for (uint32_t i = 0; i < dup_table->count; i++) {
     uint32_t dup_loc = dup_table->locations[i];
-    add_variable(var_table, dup_loc, CO0);
-    add_variable(var_table, dup_loc, CO1);
+    add_variable(var_table, dup_loc, DP0);
+    add_variable(var_table, dup_loc, DP1);
   }
 
   // Then, stringify each duplication
@@ -236,8 +236,8 @@ void stringify_duplications(IC* ic, DupTable* dup_table, VarNameTable* var_table
     Term val_term = ic->heap[dup_loc];
 
     // Get variable names
-    char* var0 = get_var_name(var_table, dup_loc, CO0);
-    char* var1 = get_var_name(var_table, dup_loc, CO1);
+    char* var0 = get_var_name(var_table, dup_loc, DP0);
+    char* var1 = get_var_name(var_table, dup_loc, DP1);
 
     // Add duplication header
     *pos += snprintf(buffer + *pos, max_len - *pos, "! &%u{%s,%s} = ", lab, var0, var1);
@@ -269,17 +269,17 @@ void stringify_term(IC* ic, Term term, VarNameTable* var_table, char* buffer, in
       break;
     }
 
-    // Handle all CO0 variants (CX0-CX3)
-    case CX0:
-    case CX1:
-    case CX2:
-    case CX3:
-    // Handle all CO1 variants (CY0-CY3)
-    case CY0:
-    case CY1:
-    case CY2:
-    case CY3: {
-      TermTag co_type = (tag >= CX0 && tag <= CX3) ? CO0 : CO1;
+    // Handle all DUP X variants (DX0-DX3)
+    case DX0:
+    case DX1:
+    case DX2:
+    case DX3:
+    // Handle all DUP Y variants (DY0-DY3)
+    case DY0:
+    case DY1:
+    case DY2:
+    case DY3: {
+      TermTag co_type = (tag >= DX0 && tag <= DX3) ? DP0 : DP1;
       uint32_t loc = val;
       Term subst = ic->heap[loc];
       if (TERM_SUB(subst)) {

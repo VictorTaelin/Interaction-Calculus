@@ -96,20 +96,20 @@ inline Term ic_make_sup(uint8_t lab, uint32_t val) {
   return ic_make_term(SUP_TAG(lab), val);
 }
 
-// Helper to create a CO0 term with the appropriate tag for a label
+// Helper to create a DP0 term with the appropriate tag for a label
 // @param lab Label value (0-3)
 // @param val Value/pointer into the heap
-// @return The constructed CO0 term
+// @return The constructed DP0 term
 inline Term ic_make_co0(uint8_t lab, uint32_t val) {
-  return ic_make_term(CO0_TAG(lab), val);
+  return ic_make_term(DP0_TAG(lab), val);
 }
 
-// Helper to create a CO1 term with the appropriate tag for a label
+// Helper to create a DP1 term with the appropriate tag for a label
 // @param lab Label value (0-3)
 // @param val Value/pointer into the heap
-// @return The constructed CO1 term
+// @return The constructed DP1 term
 inline Term ic_make_co1(uint8_t lab, uint32_t val) {
-  return ic_make_term(CO1_TAG(lab), val);
+  return ic_make_term(DP1_TAG(lab), val);
 }
 
 // Allocs a Lam node
@@ -188,7 +188,7 @@ inline Term ic_app_sup(IC* ic, Term app, Term sup) {
   // Store the arg in the duplication location
   ic->heap[dup_loc] = arg;
 
-  // Create CO0 and CO1 terms
+  // Create DP0 and DP1 terms
   Term x0 = ic_make_co0(sup_lab, dup_loc);
   Term x1 = ic_make_co1(sup_lab, dup_loc);
 
@@ -222,7 +222,7 @@ inline Term ic_dup_lam(IC* ic, Term dup, Term lam) {
   uint32_t lam_loc = TERM_VAL(lam);
   uint8_t dup_lab = TERM_LAB(dup);
   TermTag dup_tag = TERM_TAG(dup);
-  uint8_t is_co0 = IS_CO0(dup_tag);
+  uint8_t is_co0 = IS_DP0(dup_tag);
 
   Term bod = ic->heap[lam_loc + 0];
 
@@ -281,7 +281,7 @@ inline Term ic_dup_sup(IC* ic, Term dup, Term sup) {
   uint8_t sup_lab = TERM_LAB(sup);
   TermTag dup_tag = TERM_TAG(dup);
   TermTag sup_tag = TERM_TAG(sup);
-  uint8_t is_co0 = IS_CO0(dup_tag);
+  uint8_t is_co0 = IS_DP0(dup_tag);
 
   Term lft = ic->heap[sup_loc + 0];
   Term rgt = ic->heap[sup_loc + 1];
@@ -306,11 +306,11 @@ inline Term ic_dup_sup(IC* ic, Term dup, Term sup) {
     uint32_t dup_lft_loc = sup_loc + 0;
     uint32_t dup_rgt_loc = sup_loc + 1;
 
-    // Set up the first superposition (for CO0)
+    // Set up the first superposition (for DP0)
     ic->heap[sup0_loc + 0] = ic_make_co0(dup_lab, dup_lft_loc);
     ic->heap[sup0_loc + 1] = ic_make_co0(dup_lab, dup_rgt_loc);
 
-    // Set up the second superposition (for CO1)
+    // Set up the second superposition (for DP1)
     ic->heap[sup1_loc + 0] = ic_make_co1(dup_lab, dup_lft_loc);
     ic->heap[sup1_loc + 1] = ic_make_co1(dup_lab, dup_rgt_loc);
 

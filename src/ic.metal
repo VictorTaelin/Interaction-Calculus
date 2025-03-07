@@ -18,8 +18,8 @@ typedef uint32_t Term;
 // Term tags (matching the enum in ic.h)
 constant uint VAR = 0;
 constant uint SUP = 1; 
-constant uint CO0 = 2;
-constant uint CO1 = 3;
+constant uint DP0 = 2;
+constant uint DP1 = 3;
 constant uint LAM = 4;
 constant uint APP = 5;
 
@@ -131,9 +131,9 @@ inline Term m_ic_app_sup(device Term* heap, device atomic_uint& interactions,
   // Store arg in collapser location
   heap[col_loc] = arg;
   
-  // Create CO0 and CO1 terms
-  const Term x0 = M_IC_MAKE_TERM(CO0, sup_lab, col_loc);
-  const Term x1 = M_IC_MAKE_TERM(CO1, sup_lab, col_loc);
+  // Create DP0 and DP1 terms
+  const Term x0 = M_IC_MAKE_TERM(DP0, sup_lab, col_loc);
+  const Term x1 = M_IC_MAKE_TERM(DP1, sup_lab, col_loc);
   
   // Reuse sup_loc for app0 (lft is already in heap[sup_loc + 0])
   heap[sup_loc + 1] = x0;
@@ -169,7 +169,7 @@ inline Term m_ic_col_lam(device Term* heap, device atomic_uint& interactions,
   const uint32_t col_loc = M_IC_GET_VAL(col);
   const uint32_t lam_loc = M_IC_GET_VAL(lam);
   const uint8_t col_lab = M_IC_GET_LAB(col);
-  const uint8_t is_co0 = (M_IC_GET_TAG(col) == CO0);
+  const uint8_t is_co0 = (M_IC_GET_TAG(col) == DP0);
   
   // Load body
   const Term bod = heap[lam_loc + 0];
@@ -192,8 +192,8 @@ inline Term m_ic_col_lam(device Term* heap, device atomic_uint& interactions,
   heap[col_new_loc] = bod;
   
   // Set up new lambda bodies
-  heap[lam0_loc] = M_IC_MAKE_TERM(CO0, col_lab, col_new_loc);
-  heap[lam1_loc] = M_IC_MAKE_TERM(CO1, col_lab, col_new_loc);
+  heap[lam0_loc] = M_IC_MAKE_TERM(DP0, col_lab, col_new_loc);
+  heap[lam1_loc] = M_IC_MAKE_TERM(DP1, col_lab, col_new_loc);
   
   // Create and return the appropriate lambda
   if (is_co0) {
@@ -225,7 +225,7 @@ inline Term m_ic_col_sup(device Term* heap, device atomic_uint& interactions,
   const uint32_t sup_loc = M_IC_GET_VAL(sup);
   const uint8_t col_lab = M_IC_GET_LAB(col);
   const uint8_t sup_lab = M_IC_GET_LAB(sup);
-  const uint8_t is_co0 = (M_IC_GET_TAG(col) == CO0);
+  const uint8_t is_co0 = (M_IC_GET_TAG(col) == DP0);
   
   // Load values needed for both paths
   const Term lft = heap[sup_loc + 0];
@@ -251,13 +251,13 @@ inline Term m_ic_col_sup(device Term* heap, device atomic_uint& interactions,
     const uint32_t col_lft_loc = sup_loc + 0;
     const uint32_t col_rgt_loc = sup_loc + 1;
     
-    // Set up the first superposition (for CO0)
-    heap[sup0_loc + 0] = M_IC_MAKE_TERM(CO0, col_lab, col_lft_loc);
-    heap[sup0_loc + 1] = M_IC_MAKE_TERM(CO0, col_lab, col_rgt_loc);
+    // Set up the first superposition (for DP0)
+    heap[sup0_loc + 0] = M_IC_MAKE_TERM(DP0, col_lab, col_lft_loc);
+    heap[sup0_loc + 1] = M_IC_MAKE_TERM(DP0, col_lab, col_rgt_loc);
     
-    // Set up the second superposition (for CO1)
-    heap[sup1_loc + 0] = M_IC_MAKE_TERM(CO1, col_lab, col_lft_loc);
-    heap[sup1_loc + 1] = M_IC_MAKE_TERM(CO1, col_lab, col_rgt_loc);
+    // Set up the second superposition (for DP1)
+    heap[sup1_loc + 0] = M_IC_MAKE_TERM(DP1, col_lab, col_lft_loc);
+    heap[sup1_loc + 1] = M_IC_MAKE_TERM(DP1, col_lab, col_rgt_loc);
     
     // Set up original collapsers to point to lft and rgt
     heap[col_lft_loc] = lft;
@@ -315,8 +315,8 @@ inline Term m_ic_whnf(device Term* heap, device Term* stack,
         break; // No substitution, so it's in WHNF
       }
       
-      case CO0:
-      case CO1: {
+      case DP0:
+      case DP1: {
         // Duplication case
         const uint32_t col_loc = M_IC_GET_VAL(next);
         const Term val = heap[col_loc];
@@ -372,11 +372,11 @@ inline Term m_ic_whnf(device Term* heap, device Term* stack,
             next = m_ic_app_sup(heap, interactions, heap_pos, heap_size, prev, next); 
             continue;
           }
-          else if ((ptag == CO0 || ptag == CO1) && tag == LAM) {
+          else if ((ptag == DP0 || ptag == DP1) && tag == LAM) {
             next = m_ic_col_lam(heap, interactions, heap_pos, heap_size, prev, next);
             continue;
           }
-          else if ((ptag == CO0 || ptag == CO1) && tag == SUP) {
+          else if ((ptag == DP0 || ptag == DP1) && tag == SUP) {
             next = m_ic_col_sup(heap, interactions, heap_pos, heap_size, prev, next);
             continue;
           }
@@ -403,7 +403,7 @@ inline Term m_ic_whnf(device Term* heap, device Term* stack,
         const uint32_t hloc = M_IC_GET_VAL(host);
         
         // Update the heap with the reduced term - only for specific tags
-        if (htag == APP || htag == CO0 || htag == CO1) {
+        if (htag == APP || htag == DP0 || htag == DP1) {
           heap[hloc] = next;
         }
         next = host;

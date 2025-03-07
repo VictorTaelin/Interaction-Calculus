@@ -21,7 +21,7 @@ typedef struct {
 // Variable binding structure 
 typedef struct {
   char name[MAX_NAME_LEN];  // Variable name
-  Term term;                // Term representing the variable (VAR, CO0, CO1)
+  Term term;                // Term representing the variable (VAR, DP0, DP1)
 } VarBinding;
 
 // Parser state structure

@@ -29,13 +29,13 @@ scope, and with affine usage. Applications eliminate lambdas, like in λC,
 through the beta-reduce (APP-LAM) interaction.
 
 Superpositions work like pairs. Duplications eliminate superpositions through
-the lapse (DUP-SUP) interaction, which works exactly like a pair projection.
+the DUP-SUP interaction, which works exactly like a pair projection.
 
 What makes SUPs and DUPs unique is how they interact with LAMs and APPs. When a
-SUP is applied to an argument, it reduces through the overlap interaction
-(APP-SUP), and when a LAM is projected, it reduces through the entangle
-interaction (DUP-LAM). This gives a computational behavior for every possible
-interaction: there are no runtime errors on the Interaction Calculus.
+SUP is applied to an argument, it reduces through the APP-SUP interaction, and
+when a LAM is projected, it reduces through the DUP-LAM interaction. This gives
+a computational behavior for every possible interaction: there are no runtime
+errors on the Interaction Calculus.
 
 The 'Label' is just a numeric value. It affects the DUP-SUP interaction.
 
@@ -245,9 +245,9 @@ The following term can be used to test all interactions:
 
 # Collapsing
 
-An Interaction Calculus term can be lapsed to a superposed tree of pure
-Lambda Calculus terms without SUPs and DUPs, by extending the evaluator with
-the following lapse interactions:
+An Interaction Calculus term can be collapsed to a superposed tree of pure
+Lambda Calculus terms without SUPs and DUPs, by extending the evaluator with the
+following collapse interactions:
 
 ```
 λx.&L{f0,f1}
@@ -289,118 +289,90 @@ K
 
 IC32 is implemented in portable C.
 
-It represents terms with u32-pointers, which store 4 fields:
+Each Term is represented as a 32-bit word, split into the following fields:
 
 - sub (1-bit): true if this is a substitution
-- tag (3-bit): the tag
-- lab (4-bit): the label
-- val (24-bit): the value
+- tag (4-bit): the tag identifying the term type and label
+- val (27-bit): the value, typically a pointer to a node in memory
 
-The tag field can be:
+The tag field can be one of the following:
 
-- `VAR`
-- `SUP`
-- `DP0`
-- `DP1`
-- `LAM`
-- `APP`
-
-The lab field stores:
-
-- On SUP, DP0 and DP1 terms: a label.
+- `VAR`: 0x0
+- `LAM`: 0x1
+- `APP`: 0x2
+- `ERA`: 0x3
+- `SP0`: 0x4
+- `SP1`: 0x5
+- `SP2`: 0x6
+- `SP3`: 0x7
+- `CX0`: 0x8
+- `CX1`: 0x9
+- `CX2`: 0xA
+- `CX3`: 0xB
+- `CY0`: 0xC
+- `CY1`: 0xD
+- `CY2`: 0xE
+- `CY3`: 0xF
 
 The val field depends on the variant:
 
-- `VAR`: points to a Lam node ({bod: Term}) or a substitution
-- `DP0`: points to a Dup node ({val: Term}) or a substitution
-- `DP1`: points to a Dup node ({val: Term}) or a substitution
-- `SUP`: points to a Sup node ({lft: Term, rgt: Term})
-- `LAM`: points to a Lam node ({bod: Term})
-- `APP`: points to an App node ({fun: Term, arg: Term})
+- `VAR`: points to a Lam node ({bod: Term}) or a substitution.
+- `LAM`: points to a Lam node ({bod: Term}).
+- `APP`: points to an App node ({fun: Term, arg: Term}).
+- `ERA`: unused.
+- `SP{L}`: points to a Sup node ({lft: Term, rgt: Term}).
+- `CX{L}`: points to a Dup node ({val: Term}) or a substitution.
+- `CY{L}`: points to a Dup node ({val: Term}) or a substitution.
 
 A node is a consecutive block of its child terms. For example, the SUP term
 points to the memory location where its two child terms are stored.
 
-Variable terms (VAR, DP0 and DP1) point to the location where the substitution
-will be placed. As an optimization, that location is always the location of the
-corresponding binder node (like a Lam or Dup). When the interaction occurs, we
-replace the binder node by the substituted term, with a 'sub' bit set. Then,
-when we access it from a variable, we retrieve that term, clearing the bit.
+Variable terms (`VAR`, `CX{L}`, and `CY{L}`) point to the location where the
+substitution will be placed. As an optimization, that location is always the
+location of the corresponding binder node (like a Lam or Dup). When the
+interaction occurs, we replace the binder node by the substituted term, with the
+'sub' bit set. Then, when we access it from a variable, we retrieve that term,
+clearing the bit.
 
-Note that there is no DUP term. That's because Dup nodes are special: they are't
-part of the AST, and they don't store a body; they "float" on the heap. In other
-words, `λx. !&0{x0,x1}=x; &0{x0,x1}` and `!&0{x0,x1}=x; λx. &0{x0,x1}` are both
-valid, and stored identically on memory. As such, the only way to access a Dup
-node is via its bound variables, DP0 and DP1.
+On SUPs and DUPs, the 'L' stands for the label of the corresponding node.
 
-Before the lapse, the Dup node stores just the lapsed value (no body).
-After a lapse is triggered (when we access it via a DP0 or DP1 vars), the
-first half of the lapsed term is returned, and the other half is stored where
-the Dup node was, allowing the other var to get it as a substitution. For
-example, the DUP-SUP interaction could be implemented as:
+Note that there is no explicit DUP term. That's because Dup nodes are special:
+they aren't part of the AST, and they don't store a body; they "float" on the
+heap.  In other words, `λx. !&0{x0,x1}=x; &0{x0,x1}` and `!&0{x0,x1}=x; λx.
+&0{x0,x1}` are both valid, and stored identically in memory. As such, the only
+way to access a Dup node is via its bound variables, `CX{L}` and `CY{L}`.
+
+Before the interaction, the Dup node stores just the duplicated value (no body).
+After a collapse is triggered (when we access it via a `CX{L}` or `CY{L}`
+variable), the first half of the duplicated term is returned, and the other half
+is stored where the Dup node was, allowing the other variable to get it as a
+substitution. For example, the DUP-SUP interaction could be implemented as:
 
 ```
 def dup_sup(dup, sup):
-  if dup.lab == sup.lab:
+  dup_lab = dup.tag & 0x3
+  sup_lab = sup.tag & 0x3
+  if dup_lab == sup_lab:
     tm0 = heap[sup.loc + 0]
     tm1 = heap[sup.loc + 1]
-    heap[dup.loc] = as_sub(tm1 if dup.tag == DP0 else tm0)
-    return (tm0 if dup.tag == DP0 else tm1)
+    heap[dup.loc] = as_sub(tm1 if (dup.tag & 0x4) == 0 else tm0)
+    return (tm0 if (dup.tag & 0x4) == 0 else tm1)
   else:
     co0_loc = alloc(1)
     co1_loc = alloc(1)
     su0_loc = alloc(2)
     su1_loc = alloc(2)
-    su0_val = Term(SUP, sup.lab, su0_loc)
-    su1_val = Term(SUP, sup.lab, su1_loc)
+    su0_val = Term(SP0 + sup_lab, su0_loc)
+    su1_val = Term(SP0 + sup_lab, su1_loc)
     heap[co0_loc] = heap[sup.loc + 0]
     heap[co1_loc] = heap[sup.loc + 1]
-    heap[su0_loc + 0] = Term(DP0, dup.lab, co0_loc)
-    heap[su0_loc + 1] = Term(DP0, dup.lab, co1_loc)
-    heap[su1_loc + 0] = Term(DP1, dup.lab, co0_loc)
-    heap[su1_loc + 1] = Term(DP1, dup.lab, co1_loc)
-    heap[dup.loc] = as_sub(su1_val if dup.tag == DP0 else tm1)
-    return (su0_val if dup.tag == DP0 else su1_val)
+    heap[su0_loc + 0] = Term(CX0 + dup_lab, co0_loc)
+    heap[su0_loc + 1] = Term(CX0 + dup_lab, co1_loc)
+    heap[su1_loc + 0] = Term(CY0 + dup_lab, co0_loc)
+    heap[su1_loc + 1] = Term(CY0 + dup_lab, co1_loc)
+    heap[dup.loc] = as_sub(su1_val if (dup.tag & 0x4) == 0 else su0_val)
+    return (su0_val if (dup.tag & 0x4) == 0 else su1_val)
 ```
-
-# NOTE: NEW, COMPACT MEMORY FORMAT
-
-We're refactoring IC32 to a new, more compact memory format.
-
-Each Term will still have 32 bits, but will be split as:
-
-- sub (1-bit)
-- tag (4-bit)
-- val (27-bit)
-
-The 'lab' bit will not exist anymore. Instead, tags will be:
-
-- VAR: 0x0
-- LAM: 0x1
-- APP: 0x2
-- ERA: 0x3
-- SP0: 0x4
-- SP1: 0x5
-- SP2: 0x6
-- SP3: 0x7
-- CX0: 0x8
-- CX1: 0x9
-- CX2: 0xA
-- CX3: 0xB
-- CY0: 0xC
-- CY1: 0xD
-- CY2: 0xE
-- CY3: 0xF
-
-Where:
-- SP{N} represents a SUP term with label N
-- CX{N} represents a DP0 term with label N
-- CY{N} represents a DP1 term with label N
-
-This allows IC32 to have 4 labels, and an addressable space of 2^27 terms (512
-MB), rather than just 2^24 terms (64 MB).
-
-The 'sub' flag remains the same.
 
 # Parsing IC32
 

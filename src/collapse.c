@@ -203,7 +203,7 @@ static inline Term ic_dup_app(IC* ic, Term dup, Term app) {
   uint32_t dup_loc = TERM_VAL(dup);
   uint8_t lab = TERM_LAB(dup);
   TermTag tag = TERM_TAG(dup);
-  bool is_co0 = IS_CO0(tag);
+  bool is_co0 = IS_DP0(tag);
 
   uint32_t app_loc = TERM_VAL(app);
   Term fun = ic->heap[app_loc + 0];
@@ -215,11 +215,11 @@ static inline Term ic_dup_app(IC* ic, Term dup, Term app) {
   uint32_t dup_arg_loc = ic_alloc(ic, 1);
   ic->heap[dup_arg_loc] = arg;
 
-  // Create CO0 and CO1 for fun
+  // Create DP0 and DP1 for fun
   Term f0 = ic_make_co0(lab, dup_fun_loc);
   Term f1 = ic_make_co1(lab, dup_fun_loc);
 
-  // Create CO0 and CO1 for arg
+  // Create DP0 and DP1 for arg
   Term x0 = ic_make_co0(lab, dup_arg_loc);
   Term x1 = ic_make_co1(lab, dup_arg_loc);
 
