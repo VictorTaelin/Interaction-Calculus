@@ -112,10 +112,10 @@ char* add_variable(VarNameTable* table, uint32_t location, TermTag type) {
     name = index_to_var_name(table->count);
   } else if (basicType == DP0) {
     name = (char*)malloc(16);
-    sprintf(name, "x%u", table->count);
+    sprintf(name, "a%u", table->count);
   } else if (basicType == DP1) {
     name = (char*)malloc(16);
-    sprintf(name, "y%u", table->count);
+    sprintf(name, "b%u", table->count);
   }
 
   table->names[table->count] = name;
@@ -143,8 +143,8 @@ char* get_var_name(VarNameTable* table, uint32_t location, TermTag type) {
 
 // Forward declarations
 void assign_var_ids(IC* ic, Term term, VarNameTable* var_table, DupTable* dup_table);
-void stringify_term(IC* ic, Term term, VarNameTable* var_table, char* buffer, int* pos, int max_len);
-void stringify_duplications(IC* ic, DupTable* dup_table, VarNameTable* var_table, char* buffer, int* pos, int max_len);
+void stringify_term(IC* ic, Term term, VarNameTable* var_table, char* buffer, int* pos, int max_len, const char* prefix);
+void stringify_duplications(IC* ic, DupTable* dup_table, VarNameTable* var_table, char* buffer, int* pos, int max_len, const char* prefix);
 
 // Register a duplication in the table
 bool register_duplication(DupTable* table, uint32_t location, uint8_t label) {
@@ -243,7 +243,7 @@ void assign_var_ids(IC* ic, Term term, VarNameTable* var_table, DupTable* dup_ta
 }
 
 // Stringify duplications
-void stringify_duplications(IC* ic, DupTable* dup_table, VarNameTable* var_table, char* buffer, int* pos, int max_len) {
+void stringify_duplications(IC* ic, DupTable* dup_table, VarNameTable* var_table, char* buffer, int* pos, int max_len, const char* prefix) {
   // First, add all duplication variables
   for (uint32_t i = 0; i < dup_table->count; i++) {
     uint32_t dup_loc = dup_table->locations[i];
@@ -261,11 +261,15 @@ void stringify_duplications(IC* ic, DupTable* dup_table, VarNameTable* var_table
     char* var0 = get_var_name(var_table, dup_loc, DP0);
     char* var1 = get_var_name(var_table, dup_loc, DP1);
 
-    // Add duplication header
-    *pos += snprintf(buffer + *pos, max_len - *pos, "! &%u{%s,%s} = ", lab, var0, var1);
+    // Add duplication header with optional prefix
+    if (prefix) {
+      *pos += snprintf(buffer + *pos, max_len - *pos, "! &%u{%s%s,%s%s} = ", lab, prefix, var0, prefix, var1);
+    } else {
+      *pos += snprintf(buffer + *pos, max_len - *pos, "! &%u{%s,%s} = ", lab, var0, var1);
+    }
 
     // Add the value
-    stringify_term(ic, val_term, var_table, buffer, pos, max_len);
+    stringify_term(ic, val_term, var_table, buffer, pos, max_len, prefix);
 
     // Add separator
     *pos += snprintf(buffer + *pos, max_len - *pos, ";\n");
@@ -273,7 +277,7 @@ void stringify_duplications(IC* ic, DupTable* dup_table, VarNameTable* var_table
 }
 
 // Stringify a term
-void stringify_term(IC* ic, Term term, VarNameTable* var_table, char* buffer, int* pos, int max_len) {
+void stringify_term(IC* ic, Term term, VarNameTable* var_table, char* buffer, int* pos, int max_len, const char* prefix) {
   TermTag tag = TERM_TAG(term);
   uint32_t val = TERM_VAL(term);
   uint8_t lab = TERM_LAB(term);
@@ -283,10 +287,14 @@ void stringify_term(IC* ic, Term term, VarNameTable* var_table, char* buffer, in
       uint32_t loc = val;
       Term subst = ic->heap[loc];
       if (TERM_SUB(subst)) {
-        stringify_term(ic, ic_clear_sub(subst), var_table, buffer, pos, max_len);
+        stringify_term(ic, ic_clear_sub(subst), var_table, buffer, pos, max_len, prefix);
       } else {
         char* name = get_var_name(var_table, loc, VAR);
-        *pos += snprintf(buffer + *pos, max_len - *pos, "%s", name);
+        if (prefix) {
+          *pos += snprintf(buffer + *pos, max_len - *pos, "%s%s", prefix, name);
+        } else {
+          *pos += snprintf(buffer + *pos, max_len - *pos, "%s", name);
+        }
       }
       break;
     }
@@ -305,10 +313,14 @@ void stringify_term(IC* ic, Term term, VarNameTable* var_table, char* buffer, in
       uint32_t loc = val;
       Term subst = ic->heap[loc];
       if (TERM_SUB(subst)) {
-        stringify_term(ic, ic_clear_sub(subst), var_table, buffer, pos, max_len);
+        stringify_term(ic, ic_clear_sub(subst), var_table, buffer, pos, max_len, prefix);
       } else {
         char* name = get_var_name(var_table, loc, co_type);
-        *pos += snprintf(buffer + *pos, max_len - *pos, "%s", name);
+        if (prefix) {
+          *pos += snprintf(buffer + *pos, max_len - *pos, "%s%s", prefix, name);
+        } else {
+          *pos += snprintf(buffer + *pos, max_len - *pos, "%s", name);
+        }
       }
       break;
     }
@@ -316,16 +328,20 @@ void stringify_term(IC* ic, Term term, VarNameTable* var_table, char* buffer, in
     case LAM: {
       uint32_t lam_loc = val;
       char* var_name = get_var_name(var_table, lam_loc, VAR);
-      *pos += snprintf(buffer + *pos, max_len - *pos, "λ%s.", var_name);
-      stringify_term(ic, ic->heap[lam_loc], var_table, buffer, pos, max_len);
+      if (prefix) {
+        *pos += snprintf(buffer + *pos, max_len - *pos, "λ%s%s.", prefix, var_name);
+      } else {
+        *pos += snprintf(buffer + *pos, max_len - *pos, "λ%s.", var_name);
+      }
+      stringify_term(ic, ic->heap[lam_loc], var_table, buffer, pos, max_len, prefix);
       break;
     }
 
     case APP: {
       *pos += snprintf(buffer + *pos, max_len - *pos, "(");
-      stringify_term(ic, ic->heap[val], var_table, buffer, pos, max_len);
+      stringify_term(ic, ic->heap[val], var_table, buffer, pos, max_len, prefix);
       *pos += snprintf(buffer + *pos, max_len - *pos, " ");
-      stringify_term(ic, ic->heap[val + 1], var_table, buffer, pos, max_len);
+      stringify_term(ic, ic->heap[val + 1], var_table, buffer, pos, max_len, prefix);
       *pos += snprintf(buffer + *pos, max_len - *pos, ")");
       break;
     }
@@ -341,9 +357,9 @@ void stringify_term(IC* ic, Term term, VarNameTable* var_table, char* buffer, in
     case SP2:
     case SP3: {
       *pos += snprintf(buffer + *pos, max_len - *pos, "&%u{", lab);
-      stringify_term(ic, ic->heap[val], var_table, buffer, pos, max_len);
+      stringify_term(ic, ic->heap[val], var_table, buffer, pos, max_len, prefix);
       *pos += snprintf(buffer + *pos, max_len - *pos, ",");
-      stringify_term(ic, ic->heap[val + 1], var_table, buffer, pos, max_len);
+      stringify_term(ic, ic->heap[val + 1], var_table, buffer, pos, max_len, prefix);
       *pos += snprintf(buffer + *pos, max_len - *pos, "}");
       break;
     }
@@ -354,8 +370,8 @@ void stringify_term(IC* ic, Term term, VarNameTable* var_table, char* buffer, in
   }
 }
 
-// Main function to convert a term to string
-char* term_to_string(IC* ic, Term term) {
+// Convert a term to its string representation with optional namespace prefix
+static char* term_to_string_internal(IC* ic, Term term, const char* prefix) {
   // Initialize tables
   VarNameTable var_table;
   DupTable dup_table;
@@ -370,10 +386,10 @@ char* term_to_string(IC* ic, Term term) {
   int pos = 0;
 
   // First stringify all duplications
-  stringify_duplications(ic, &dup_table, &var_table, buffer, &pos, MAX_STR_LEN);
+  stringify_duplications(ic, &dup_table, &var_table, buffer, &pos, MAX_STR_LEN, prefix);
 
   // Then stringify the main term
-  stringify_term(ic, term, &var_table, buffer, &pos, MAX_STR_LEN);
+  stringify_term(ic, term, &var_table, buffer, &pos, MAX_STR_LEN, prefix);
 
   // Free tables
   free_var_table(&var_table);
@@ -382,9 +398,26 @@ char* term_to_string(IC* ic, Term term) {
   return buffer;
 }
 
+// Convert a term to its string representation
+char* term_to_string(IC* ic, Term term) {
+  return term_to_string_internal(ic, term, NULL);
+}
+
+// Convert a term to its string representation with a prefix for variable names
+char* term_to_string_namespaced(IC* ic, Term term, const char* prefix) {
+  return term_to_string_internal(ic, term, prefix);
+}
+
 // Display a term to the specified output stream
 void show_term(FILE* stream, IC* ic, Term term) {
   char* str = term_to_string(ic, term);
+  fprintf(stream, "%s", str);
+  free(str);
+}
+
+// Display a term to the specified output stream with a prefix for variable names
+void show_term_namespaced(FILE* stream, IC* ic, Term term, const char* prefix) {
+  char* str = term_to_string_namespaced(ic, term, prefix);
   fprintf(stream, "%s", str);
   free(str);
 }

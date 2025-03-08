@@ -108,7 +108,12 @@ static void process_term(IC* ic, Term term, int use_gpu, int use_collapse, int t
   size_t size = ic->heap_pos; // Heap size in nodes
   double perf = elapsed_seconds > 0 ? (ic->interactions / elapsed_seconds) / 1000000.0 : 0.0;
 
-  show_term(stdout, ic, term);
+  // Use namespaced version with '$' prefix when collapse mode is off
+  if (use_collapse) {
+    show_term(stdout, ic, term);
+  } else {
+    show_term_namespaced(stdout, ic, term, "$");
+  }
   printf("\n\n");
   printf("WORK: %llu interactions\n", ic->interactions);
   printf("TIME: %.7f seconds\n", elapsed_seconds);
@@ -151,7 +156,12 @@ static void benchmark_term(IC* ic, Term term, int use_gpu, int use_collapse, int
 
   // Normalize once to show result
   Term result = normalize_term(ic, term, use_gpu, use_collapse, thread_count);
-  show_term(stdout, ic, result);
+  // Use namespaced version with '$' prefix when collapse mode is off
+  if (use_collapse) {
+    show_term(stdout, ic, result);
+  } else {
+    show_term_namespaced(stdout, ic, result, "$");
+  }
   printf("\n\n");
 
   // Benchmark loop
