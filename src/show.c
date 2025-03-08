@@ -62,6 +62,21 @@ void free_dup_table(DupTable* table) {
   free(table->labels);
 }
 
+// Convert an index to an alphabetic variable name (a, b, c, ..., z, aa, ab, ...)
+char* index_to_var_name(uint32_t index) {
+  char* name = (char*)malloc(16);
+  if (index < 26) {
+    // a-z
+    sprintf(name, "%c", 'a' + index);
+  } else {
+    // aa, ab, ac, ...
+    uint32_t first = (index - 26) / 26;
+    uint32_t second = (index - 26) % 26;
+    sprintf(name, "%c%c", 'a' + first, 'a' + second);
+  }
+  return name;
+}
+
 // Add a variable to the table and return its name
 char* add_variable(VarNameTable* table, uint32_t location, TermTag type) {
   // Check if we need to expand the table
@@ -92,13 +107,15 @@ char* add_variable(VarNameTable* table, uint32_t location, TermTag type) {
   table->types[table->count] = basicType;
 
   // Generate a name for the variable based on its type
-  char* name = (char*)malloc(16);
-  if (basicType == DP0) {
-    sprintf(name, "a%u", table->count);
-  } else if (basicType == DP1) {
-    sprintf(name, "b%u", table->count);
-  } else {
+  char* name;
+  if (basicType == VAR) {
+    name = index_to_var_name(table->count);
+  } else if (basicType == DP0) {
+    name = (char*)malloc(16);
     sprintf(name, "x%u", table->count);
+  } else if (basicType == DP1) {
+    name = (char*)malloc(16);
+    sprintf(name, "y%u", table->count);
   }
 
   table->names[table->count] = name;
