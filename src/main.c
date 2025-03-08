@@ -86,6 +86,7 @@ static Term normalize_term(IC* ic, Term term, int use_gpu, int use_collapse, int
         return ic_normal(ic, term);
       }
     } else {
+      //return term;
       return ic_normal(ic, term);
     }
   }

@@ -281,11 +281,10 @@ static void parse_term_lam(Parser* parser, uint32_t loc) {
 static void parse_term_app(Parser* parser, uint32_t loc) {
   expect(parser, "(", "for application");
   parse_term(parser, loc);
-  Term term = parser->ic->heap[loc];
   skip(parser);
   while (peek_char(parser) != ')') {
     uint32_t app_node = ic_alloc(parser->ic, 2);
-    parser->ic->heap[app_node + 0] = term;
+    parser->ic->heap[app_node + 0] = parser->ic->heap[loc];
     parse_term(parser, app_node + 1);
     store_term(parser, loc, APP, app_node);
     skip(parser);
