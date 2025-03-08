@@ -360,6 +360,35 @@ static void parse_term_era(Parser* parser, uint32_t loc) {
   store_term(parser, loc, ERA, 0);
 }
 
+static void parse_term_num(Parser* parser, uint32_t loc) {
+  uint32_t value = parse_uint(parser);
+  store_term(parser, loc, NUM, value);
+}
+
+static void parse_term_suc(Parser* parser, uint32_t loc) {
+  expect(parser, "+", "for successor");
+  uint32_t suc_node = ic_alloc(parser->ic, 1);
+  parse_term(parser, suc_node);
+  store_term(parser, loc, SUC, suc_node);
+}
+
+static void parse_term_swi(Parser* parser, uint32_t loc) {
+  expect(parser, "?", "for switch");
+  uint32_t swi_node = ic_alloc(parser->ic, 3);
+  parse_term(parser, swi_node);
+  expect(parser, "{", "after condition in switch");
+  expect(parser, "0", "for zero case");
+  expect(parser, ":", "after '0'");
+  parse_term(parser, swi_node + 1);
+  expect(parser, ";", "after zero case");
+  expect(parser, "+", "for successor case");
+  expect(parser, ":", "after '+'");
+  parse_term(parser, swi_node + 2);
+  expect(parser, ";", "after successor case");
+  expect(parser, "}", "to close switch");
+  store_term(parser, loc, SWI, swi_node);
+}
+
 static void parse_term_let(Parser* parser, uint32_t loc) {
   expect(parser, "!", "for let expression");
   char name[MAX_NAME_LEN];
@@ -397,6 +426,8 @@ void parse_term(Parser* parser, uint32_t loc) {
   unsigned char c = (unsigned char)parser->input[parser->pos];
   if (isalpha(c) || c == '_' || c == '$') {
     parse_term_var(parser, loc);
+  } else if (isdigit(c)) {
+    parse_term_num(parser, loc);
   } else if (c == '!') {
     parser->pos++;
     char next = peek_char(parser);
@@ -416,6 +447,10 @@ void parse_term(Parser* parser, uint32_t loc) {
     parse_term_app(parser, loc);
   } else if (c == '*') {
     parse_term_era(parser, loc);
+  } else if (c == '+') {
+    parse_term_suc(parser, loc);
+  } else if (c == '?') {
+    parse_term_swi(parser, loc);
   } else {
     char error_msg[100];
     snprintf(error_msg, sizeof(error_msg), "Unexpected character: %c (code: %d)", c, (int)c);

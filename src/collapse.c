@@ -271,6 +271,102 @@ static inline Term ic_dup_app(IC* ic, Term dup, Term app) {
   }
 }
 
+// ~N{0:&L{z0,z1};+:s;}
+// --------------------------------- SUP-SWI-Z
+// !&L{N0,N1} = N;
+// !&L{S0,S1} = S;
+// &L{~N0{0:z0;+:S0},~N1{0:z1;+:S1}}
+static inline Term ic_sup_swi_z(IC* ic, Term swi, Term sup) {
+  ic->interactions++;
+
+  uint32_t swi_loc = TERM_VAL(swi);
+  uint32_t sup_loc = TERM_VAL(sup);
+  uint8_t sup_lab = TERM_LAB(sup);
+  
+  Term num = ic->heap[swi_loc + 0];
+  Term z0 = ic->heap[sup_loc + 0];
+  Term z1 = ic->heap[sup_loc + 1];
+  Term s = ic->heap[swi_loc + 2];
+  
+  // Create duplications for num and s
+  uint32_t dup_n_loc = ic_alloc(ic, 1);
+  uint32_t dup_s_loc = ic_alloc(ic, 1);
+  
+  ic->heap[dup_n_loc] = num;
+  ic->heap[dup_s_loc] = s;
+  
+  Term n0 = ic_make_co0(sup_lab, dup_n_loc);
+  Term n1 = ic_make_co1(sup_lab, dup_n_loc);
+  Term s0 = ic_make_co0(sup_lab, dup_s_loc);
+  Term s1 = ic_make_co1(sup_lab, dup_s_loc);
+  
+  // Create switch nodes for each branch
+  uint32_t swi0_loc = ic_alloc(ic, 3);
+  ic->heap[swi0_loc + 0] = n0;
+  ic->heap[swi0_loc + 1] = z0;
+  ic->heap[swi0_loc + 2] = s0;
+  
+  uint32_t swi1_loc = ic_alloc(ic, 3);
+  ic->heap[swi1_loc + 0] = n1;
+  ic->heap[swi1_loc + 1] = z1;
+  ic->heap[swi1_loc + 2] = s1;
+  
+  // Create the resulting superposition
+  uint32_t res_loc = ic_alloc(ic, 2);
+  ic->heap[res_loc + 0] = ic_make_term(SWI, swi0_loc);
+  ic->heap[res_loc + 1] = ic_make_term(SWI, swi1_loc);
+  
+  return ic_make_sup(sup_lab, res_loc);
+}
+
+// ~N{0:z;+:&0{s0,s1};}
+// --------------------------------- SUP-SWI-S
+// !&L{N0,N1} = N;
+// !&L{Z0,Z1} = Z;
+// &L{~N0{0:z0;+:S0},~N1{0:z1;+:S1}}
+static inline Term ic_sup_swi_s(IC* ic, Term swi, Term sup) {
+  ic->interactions++;
+
+  uint32_t swi_loc = TERM_VAL(swi);
+  uint32_t sup_loc = TERM_VAL(sup);
+  uint8_t sup_lab = TERM_LAB(sup);
+  
+  Term num = ic->heap[swi_loc + 0];
+  Term z = ic->heap[swi_loc + 1];
+  Term s0 = ic->heap[sup_loc + 0];
+  Term s1 = ic->heap[sup_loc + 1];
+  
+  // Create duplications for num and z
+  uint32_t dup_n_loc = ic_alloc(ic, 1);
+  uint32_t dup_z_loc = ic_alloc(ic, 1);
+  
+  ic->heap[dup_n_loc] = num;
+  ic->heap[dup_z_loc] = z;
+  
+  Term n0 = ic_make_co0(sup_lab, dup_n_loc);
+  Term n1 = ic_make_co1(sup_lab, dup_n_loc);
+  Term z0 = ic_make_co0(sup_lab, dup_z_loc);
+  Term z1 = ic_make_co1(sup_lab, dup_z_loc);
+  
+  // Create switch nodes for each branch
+  uint32_t swi0_loc = ic_alloc(ic, 3);
+  ic->heap[swi0_loc + 0] = n0;
+  ic->heap[swi0_loc + 1] = z0;
+  ic->heap[swi0_loc + 2] = s0;
+  
+  uint32_t swi1_loc = ic_alloc(ic, 3);
+  ic->heap[swi1_loc + 0] = n1;
+  ic->heap[swi1_loc + 1] = z1;
+  ic->heap[swi1_loc + 2] = s1;
+  
+  // Create the resulting superposition
+  uint32_t res_loc = ic_alloc(ic, 2);
+  ic->heap[res_loc + 0] = ic_make_term(SWI, swi0_loc);
+  ic->heap[res_loc + 1] = ic_make_term(SWI, swi1_loc);
+  
+  return ic_make_sup(sup_lab, res_loc);
+}
+
 // -----------------------------------------------------------------------------
 // Collapser
 // -----------------------------------------------------------------------------
@@ -329,6 +425,18 @@ Term ic_collapse_sups(IC* ic, Term term) {
       //printf(">> SUP-SUP-Y\n");
       return ic_collapse_sups(ic, ic_sup_sup_y(ic, term, rgt_col));
     }
+  } else if (tag == SWI) {
+    Term num = ic->heap[loc+0];
+    Term ifz = ic->heap[loc+1];
+    Term ifs = ic->heap[loc+2];
+    
+    if (IS_SUP(TERM_TAG(ifz))) {
+      //printf(">> SUP-SWI-Z\n");
+      return ic_collapse_sups(ic, ic_sup_swi_z(ic, term, ifz));
+    } else if (IS_SUP(TERM_TAG(ifs))) {
+      //printf(">> SUP-SWI-S\n");
+      return ic_collapse_sups(ic, ic_sup_swi_s(ic, term, ifs));
+    }
   }
 
   return term;
@@ -365,8 +473,16 @@ Term ic_collapse_dups(IC* ic, Term term) {
     ic->heap[loc+0] = ic_collapse_dups(ic, ic->heap[loc+0]);
     ic->heap[loc+1] = ic_collapse_dups(ic, ic->heap[loc+1]);
     return term;
-  } else if (ic_is_era(term)) {
-    // ERA has no children, so just return it
+  } else if (tag == SUC) {
+    ic->heap[loc] = ic_collapse_dups(ic, ic->heap[loc]);
+    return term;
+  } else if (tag == SWI) {
+    ic->heap[loc+0] = ic_collapse_dups(ic, ic->heap[loc+0]);
+    ic->heap[loc+1] = ic_collapse_dups(ic, ic->heap[loc+1]);
+    ic->heap[loc+2] = ic_collapse_dups(ic, ic->heap[loc+2]);
+    return term;
+  } else if (ic_is_era(term) || tag == NUM) {
+    // ERA and NUM have no children, so just return them
     return term;
   } else {
     return term;

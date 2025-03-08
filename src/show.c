@@ -9,6 +9,15 @@
 #define DP0 100  // Just a value not used for any other tag
 #define DP1 101  // Just a value not used for any other tag
 
+// Helper functions for numeric operations
+static uint32_t get_num_val(Term term) {
+  if (TERM_TAG(term) == NUM) {
+    return TERM_VAL(term);
+  } else {
+    return 0; // Default to 0 if not a number
+  }
+}
+
 // Maximum string length for term representation
 #define MAX_STR_LEN 65536
 
@@ -226,14 +235,37 @@ void assign_var_ids(IC* ic, Term term, VarNameTable* var_table, DupTable* dup_ta
       break;
     }
 
-    // Handle all superposition variants (SP0-SP3)
+    // Handle all superposition variants (SP0-SP7)
     case SP0:
     case SP1:
     case SP2:
-    case SP3: {
+    case SP3:
+    case SP4:
+    case SP5:
+    case SP6:
+    case SP7: {
       uint32_t sup_loc = val;
       assign_var_ids(ic, ic->heap[sup_loc], var_table, dup_table);
       assign_var_ids(ic, ic->heap[sup_loc + 1], var_table, dup_table);
+      break;
+    }
+    
+    case NUM: {
+      // NUM has no variables to assign
+      break;
+    }
+    
+    case SUC: {
+      uint32_t suc_loc = val;
+      assign_var_ids(ic, ic->heap[suc_loc], var_table, dup_table);
+      break;
+    }
+    
+    case SWI: {
+      uint32_t swi_loc = val;
+      assign_var_ids(ic, ic->heap[swi_loc], var_table, dup_table);     // Number
+      assign_var_ids(ic, ic->heap[swi_loc + 1], var_table, dup_table); // Zero branch
+      assign_var_ids(ic, ic->heap[swi_loc + 2], var_table, dup_table); // Successor branch
       break;
     }
 
@@ -351,16 +383,42 @@ void stringify_term(IC* ic, Term term, VarNameTable* var_table, char* buffer, in
       break;
     }
 
-    // Handle all superposition variants (SP0-SP3)
+    // Handle all superposition variants (SP0-SP7)
     case SP0:
     case SP1:
     case SP2:
-    case SP3: {
+    case SP3:
+    case SP4:
+    case SP5:
+    case SP6:
+    case SP7: {
       *pos += snprintf(buffer + *pos, max_len - *pos, "&%u{", lab);
       stringify_term(ic, ic->heap[val], var_table, buffer, pos, max_len, prefix);
       *pos += snprintf(buffer + *pos, max_len - *pos, ",");
       stringify_term(ic, ic->heap[val + 1], var_table, buffer, pos, max_len, prefix);
       *pos += snprintf(buffer + *pos, max_len - *pos, "}");
+      break;
+    }
+    
+    case NUM: {
+      *pos += snprintf(buffer + *pos, max_len - *pos, "%u", val);
+      break;
+    }
+    
+    case SUC: {
+      *pos += snprintf(buffer + *pos, max_len - *pos, "+");
+      stringify_term(ic, ic->heap[val], var_table, buffer, pos, max_len, prefix);
+      break;
+    }
+    
+    case SWI: {
+      *pos += snprintf(buffer + *pos, max_len - *pos, "?");
+      stringify_term(ic, ic->heap[val], var_table, buffer, pos, max_len, prefix);
+      *pos += snprintf(buffer + *pos, max_len - *pos, "{0:");
+      stringify_term(ic, ic->heap[val + 1], var_table, buffer, pos, max_len, prefix);
+      *pos += snprintf(buffer + *pos, max_len - *pos, ";+:");
+      stringify_term(ic, ic->heap[val + 2], var_table, buffer, pos, max_len, prefix);
+      *pos += snprintf(buffer + *pos, max_len - *pos, ";}");
       break;
     }
 

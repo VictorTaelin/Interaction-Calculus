@@ -118,6 +118,27 @@ inline Term ic_make_era() {
   return ic_make_term(ERA, 0);
 }
 
+// Helper to create a number term
+// @param val The numeric value
+// @return A number term
+inline Term ic_make_num(uint32_t val) {
+  return ic_make_term(NUM, val);
+}
+
+// Helper to create a successor term
+// @param val Pointer to the successor node
+// @return A successor term
+inline Term ic_make_suc(uint32_t val) {
+  return ic_make_term(SUC, val);
+}
+
+// Helper to create a switch term
+// @param val Pointer to the switch node
+// @return A switch term
+inline Term ic_make_swi(uint32_t val) {
+  return ic_make_term(SWI, val);
+}
+
 // Check if a term is an erasure
 // @param term The term to check
 // @return True if the term is an erasure, false otherwise
@@ -153,6 +174,22 @@ inline uint32_t ic_dup(IC* ic, Term val) {
   uint32_t dup_loc = ic_alloc(ic, 1);
   ic->heap[dup_loc] = val;
   return dup_loc;
+}
+
+// Allocs a Suc node
+inline uint32_t ic_suc(IC* ic, Term num) {
+  uint32_t suc_loc = ic_alloc(ic, 1);
+  ic->heap[suc_loc] = num;
+  return suc_loc;
+}
+
+// Allocs a Swi node
+inline uint32_t ic_swi(IC* ic, Term num, Term ifz, Term ifs) {
+  uint32_t swi_loc = ic_alloc(ic, 3);
+  ic->heap[swi_loc + 0] = num;
+  ic->heap[swi_loc + 1] = ifz;
+  ic->heap[swi_loc + 2] = ifs;
+  return swi_loc;
 }
 
 // -----------------------------------------------------------------------------
@@ -373,6 +410,124 @@ inline Term ic_dup_sup(IC* ic, Term dup, Term sup) {
 }
 
 // -----------------------------------------------------------------------------
+// Numeric Interactions
+// -----------------------------------------------------------------------------
+
+//+N
+//--- SUC-NUM
+//N+1
+inline Term ic_suc_num(IC* ic, Term suc, Term num) {
+  ic->interactions++;
+  uint32_t num_val = TERM_VAL(num);
+  return ic_make_num(num_val + 1);
+}
+
+//+*
+//-- SUC-ERA
+//*
+inline Term ic_suc_era(IC* ic, Term suc, Term era) {
+  ic->interactions++;
+  return era; // Erasure propagates
+}
+
+//+&L{x,y}
+//--------- SUC-SUP
+//&L{+x,+y}
+inline Term ic_suc_sup(IC* ic, Term suc, Term sup) {
+  ic->interactions++;
+  
+  uint32_t sup_loc = TERM_VAL(sup);
+  uint8_t sup_lab = TERM_LAB(sup);
+  
+  Term lft = ic->heap[sup_loc + 0];
+  Term rgt = ic->heap[sup_loc + 1];
+  
+  // Create SUC nodes for each branch
+  uint32_t suc0_loc = ic_suc(ic, lft);
+  uint32_t suc1_loc = ic_suc(ic, rgt);
+  
+  // Create the resulting superposition of SUCs
+  uint32_t res_loc = ic_alloc(ic, 2);
+  ic->heap[res_loc + 0] = ic_make_suc(suc0_loc);
+  ic->heap[res_loc + 1] = ic_make_suc(suc1_loc);
+  
+  return ic_make_sup(sup_lab, res_loc);
+}
+
+//?N{0:z;+:s;}
+//------------ SWI-NUM (if N==0)
+//z
+inline Term ic_swi_num(IC* ic, Term swi, Term num) {
+  ic->interactions++;
+  
+  uint32_t swi_loc = TERM_VAL(swi);
+  uint32_t num_val = TERM_VAL(num);
+  
+  Term ifz = ic->heap[swi_loc + 1];
+  Term ifs = ic->heap[swi_loc + 2];
+  
+  if (num_val == 0) {
+    // If the number is 0, return the zero branch
+    return ifz;
+  } else {
+    // Otherwise, apply the successor branch to N-1
+    uint32_t app_loc = ic_alloc(ic, 2);
+    ic->heap[app_loc + 0] = ifs;
+    ic->heap[app_loc + 1] = ic_make_num(num_val - 1);
+    return ic_make_term(APP, app_loc);
+  }
+}
+
+//?*{0:z;+:s;}
+//------------ SWI-ERA
+//*
+inline Term ic_swi_era(IC* ic, Term swi, Term era) {
+  ic->interactions++;
+  return era; // Erasure propagates
+}
+
+//?&L{x,y}{0:z;+:s;}
+//--------------------------------- SWI-SUP
+//!&L{z0,z1} = z;
+//!&L{s0,s1} = s;
+//&L{?x{0:z0;+:s0;},?y{0:z1;+:s1;}}
+inline Term ic_swi_sup(IC* ic, Term swi, Term sup) {
+  ic->interactions++;
+  
+  uint32_t swi_loc = TERM_VAL(swi);
+  uint32_t sup_loc = TERM_VAL(sup);
+  uint8_t sup_lab = TERM_LAB(sup);
+  
+  Term lft = ic->heap[sup_loc + 0];
+  Term rgt = ic->heap[sup_loc + 1];
+  Term ifz = ic->heap[swi_loc + 1];
+  Term ifs = ic->heap[swi_loc + 2];
+  
+  // Create duplications for ifz and ifs branches
+  uint32_t dup_z_loc = ic_alloc(ic, 1);
+  uint32_t dup_s_loc = ic_alloc(ic, 1);
+  
+  ic->heap[dup_z_loc] = ifz;
+  ic->heap[dup_s_loc] = ifs;
+  
+  Term z0 = ic_make_co0(sup_lab, dup_z_loc);
+  Term z1 = ic_make_co1(sup_lab, dup_z_loc);
+  Term s0 = ic_make_co0(sup_lab, dup_s_loc);
+  Term s1 = ic_make_co1(sup_lab, dup_s_loc);
+  
+  // Create switch nodes for each branch
+  uint32_t swi0_loc = ic_swi(ic, lft, z0, s0);
+  uint32_t swi1_loc = ic_swi(ic, rgt, z1, s1);
+  
+  // Create the resulting superposition
+  uint32_t res_loc = ic_alloc(ic, 2);
+  ic->heap[res_loc + 0] = ic_make_term(SWI, swi0_loc);
+  ic->heap[res_loc + 1] = ic_make_term(SWI, swi1_loc);
+  
+  return ic_make_sup(sup_lab, res_loc);
+}
+
+// -----------------------------------------------------------------------------
 // Term Normalization
 // -----------------------------------------------------------------------------
 
@@ -422,6 +577,16 @@ inline Term ic_whnf(IC* ic, Term term) {
       stack[stack_pos++] = next;
       next = heap[val_loc]; // Reduce the function part
       continue;
+    } else if (tag == SUC) {
+      val_loc = TERM_VAL(next);
+      stack[stack_pos++] = next;
+      next = heap[val_loc]; // Reduce the inner term
+      continue;
+    } else if (tag == SWI) {
+      val_loc = TERM_VAL(next);
+      stack[stack_pos++] = next;
+      next = heap[val_loc]; // Reduce the number term
+      continue;
     }
 
     // Empty stack: term is in WHNF
@@ -453,6 +618,28 @@ inline Term ic_whnf(IC* ic, Term term) {
         continue;
       } else if (tag == ERA) {
         next = ic_dup_era(ic, prev, next);
+        continue;
+      }
+    } else if (ptag == SUC) {
+      if (tag == NUM) {
+        next = ic_suc_num(ic, prev, next);
+        continue;
+      } else if (IS_SUP(tag)) {
+        next = ic_suc_sup(ic, prev, next);
+        continue;
+      } else if (tag == ERA) {
+        next = ic_suc_era(ic, prev, next);
+        continue;
+      }
+    } else if (ptag == SWI) {
+      if (tag == NUM) {
+        next = ic_swi_num(ic, prev, next);
+        continue;
+      } else if (IS_SUP(tag)) {
+        next = ic_swi_sup(ic, prev, next);
+        continue;
+      } else if (tag == ERA) {
+        next = ic_swi_era(ic, prev, next);
         continue;
       }
     }
@@ -488,8 +675,8 @@ inline Term ic_normal(IC* ic, Term term) {
   TermTag tag = TERM_TAG(term);
   uint32_t loc = TERM_VAL(term);
 
-  if (ic_is_era(term)) {
-    // ERA has no children, so just return it
+  if (ic_is_era(term) || tag == NUM) {
+    // ERA and NUM have no children, so just return them
     return term;
   } else if (tag == LAM) {
     ic->heap[loc] = ic_normal(ic, ic->heap[loc]);
@@ -501,6 +688,14 @@ inline Term ic_normal(IC* ic, Term term) {
   } else if (IS_SUP(tag)) {
     ic->heap[loc+0] = ic_normal(ic, ic->heap[loc]);
     ic->heap[loc+1] = ic_normal(ic, ic->heap[loc+1]);
+    return term;
+  } else if (tag == SUC) {
+    ic->heap[loc] = ic_normal(ic, ic->heap[loc]);
+    return term;
+  } else if (tag == SWI) {
+    ic->heap[loc+0] = ic_normal(ic, ic->heap[loc]);
+    ic->heap[loc+1] = ic_normal(ic, ic->heap[loc+1]);
+    ic->heap[loc+2] = ic_normal(ic, ic->heap[loc+2]);
     return term;
   } else {
     return term;

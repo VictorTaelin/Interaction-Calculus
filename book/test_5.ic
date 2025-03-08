@@ -1,0 +1,2 @@
+// Test switch on superposition - test SUP-SWI-S interaction
+?1{0:0;+:&0{1,2};}

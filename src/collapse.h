@@ -14,6 +14,10 @@ static inline Term ic_sup_sup_y(IC* ic, Term outer_sup, Term inner_sup);
 static inline Term ic_dup_var(IC* ic, Term dup, Term var);
 static inline Term ic_dup_app(IC* ic, Term dup, Term app);
 
+// Numeric collapse operations
+static inline Term ic_sup_swi_z(IC* ic, Term swi, Term sup);
+static inline Term ic_sup_swi_s(IC* ic, Term swi, Term sup);
+
 Term ic_collapse_sups(IC* ic, Term term);
 Term ic_collapse_dups(IC* ic, Term term);
 
