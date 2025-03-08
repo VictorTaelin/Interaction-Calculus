@@ -276,48 +276,62 @@ static inline Term ic_dup_app(IC* ic, Term dup, Term app) {
 // -----------------------------------------------------------------------------
 
 Term ic_collapse_sups(IC* ic, Term term) {
+  TermTag tag;
+  uint8_t lab;
+  uint32_t loc;
+  
   term = ic_whnf(ic, term);
-  TermTag tag = TERM_TAG(term);
-  uint8_t lab = TERM_LAB(term);
-  uint32_t loc = TERM_VAL(term);
+  tag = TERM_TAG(term);
+  lab = TERM_LAB(term);
+  loc = TERM_VAL(term);
+
   if (tag == LAM) {
-    Term bod_col = ic->heap[loc+0] = ic_collapse_sups(ic, ic->heap[loc+0]);
+    ic->heap[loc+0] = ic_collapse_sups(ic, ic->heap[loc+0]);
+  } else if (tag == APP) {
+    ic->heap[loc+0] = ic_collapse_sups(ic, ic->heap[loc+0]);
+    ic->heap[loc+1] = ic_collapse_sups(ic, ic->heap[loc+1]);
+  } else if (IS_SUP(tag)) {
+    ic->heap[loc+0] = ic_collapse_sups(ic, ic->heap[loc+0]);
+    ic->heap[loc+1] = ic_collapse_sups(ic, ic->heap[loc+1]);
+  }
+
+  term = ic_whnf(ic, term);
+  tag = TERM_TAG(term);
+  lab = TERM_LAB(term);
+  loc = TERM_VAL(term);
+
+  if (tag == LAM) {
+    Term bod_col = ic->heap[loc+0];
     if (IS_SUP(TERM_TAG(bod_col))) {
       //printf(">> SUP-LAM\n");
       return ic_collapse_sups(ic, ic_sup_lam(ic, term, bod_col));
     } else if (ic_is_era(bod_col)) {
       //printf(">> ERA-LAM\n");
       return ic_collapse_sups(ic, ic_era_lam(ic, term, bod_col));
-    } else {
-      return term;
     }
   } else if (tag == APP) {
-    Term fun_col = ic->heap[loc+0] = ic_collapse_sups(ic, ic->heap[loc+0]);
-    Term arg_col = ic->heap[loc+1] = ic_collapse_sups(ic, ic->heap[loc+1]);
+    Term fun_col = ic->heap[loc+0];
+    Term arg_col = ic->heap[loc+1];
     if (IS_SUP(TERM_TAG(arg_col))) {
       //printf(">> SUP-APP\n");
       return ic_collapse_sups(ic, ic_sup_app(ic, term, arg_col));
     } else if (ic_is_era(arg_col)) {
       //printf(">> ERA-APP\n");
       return ic_collapse_sups(ic, ic_era_app(ic, term, arg_col));
-    } else {
-      return term;
     }
   } else if (IS_SUP(tag)) {
-    Term lft_col = ic->heap[loc+0] = ic_collapse_sups(ic, ic->heap[loc+0]);
-    Term rgt_col = ic->heap[loc+1] = ic_collapse_sups(ic, ic->heap[loc+1]);
+    Term lft_col = ic->heap[loc+0];
+    Term rgt_col = ic->heap[loc+1];
     if (IS_SUP(TERM_TAG(lft_col)) && lab > TERM_LAB(lft_col)) {
       //printf(">> SUP-SUP-X\n");
       return ic_collapse_sups(ic, ic_sup_sup_x(ic, term, lft_col));
     } else if (IS_SUP(TERM_TAG(rgt_col)) && lab > TERM_LAB(rgt_col)) {
       //printf(">> SUP-SUP-Y\n");
       return ic_collapse_sups(ic, ic_sup_sup_y(ic, term, rgt_col));
-    } else {
-      return term;
     }
-  } else {
-    return term;
   }
+
+  return term;
 }
 
 Term ic_collapse_dups(IC* ic, Term term) {
