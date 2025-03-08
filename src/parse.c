@@ -1,10 +1,12 @@
+//./ic.h//
+
 #include "parse.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
 
-// Forward declarations for internal functions
+// Forward declarations
 uint32_t parse_term_alloc(Parser* parser);
 void parse_term(Parser* parser, uint32_t loc);
 void skip(Parser* parser);
@@ -39,9 +41,11 @@ static void add_global_binder(Parser* parser, const char* name, Term term) {
   if (parser->global_binders_count >= MAX_GLOBAL_BINDERS) {
     parse_error(parser, "Too many global variable binders");
   }
-  strncpy(parser->global_binders[parser->global_binders_count].name, name, MAX_NAME_LEN - 1);
-  parser->global_binders[parser->global_binders_count].name[MAX_NAME_LEN - 1] = '\0';
-  parser->global_binders[parser->global_binders_count].term = term;
+  Binder* binder = &parser->global_binders[parser->global_binders_count];
+  strncpy(binder->name, name, MAX_NAME_LEN - 1);
+  binder->name[MAX_NAME_LEN - 1] = '\0';
+  binder->original_term = term;
+  binder->last_occurrence_loc = 0;
   parser->global_binders_count++;
 }
 
@@ -49,9 +53,11 @@ static void push_lexical_binder(Parser* parser, const char* name, Term term) {
   if (parser->lexical_binders_count >= MAX_LEXICAL_BINDERS) {
     parse_error(parser, "Too many lexical binders");
   }
-  strncpy(parser->lexical_binders[parser->lexical_binders_count].name, name, MAX_NAME_LEN - 1);
-  parser->lexical_binders[parser->lexical_binders_count].name[MAX_NAME_LEN - 1] = '\0';
-  parser->lexical_binders[parser->lexical_binders_count].term = term;
+  Binder* binder = &parser->lexical_binders[parser->lexical_binders_count];
+  strncpy(binder->name, name, MAX_NAME_LEN - 1);
+  binder->name[MAX_NAME_LEN - 1] = '\0';
+  binder->original_term = term;
+  binder->last_occurrence_loc = 0;
   parser->lexical_binders_count++;
 }
 
@@ -61,10 +67,10 @@ static void pop_lexical_binder(Parser* parser) {
   }
 }
 
-static Term* find_lexical_binding(Parser* parser, const char* name) {
+static Binder* find_lexical_binding(Parser* parser, const char* name) {
   for (int i = parser->lexical_binders_count - 1; i >= 0; i--) {
     if (strcmp(parser->lexical_binders[i].name, name) == 0) {
-      return &parser->lexical_binders[i].term;
+      return &parser->lexical_binders[i];
     }
   }
   return NULL;
@@ -73,10 +79,10 @@ static Term* find_lexical_binding(Parser* parser, const char* name) {
 static void resolve_global_occurs(Parser* parser) {
   for (size_t i = 0; i < parser->global_occurs_count; i++) {
     const char* name = parser->global_occurs[i].name;
-    Term* binding = NULL;
+    Binder* binding = NULL;
     for (size_t j = 0; j < parser->global_binders_count; j++) {
       if (strcmp(parser->global_binders[j].name, name) == 0) {
-        binding = &parser->global_binders[j].term;
+        binding = &parser->global_binders[j];
         break;
       }
     }
@@ -85,7 +91,7 @@ static void resolve_global_occurs(Parser* parser) {
       snprintf(error, sizeof(error), "Undefined global variable: %s", name);
       parse_error(parser, error);
     }
-    parser->ic->heap[parser->global_occurs[i].loc] = *binding;
+    parser->ic->heap[parser->global_occurs[i].loc] = binding->original_term;
   }
 }
 
@@ -104,9 +110,9 @@ bool consume(Parser* parser, const char* str) {
 
 void parse_error(Parser* parser, const char* message) {
   fprintf(stderr, "Parse error at line %zu, column %zu: %s\n", 
-          parser->line, parser->col, message);
+      parser->line, parser->col, message);
   fprintf(stderr, "Input:\n%s\n", parser->input);
-  fprintf(stderr, "        ");
+  fprintf(stderr, "    ");
   for (size_t i = 0; i < parser->pos && i < 40; i++) {
     fprintf(stderr, " ");
   }
@@ -209,7 +215,7 @@ void skip(Parser* parser) {
 
 bool check_utf8(Parser* parser, uint8_t b1, uint8_t b2) {
   return (unsigned char)parser->input[parser->pos] == b1 &&
-         (unsigned char)parser->input[parser->pos + 1] == b2;
+      (unsigned char)parser->input[parser->pos + 1] == b2;
 }
 
 void consume_utf8(Parser* parser, int bytes) {
@@ -225,13 +231,26 @@ static void parse_term_var(Parser* parser, uint32_t loc) {
   if (starts_with_dollar(name)) {
     add_global_occur(parser, name, loc);
   } else {
-    Term* binding = find_lexical_binding(parser, name);
+    Binder* binding = find_lexical_binding(parser, name);
     if (binding == NULL) {
       char error[256];
       snprintf(error, sizeof(error), "Undefined lexical variable: %s", name);
       parse_error(parser, error);
     }
-    parser->ic->heap[loc] = *binding;
+    if (binding->last_occurrence_loc == 0) {
+      // First occurrence
+      parser->ic->heap[loc] = binding->original_term;
+      binding->last_occurrence_loc = loc;
+    } else {
+      // Subsequent occurrence
+      uint32_t dup_loc = ic_alloc(parser->ic, 1);
+      parser->ic->heap[dup_loc] = parser->ic->heap[binding->last_occurrence_loc];
+      Term dp0 = ic_make_co0(0, dup_loc);
+      Term dp1 = ic_make_co1(0, dup_loc);
+      parser->ic->heap[binding->last_occurrence_loc] = dp0;
+      parser->ic->heap[loc] = dp1;
+      binding->last_occurrence_loc = loc;
+    }
   }
 }
 
@@ -395,7 +414,6 @@ void parse_term(Parser* parser, uint32_t loc) {
   }
 }
 
-// Public parsing functions
 uint32_t parse_term_alloc(Parser* parser) {
   uint32_t loc = ic_alloc(parser->ic, 1);
   parse_term(parser, loc);
