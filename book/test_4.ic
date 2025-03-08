@@ -1,0 +1,20 @@
+!Y = λf. !&1{f0,f1}=λx.!&1{x0,x1}=x;(f (x0 x1)); (f0 f1);
+
+!true = λt. λf. t;
+!false = λt. λf. f;
+
+!not = λb. (b false true);
+
+!neg = (Y λneg. λxs. (xs
+  λp.λo.λi.λe.(i (neg p))
+  λp.λo.λi.λe.(o (neg p))
+  λo.λi.λe.e));
+
+!xs =
+  λo.λi.λe.(o
+  λo.λi.λe.(o
+  λo.λi.λe.(o
+  λo.λi.λe.(o
+  λo.λi.λe.e))));
+
+(neg (neg (neg xs)))
