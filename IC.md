@@ -15,10 +15,12 @@ Term ::=
   | APP: "(" Term " " Term ")"
   | SUP: "&" Label "{" Term "," Term "}"
   | DUP: "!" "&" Label "{" Name "," Name "}" "=" Term ";" Term
+  | ERA: "*"
 ```
 
 Where:
 - VAR represents a named variable.
+- ERA represents an erasure.
 - LAM represents a lambda.
 - APP represents a application.
 - SUP represents a superposition.
@@ -42,6 +44,10 @@ The 'Label' is just a numeric value. It affects the DUP-SUP interaction.
 The interaction rules are listed below:
 
 ```
+(* a)
+----- APP-ERA
+*
+
 (λx.f a)
 -------- APP-LAM
 x <- a
@@ -51,6 +57,13 @@ f
 ----------------- APP-SUP
 ! &L{c0,c1} = c;
 &L{(a c0),(b c1)}
+
+! &L{r,s} = *;
+K
+-------------- DUP-ERA
+r <- *
+s <- *
+K
 
 ! &L{r,s} = λx.f;
 K
@@ -250,6 +263,15 @@ Lambda Calculus terms without SUPs and DUPs, by extending the evaluator with the
 following collapse interactions:
 
 ```
+λx.*
+------ ERA-LAM
+x <- *
+*
+
+(f *)
+----- ERA-APP
+*
+
 λx.&L{f0,f1}
 ----------------- SUP-LAM
 x <- &L{x0,x1}

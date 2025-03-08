@@ -5,6 +5,8 @@
 
 #include "ic.h"
 
+static inline Term ic_era_lam(IC* ic, Term lam, Term era);
+static inline Term ic_era_app(IC* ic, Term app, Term era);
 static inline Term ic_sup_lam(IC* ic, Term lam, Term sup);
 static inline Term ic_sup_app(IC* ic, Term app, Term sup);
 static inline Term ic_sup_sup_x(IC* ic, Term outer_sup, Term inner_sup);

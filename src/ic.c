@@ -53,10 +53,10 @@ inline void ic_free(IC* ic) {
 // @param n Number of terms to allocate
 // @return Location in the heap
 inline uint32_t ic_alloc(IC* ic, uint32_t n) {
-  //if (ic->heap_pos + n >= ic->heap_size) {
-    //fprintf(stderr, "Error: Out of memory (tried to allocate %u terms, %u/%u used)\n", n, ic->heap_pos, ic->heap_size);
-    //exit(1);
-  //}
+  if (ic->heap_pos + n >= ic->heap_size) {
+    fprintf(stderr, "Error: Out of memory (tried to allocate %u terms, %u/%u used)\n", n, ic->heap_pos, ic->heap_size);
+    exit(1);
+  }
   uint32_t ptr = ic->heap_pos;
   ic->heap_pos += n;
   return ptr;
@@ -112,6 +112,19 @@ inline Term ic_make_co1(uint8_t lab, uint32_t val) {
   return ic_make_term(DP1_TAG(lab), val);
 }
 
+// Helper to create an erasure term
+// @return An erasure term (ERA tag with no value)
+inline Term ic_make_era() {
+  return ic_make_term(ERA, 0);
+}
+
+// Check if a term is an erasure
+// @param term The term to check
+// @return True if the term is an erasure, false otherwise
+inline bool ic_is_era(Term term) {
+  return TERM_TAG(term) == ERA;
+}
+
 // Allocs a Lam node
 inline uint32_t ic_lam(IC* ic, Term bod) {
   uint32_t lam_loc = ic_alloc(ic, 1);
@@ -133,6 +146,12 @@ inline uint32_t ic_sup(IC* ic, Term lft, Term rgt) {
   ic->heap[sup_loc + 0] = lft;
   ic->heap[sup_loc + 1] = rgt;
   return sup_loc;
+}
+
+// Returns an immediate ERA term (no allocation needed)
+inline uint32_t ic_era(IC* ic) {
+  // ERA is just a tag, no heap allocation needed
+  return 0;
 }
 
 // Allocs a Dup node
@@ -163,6 +182,14 @@ inline Term ic_app_lam(IC* ic, Term app, Term lam) {
   ic->heap[lam_loc] = ic_make_sub(arg);
 
   return bod;
+}
+
+//(* a)
+//----- APP-ERA
+//*
+inline Term ic_app_era(IC* ic, Term app, Term era) {
+  ic->interactions++;
+  return era; // Return the erasure term
 }
 
 //(&L{a,b} c)
@@ -205,6 +232,29 @@ inline Term ic_app_sup(IC* ic, Term app, Term sup) {
 
   // Use same superposition tag as input
   return ic_make_term(sup_tag, app_loc);
+}
+
+//! &L{r,s} = *;
+//K
+//-------------- DUP-ERA
+//r <- *
+//s <- *
+//K
+inline Term ic_dup_era(IC* ic, Term dup, Term era) {
+  ic->interactions++;
+  
+  uint32_t dup_loc = TERM_VAL(dup);
+  TermTag dup_tag = TERM_TAG(dup);
+  uint8_t is_co0 = IS_DP0(dup_tag);
+  
+  // Create erasure term for substitution
+  Term era_term = ic_make_era();
+  
+  // Set substitution
+  ic->heap[dup_loc] = ic_make_sub(era_term);
+  
+  // Return an erasure
+  return era_term;
 }
 
 //! &L{r,s} = λx.f;
@@ -396,6 +446,9 @@ inline Term ic_whnf(IC* ic, Term term) {
       } else if (IS_SUP(tag)) {
         next = ic_app_sup(ic, prev, next);
         continue;
+      } else if (tag == ERA) {
+        next = ic_app_era(ic, prev, next);
+        continue;
       }
     } else if (IS_DUP(ptag)) {
       if (tag == LAM) {
@@ -403,6 +456,9 @@ inline Term ic_whnf(IC* ic, Term term) {
         continue;
       } else if (IS_SUP(tag)) {
         next = ic_dup_sup(ic, prev, next);
+        continue;
+      } else if (tag == ERA) {
+        next = ic_dup_era(ic, prev, next);
         continue;
       }
     }
@@ -437,7 +493,11 @@ inline Term ic_normal(IC* ic, Term term) {
   term = ic_whnf(ic, term);
   TermTag tag = TERM_TAG(term);
   uint32_t loc = TERM_VAL(term);
-  if (tag == LAM) {
+  
+  if (ic_is_era(term)) {
+    // ERA has no children, so just return it
+    return term;
+  } else if (tag == LAM) {
     ic->heap[loc] = ic_normal(ic, ic->heap[loc]);
     return term;
   } else if (tag == APP) {

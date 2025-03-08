@@ -12,6 +12,32 @@
 // Collapse Interactions
 // -----------------------------------------------------------------------------
 
+// λx.*
+// ------ ERA-LAM
+// x <- *
+// *
+static inline Term ic_era_lam(IC* ic, Term lam, Term era) {
+  ic->interactions++;
+  
+  uint32_t lam_loc = TERM_VAL(lam);
+  
+  // Set substitution for x to an erasure
+  ic->heap[lam_loc] = ic_make_sub(ic_make_era());
+  
+  // Return an erasure
+  return ic_make_era();
+}
+
+// (f *)
+// ----- ERA-APP
+// *
+static inline Term ic_era_app(IC* ic, Term app, Term era) {
+  ic->interactions++;
+  
+  // Return an erasure
+  return ic_make_era();
+}
+
 // λx.&L{f0,f1}
 // ----------------- SUP-LAM
 // x <- &L{x0,x1}
@@ -259,6 +285,9 @@ Term ic_collapse_sups(IC* ic, Term term) {
     if (IS_SUP(TERM_TAG(bod_col))) {
       //printf(">> SUP-LAM\n");
       return ic_collapse_sups(ic, ic_sup_lam(ic, term, bod_col));
+    } else if (ic_is_era(bod_col)) {
+      //printf(">> ERA-LAM\n");
+      return ic_collapse_sups(ic, ic_era_lam(ic, term, bod_col));
     } else {
       return term;
     }
@@ -268,6 +297,9 @@ Term ic_collapse_sups(IC* ic, Term term) {
     if (IS_SUP(TERM_TAG(arg_col))) {
       //printf(">> SUP-APP\n");
       return ic_collapse_sups(ic, ic_sup_app(ic, term, arg_col));
+    } else if (ic_is_era(arg_col)) {
+      //printf(">> ERA-APP\n");
+      return ic_collapse_sups(ic, ic_era_app(ic, term, arg_col));
     } else {
       return term;
     }
@@ -302,6 +334,9 @@ Term ic_collapse_dups(IC* ic, Term term) {
     } else if (val_tag == APP) {
       //printf(">> DUP-APP\n");
       return ic_collapse_dups(ic, ic_dup_app(ic, term, val));
+    } else if (ic_is_era(val)) {
+      //printf(">> DUP-ERA\n");
+      return ic_collapse_dups(ic, ic_dup_era(ic, term, val));
     } else {
       return term;
     }
@@ -315,6 +350,9 @@ Term ic_collapse_dups(IC* ic, Term term) {
   } else if (IS_SUP(tag)) {
     ic->heap[loc+0] = ic_collapse_dups(ic, ic->heap[loc+0]);
     ic->heap[loc+1] = ic_collapse_dups(ic, ic->heap[loc+1]);
+    return term;
+  } else if (ic_is_era(term)) {
+    // ERA has no children, so just return it
     return term;
   } else {
     return term;

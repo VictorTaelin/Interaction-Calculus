@@ -204,6 +204,11 @@ void assign_var_ids(IC* ic, Term term, VarNameTable* var_table, DupTable* dup_ta
       break;
     }
 
+    case ERA: {
+      // ERA terms don't have children, so nothing to do
+      break;
+    }
+
     // Handle all superposition variants (SP0-SP3)
     case SP0:
     case SP1:
@@ -305,6 +310,11 @@ void stringify_term(IC* ic, Term term, VarNameTable* var_table, char* buffer, in
       *pos += snprintf(buffer + *pos, max_len - *pos, " ");
       stringify_term(ic, ic->heap[val + 1], var_table, buffer, pos, max_len);
       *pos += snprintf(buffer + *pos, max_len - *pos, ")");
+      break;
+    }
+
+    case ERA: {
+      *pos += snprintf(buffer + *pos, max_len - *pos, "*");
       break;
     }
 

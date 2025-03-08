@@ -341,6 +341,12 @@ void parse_term_dup(Parser* parser, uint32_t loc) {
   parse_term(parser, loc);
 }
 
+// Parse an erasure
+void parse_term_era(Parser* parser, uint32_t loc) {
+  expect(parser, "*", "for erasure");
+  store_term(parser, loc, ERA, 0); // ERA terms don't need any heap allocation
+}
+
 // Parse an application
 void parse_term_app(Parser* parser, uint32_t loc) {
   expect(parser, "(", "for application");
@@ -395,6 +401,9 @@ void parse_term_let(Parser* parser, uint32_t loc) {
   store_term(parser, loc, APP, app_node);
 }
 
+// Forward declaration for parse_term_era
+void parse_term_era(Parser* parser, uint32_t loc);
+
 // Main term parser - dispatcher for specific term types (moved from parse/term.c)
 void parse_term(Parser* parser, uint32_t loc) {
   skip(parser);
@@ -430,6 +439,8 @@ void parse_term(Parser* parser, uint32_t loc) {
     }
   } else if (c == '(') {
     parse_term_app(parser, loc);
+  } else if (c == '*') {
+    parse_term_era(parser, loc);
   } else {
     char error_msg[100];
     snprintf(error_msg, sizeof(error_msg), "Unexpected character: %c (code: %d)", c, (int)c);
