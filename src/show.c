@@ -12,7 +12,7 @@
 // Helper functions for numeric operations
 static uint32_t get_num_val(Term term) {
   if (TERM_TAG(term) == NUM) {
-    return TERM_VAL(term);
+    return TERM_VAL(term) & TERM_VAL_MASK;
   } else {
     return 0; // Default to 0 if not a number
   }
@@ -401,7 +401,7 @@ void stringify_term(IC* ic, Term term, VarNameTable* var_table, char* buffer, in
     }
     
     case NUM: {
-      *pos += snprintf(buffer + *pos, max_len - *pos, "%u", val);
+      *pos += snprintf(buffer + *pos, max_len - *pos, "%u", val & TERM_VAL_MASK);
       break;
     }
     

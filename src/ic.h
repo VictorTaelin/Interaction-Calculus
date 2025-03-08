@@ -151,7 +151,7 @@ uint32_t ic_alloc(IC* ic, uint32_t n);
 // @param tag The term's tag  
 // @param val The term's value (typically a heap location)  
 // @return The constructed term  
-Term ic_make_term(TermTag tag, uint32_t val);  
+Term ic_make_term(TermTag tag, uint32_t val);
 
 // Create a substitution term by setting the substitution bit.  
 // @param term The term to convert to a substitution  

@@ -176,8 +176,8 @@ void store_term(Parser* parser, uint32_t loc, TermTag tag, uint32_t value) {
   parser->ic->heap[loc] = ic_make_term(tag, value);
 }
 
-uint8_t parse_uint(Parser* parser) {
-  uint8_t value = 0;
+uint32_t parse_uint(Parser* parser) {
+  uint32_t value = 0;
   bool has_digit = false;
   while (isdigit(peek_char(parser))) {
     value = value * 10 + (next_char(parser) - '0');
@@ -298,7 +298,7 @@ static void parse_term_app(Parser* parser, uint32_t loc) {
 
 static void parse_term_sup(Parser* parser, uint32_t loc) {
   expect(parser, "&", "for superposition");
-  uint8_t label = parse_uint(parser) & 0x3;
+  uint8_t label = parse_uint(parser) & 0x7;
   expect(parser, "{", "after label in superposition");
   uint32_t sup_node = ic_alloc(parser->ic, 2);
   parse_term(parser, sup_node + 0);
@@ -310,7 +310,7 @@ static void parse_term_sup(Parser* parser, uint32_t loc) {
 
 static void parse_term_dup(Parser* parser, uint32_t loc) {
   expect(parser, "!&", "for duplication");
-  uint8_t label = parse_uint(parser) & 0x3;
+  uint8_t label = parse_uint(parser) & 0x7;
   expect(parser, "{", "after label in duplication");
   char x0[MAX_NAME_LEN];
   char x1[MAX_NAME_LEN];
