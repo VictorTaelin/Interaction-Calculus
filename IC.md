@@ -11,20 +11,26 @@ An IC term is defined by the following grammar:
 ```
 Term ::=
   | VAR: Name
+  | ERA: "*"
   | LAM: "λ" Name "." Term
   | APP: "(" Term " " Term ")"
   | SUP: "&" Label "{" Term "," Term "}"
   | DUP: "!" "&" Label "{" Name "," Name "}" "=" Term ";" Term
-  | ERA: "*"
+  | NUM: Number
+  | SUC: "+" Term
+  | SWI: "?" Term "{" "0" ":" Term ";" "+" ":" Term ";" "}"
 ```
 
 Where:
-- VAR represents a named variable.
+- VAR represents a variable.
 - ERA represents an erasure.
 - LAM represents a lambda.
 - APP represents a application.
 - SUP represents a superposition.
 - DUP represents a duplication.
+- NUM represents a number.
+- SUC represents a successor
+- SWI represents a switch.
 
 Lambdas are curried, and work like their λC counterpart, except with a relaxed
 scope, and with affine usage. Applications eliminate lambdas, like in λC,
@@ -39,9 +45,11 @@ when a LAM is projected, it reduces through the DUP-LAM interaction. This gives
 a computational behavior for every possible interaction: there are no runtime
 errors on the Interaction Calculus.
 
+NUM, SUC and SWI aren't essential to the theory, but are added for convenience.
+
 The 'Label' is just a numeric value. It affects the DUP-SUP interaction.
 
-The interaction rules are listed below:
+The core interaction rules are listed below:
 
 ```
 (* a)
@@ -89,6 +97,40 @@ y <- &R{a1,b1}
 ! &L{a0,a1} = a;
 ! &L{b0,b1} = b;
 K
+```
+
+The numeric interaction rules are listed below:
+
+```
++N
+--- SUC-NUM
+N+1
+
++*
+-- SUC-ERA
+*
+
++&L{x,y}
+--------- SUC-SUP
+&L{+x,+y}
+
+?N{0:z;+:s;}
+------------ SWI-NUM (if N==0)
+z
+
+?N{0:z;+:s;}
+------------ SWI-NUM (if N>0)
+(s N-1)
+
+?*{0:z;+:s;}
+------------ SWI-ERA
+*
+
+?&L{x,y}{0:z;+:s;}
+--------------------------------- SWI-SUP
+!&L{z0,z1} = z;
+!&L{s0,s1} = s;
+&L{?x{0:z0;+:s0;},?y{0:z1;+:s1;}}
 ```
 
 Where `x <- t` stands for a global substitution of `x` by `t`.
@@ -279,8 +321,20 @@ x <- &L{x0,x1}
 
 (f &L{x0,x1})
 ------------------- SUP-APP
-!&L{f0,f1} = f
+!&L{f0,f1} = f;
 &L{(f0 x0),(f1 x1)}
+
+~N{0:&L{z0,z1};+:s;}
+--------------------------------- SUP-SWI-Z
+!&L{N0,N1} = N;
+!&L{S0,S1} = S;
+&L{~N0{0:z0;+:S0},~N1{0:z1;+:S1}}
+
+~N{0:z;+:&0{s0,s1};}
+--------------------------------- SUP-SWI-S
+!&L{N0,N1} = N;
+!&L{Z0,Z1} = Z;
+&L{~N0{0:z0;+:S0},~N1{0:z1;+:S1}}
 
 &R{&L{x0,x1},y}
 ----------------------- SUP-SUP-X (if R>L)
@@ -314,27 +368,43 @@ IC32 is implemented in portable C.
 Each Term is represented as a 32-bit word, split into the following fields:
 
 - sub (1-bit): true if this is a substitution
-- tag (4-bit): the tag identifying the term type and label
-- val (27-bit): the value, typically a pointer to a node in memory
+- tag (5-bit): the tag identifying the term type and label
+- val (26-bit): the value, typically a pointer to a node in memory
 
 The tag field can be one of the following:
 
-- `VAR`: 0x0
-- `LAM`: 0x1
-- `APP`: 0x2
-- `ERA`: 0x3
-- `SP0`: 0x4
-- `SP1`: 0x5
-- `SP2`: 0x6
-- `SP3`: 0x7
-- `CX0`: 0x8
-- `CX1`: 0x9
-- `CX2`: 0xA
-- `CX3`: 0xB
-- `CY0`: 0xC
-- `CY1`: 0xD
-- `CY2`: 0xE
-- `CY3`: 0xF
+- `VAR`: 0x00
+- `LAM`: 0x01
+- `APP`: 0x02
+- `ERA`: 0x03
+- `NUM`: 0x04
+- `SUC`: 0x05
+- `SWI`: 0x06
+- `TMP`: 0x07
+- `SP0`: 0x08
+- `SP1`: 0x09
+- `SP2`: 0x0A
+- `SP3`: 0x0B
+- `SP4`: 0x0C
+- `SP5`: 0x0D
+- `SP6`: 0x0E
+- `SP7`: 0x0F
+- `CX0`: 0x10
+- `CX1`: 0x11
+- `CX2`: 0x12
+- `CX3`: 0x13
+- `CX4`: 0x14
+- `CX5`: 0x15
+- `CX6`: 0x16
+- `CX7`: 0x17
+- `CY0`: 0x18
+- `CY1`: 0x19
+- `CY2`: 0x1A
+- `CY3`: 0x1B
+- `CY4`: 0x1C
+- `CY5`: 0x1D
+- `CY6`: 0x1E
+- `CY7`: 0x1F
 
 The val field depends on the variant:
 
@@ -342,6 +412,9 @@ The val field depends on the variant:
 - `LAM`: points to a Lam node ({bod: Term}).
 - `APP`: points to an App node ({fun: Term, arg: Term}).
 - `ERA`: unused.
+- `NUM`: stores an unsigned integer.
+- `SUC`: points to a Suc node ({num: Term})
+- `SWI`: points to a Swi node ({num: Term, ifZ: Term, ifS: Term})
 - `SP{L}`: points to a Sup node ({lft: Term, rgt: Term}).
 - `CX{L}`: points to a Dup node ({val: Term}) or a substitution.
 - `CY{L}`: points to a Dup node ({val: Term}) or a substitution.
@@ -395,6 +468,8 @@ def dup_sup(dup, sup):
     heap[dup.loc] = as_sub(su1_val if (dup.tag & 0x4) == 0 else su0_val)
     return (su0_val if (dup.tag & 0x4) == 0 else su1_val)
 ```
+
+The NUM, SUC and SWI terms extend the IC with unboxed unsigned integers.
 
 # Parsing IC32
 
