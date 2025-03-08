@@ -1,5 +1,4 @@
-//./../IC.md//
-
+// parse.c
 #include "parse.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -15,84 +14,82 @@ char next_char(Parser* parser);
 bool peek_is(Parser* parser, char c);
 void parse_error(Parser* parser, const char* message);
 
-// Helper functions for scoping
+// Helper functions
 static bool starts_with_dollar(const char* name) {
   return name[0] == '$';
 }
 
-static void add_global_occur(Parser* parser, const char* name, uint32_t loc) {
-  if (parser->global_occurs_count >= MAX_GLOBAL_OCCURS) {
-    parse_error(parser, "Too many global variable occurrences");
-  }
-  strncpy(parser->global_occurs[parser->global_occurs_count].name, name, MAX_NAME_LEN - 1);
-  parser->global_occurs[parser->global_occurs_count].name[MAX_NAME_LEN - 1] = '\0';
-  parser->global_occurs[parser->global_occurs_count].loc = loc;
-  parser->global_occurs_count++;
-}
-
-static void add_global_binder(Parser* parser, const char* name, Term term) {
-  for (size_t i = 0; i < parser->global_binders_count; i++) {
-    if (strcmp(parser->global_binders[i].name, name) == 0) {
-      char error[256];
-      snprintf(error, sizeof(error), "Duplicate global variable binder: %s", name);
-      parse_error(parser, error);
+static size_t find_or_add_global_var(Parser* parser, const char* name) {
+  for (size_t i = 0; i < parser->global_vars_count; i++) {
+    if (strcmp(parser->global_vars[i].name, name) == 0) {
+      return i;
     }
   }
-  if (parser->global_binders_count >= MAX_GLOBAL_BINDERS) {
-    parse_error(parser, "Too many global variable binders");
+  if (parser->global_vars_count >= MAX_GLOBAL_VARS) {
+    parse_error(parser, "Too many global variables");
   }
-  Binder* binder = &parser->global_binders[parser->global_binders_count];
+  size_t idx = parser->global_vars_count++;
+  Binder* binder = &parser->global_vars[idx];
   strncpy(binder->name, name, MAX_NAME_LEN - 1);
   binder->name[MAX_NAME_LEN - 1] = '\0';
-  binder->original_term = term;
-  binder->last_occurrence_loc = 0xFFFFFFFF; // None
-  parser->global_binders_count++;
+  binder->var = NONE;
+  binder->loc = NONE;
+  return idx;
 }
 
 static void push_lexical_binder(Parser* parser, const char* name, Term term) {
-  if (parser->lexical_binders_count >= MAX_LEXICAL_BINDERS) {
+  if (parser->lexical_vars_count >= MAX_LEXICAL_VARS) {
     parse_error(parser, "Too many lexical binders");
   }
-  Binder* binder = &parser->lexical_binders[parser->lexical_binders_count];
+  Binder* binder = &parser->lexical_vars[parser->lexical_vars_count];
   strncpy(binder->name, name, MAX_NAME_LEN - 1);
   binder->name[MAX_NAME_LEN - 1] = '\0';
-  binder->original_term = term;
-  binder->last_occurrence_loc = 0xFFFFFFFF; // None
-  parser->lexical_binders_count++;
+  binder->var = term;
+  binder->loc = NONE;
+  parser->lexical_vars_count++;
 }
 
 static void pop_lexical_binder(Parser* parser) {
-  if (parser->lexical_binders_count > 0) {
-    parser->lexical_binders_count--;
+  if (parser->lexical_vars_count > 0) {
+    parser->lexical_vars_count--;
   }
 }
 
-static Binder* find_lexical_binding(Parser* parser, const char* name) {
-  for (int i = parser->lexical_binders_count - 1; i >= 0; i--) {
-    if (strcmp(parser->lexical_binders[i].name, name) == 0) {
-      return &parser->lexical_binders[i];
+static Binder* find_lexical_binder(Parser* parser, const char* name) {
+  for (int i = parser->lexical_vars_count - 1; i >= 0; i--) {
+    if (strcmp(parser->lexical_vars[i].name, name) == 0) {
+      return &parser->lexical_vars[i];
     }
   }
   return NULL;
 }
 
-static void resolve_global_occurs(Parser* parser) {
-  for (size_t i = 0; i < parser->global_occurs_count; i++) {
-    const char* name = parser->global_occurs[i].name;
-    Binder* binding = NULL;
-    for (size_t j = 0; j < parser->global_binders_count; j++) {
-      if (strcmp(parser->global_binders[j].name, name) == 0) {
-        binding = &parser->global_binders[j];
-        break;
-      }
-    }
-    if (binding == NULL) {
+static void resolve_global_vars(Parser* parser) {
+  for (size_t i = 0; i < parser->global_vars_count; i++) {
+    Binder* binder = &parser->global_vars[i];
+    if (binder->var == NONE) {
       char error[256];
-      snprintf(error, sizeof(error), "Undefined global variable: %s", name);
+      snprintf(error, sizeof(error), "Undefined global variable: %s", binder->name);
       parse_error(parser, error);
     }
-    parser->ic->heap[parser->global_occurs[i].loc] = binding->original_term;
+    if (binder->loc != NONE) {
+      parser->ic->heap[binder->loc] = binder->var;
+    }
   }
+}
+
+static void move_term(Parser* parser, uint32_t from_loc, uint32_t to_loc) {
+  for (size_t i = 0; i < parser->global_vars_count; i++) {
+    if (parser->global_vars[i].loc == from_loc) {
+      parser->global_vars[i].loc = to_loc;
+    }
+  }
+  for (size_t i = 0; i < parser->lexical_vars_count; i++) {
+    if (parser->lexical_vars[i].loc == from_loc) {
+      parser->lexical_vars[i].loc = to_loc;
+    }
+  }
+  parser->ic->heap[to_loc] = parser->ic->heap[from_loc];
 }
 
 // Parse helper functions
@@ -110,7 +107,7 @@ bool consume(Parser* parser, const char* str) {
 
 void parse_error(Parser* parser, const char* message) {
   fprintf(stderr, "Parse error at line %zu, column %zu: %s\n", 
-      parser->line, parser->col, message);
+          parser->line, parser->col, message);
   fprintf(stderr, "Input:\n%s\n", parser->input);
   fprintf(stderr, "    ");
   for (size_t i = 0; i < parser->pos && i < 40; i++) {
@@ -136,9 +133,8 @@ void init_parser(Parser* parser, IC* ic, const char* input) {
   parser->pos = 0;
   parser->line = 1;
   parser->col = 1;
-  parser->global_occurs_count = 0;
-  parser->global_binders_count = 0;
-  parser->lexical_binders_count = 0;
+  parser->global_vars_count = 0;
+  parser->lexical_vars_count = 0;
 }
 
 static void parse_name(Parser* parser, char* name) {
@@ -215,7 +211,7 @@ void skip(Parser* parser) {
 
 bool check_utf8(Parser* parser, uint8_t b1, uint8_t b2) {
   return (unsigned char)parser->input[parser->pos] == b1 &&
-      (unsigned char)parser->input[parser->pos + 1] == b2;
+         (unsigned char)parser->input[parser->pos + 1] == b2;
 }
 
 void consume_utf8(Parser* parser, int bytes) {
@@ -229,27 +225,30 @@ static void parse_term_var(Parser* parser, uint32_t loc) {
   char name[MAX_NAME_LEN];
   parse_name(parser, name);
   if (starts_with_dollar(name)) {
-    add_global_occur(parser, name, loc);
+    size_t idx = find_or_add_global_var(parser, name);
+    if (parser->global_vars[idx].var == NONE) {
+      parser->global_vars[idx].loc = loc;
+    } else {
+      parser->ic->heap[loc] = parser->global_vars[idx].var;
+    }
   } else {
-    Binder* binding = find_lexical_binding(parser, name);
-    if (binding == NULL) {
+    Binder* binder = find_lexical_binder(parser, name);
+    if (binder == NULL) {
       char error[256];
       snprintf(error, sizeof(error), "Undefined lexical variable: %s", name);
       parse_error(parser, error);
     }
-    if (binding->last_occurrence_loc == 0xFFFFFFFF) {
-      // First occurrence
-      parser->ic->heap[loc] = binding->original_term;
-      binding->last_occurrence_loc = loc;
+    if (binder->loc == NONE) {
+      parser->ic->heap[loc] = binder->var;
+      binder->loc = loc;
     } else {
-      // Subsequent occurrence
       uint32_t dup_loc = ic_alloc(parser->ic, 1);
-      parser->ic->heap[dup_loc] = parser->ic->heap[binding->last_occurrence_loc];
-      Term dp0 = ic_make_co0(0, dup_loc); // Label 0 for auto-dup
+      parser->ic->heap[dup_loc] = parser->ic->heap[binder->loc];
+      Term dp0 = ic_make_co0(0, dup_loc);
       Term dp1 = ic_make_co1(0, dup_loc);
-      parser->ic->heap[binding->last_occurrence_loc] = dp0; // Replace previous occurrence
-      parser->ic->heap[loc] = dp1; // Current occurrence
-      binding->last_occurrence_loc = loc; // Update to current location
+      parser->ic->heap[binder->loc] = dp0;
+      parser->ic->heap[loc] = dp1;
+      binder->loc = loc;
     }
   }
 }
@@ -265,14 +264,19 @@ static void parse_term_lam(Parser* parser, uint32_t loc) {
   expect(parser, ".", "after name in lambda");
   uint32_t lam_node = ic_alloc(parser->ic, 1);
   Term var_term = ic_make_term(VAR, lam_node);
-  bool is_lexical = !starts_with_dollar(name);
-  if (!is_lexical) {
-    add_global_binder(parser, name, var_term);
+  if (starts_with_dollar(name)) {
+    size_t idx = find_or_add_global_var(parser, name);
+    if (parser->global_vars[idx].var != NONE) {
+      char error[256];
+      snprintf(error, sizeof(error), "Duplicate global variable binder: %s", name);
+      parse_error(parser, error);
+    }
+    parser->global_vars[idx].var = var_term;
   } else {
     push_lexical_binder(parser, name, var_term);
   }
   parse_term(parser, lam_node);
-  if (is_lexical) {
+  if (!starts_with_dollar(name)) {
     pop_lexical_binder(parser);
   }
   store_term(parser, loc, LAM, lam_node);
@@ -284,7 +288,7 @@ static void parse_term_app(Parser* parser, uint32_t loc) {
   skip(parser);
   while (peek_char(parser) != ')') {
     uint32_t app_node = ic_alloc(parser->ic, 2);
-    parser->ic->heap[app_node + 0] = parser->ic->heap[loc];
+    move_term(parser, loc, app_node + 0);
     parse_term(parser, app_node + 1);
     store_term(parser, loc, APP, app_node);
     skip(parser);
@@ -320,23 +324,33 @@ static void parse_term_dup(Parser* parser, uint32_t loc) {
   expect(parser, ";", "after value in duplication");
   Term co0_term = ic_make_co0(label, dup_node);
   Term co1_term = ic_make_co1(label, dup_node);
-  bool x0_lexical = !starts_with_dollar(x0);
-  bool x1_lexical = !starts_with_dollar(x1);
-  if (x0_lexical) {
+  if (starts_with_dollar(x0)) {
+    size_t idx = find_or_add_global_var(parser, x0);
+    if (parser->global_vars[idx].var != NONE) {
+      char error[256];
+      snprintf(error, sizeof(error), "Duplicate global variable binder: %s", x0);
+      parse_error(parser, error);
+    }
+    parser->global_vars[idx].var = co0_term;
+  } else {
     push_lexical_binder(parser, x0, co0_term);
-  } else {
-    add_global_binder(parser, x0, co0_term);
   }
-  if (x1_lexical) {
-    push_lexical_binder(parser, x1, co1_term);
+  if (starts_with_dollar(x1)) {
+    size_t idx = find_or_add_global_var(parser, x1);
+    if (parser->global_vars[idx].var != NONE) {
+      char error[256];
+      snprintf(error, sizeof(error), "Duplicate global variable binder: %s", x1);
+      parse_error(parser, error);
+    }
+    parser->global_vars[idx].var = co1_term;
   } else {
-    add_global_binder(parser, x1, co1_term);
+    push_lexical_binder(parser, x1, co1_term);
   }
   parse_term(parser, loc);
-  if (x1_lexical) {
+  if (!starts_with_dollar(x1)) {
     pop_lexical_binder(parser);
   }
-  if (x0_lexical) {
+  if (!starts_with_dollar(x0)) {
     pop_lexical_binder(parser);
   }
 }
@@ -356,14 +370,19 @@ static void parse_term_let(Parser* parser, uint32_t loc) {
   parse_term(parser, app_node + 1);
   expect(parser, ";", "after value in let expression");
   Term var_term = ic_make_term(VAR, lam_node);
-  bool is_lexical = !starts_with_dollar(name);
-  if (!is_lexical) {
-    add_global_binder(parser, name, var_term);
+  if (starts_with_dollar(name)) {
+    size_t idx = find_or_add_global_var(parser, name);
+    if (parser->global_vars[idx].var != NONE) {
+      char error[256];
+      snprintf(error, sizeof(error), "Duplicate global variable binder: %s", name);
+      parse_error(parser, error);
+    }
+    parser->global_vars[idx].var = var_term;
   } else {
     push_lexical_binder(parser, name, var_term);
   }
   parse_term(parser, lam_node);
-  if (is_lexical) {
+  if (!starts_with_dollar(name)) {
     pop_lexical_binder(parser);
   }
   store_term(parser, app_node + 0, LAM, lam_node);
@@ -415,7 +434,7 @@ Term parse_string(IC* ic, const char* input) {
   init_parser(&parser, ic, input);
   skip(&parser);
   uint32_t term_loc = parse_term_alloc(&parser);
-  resolve_global_occurs(&parser);
+  resolve_global_vars(&parser);
   return parser.ic->heap[term_loc];
 }
 

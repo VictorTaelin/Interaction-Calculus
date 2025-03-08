@@ -181,4 +181,6 @@ Term ic_whnf(IC* ic, Term term);
 // @return The normalized term  
 Term ic_normal(IC* ic, Term term);  
 
+#define NONE 0xFFFFFFFF
+
 #endif // IC_H
