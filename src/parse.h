@@ -41,3 +41,4 @@ Term parse_string(IC* ic, const char* input);
 Term parse_file(IC* ic, const char* filename);
 
 #endif // PARSE_H
+

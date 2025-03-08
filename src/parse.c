@@ -1,4 +1,4 @@
-//./ic.h//
+//./../IC.md//
 
 #include "parse.h"
 #include <stdio.h>
@@ -45,7 +45,7 @@ static void add_global_binder(Parser* parser, const char* name, Term term) {
   strncpy(binder->name, name, MAX_NAME_LEN - 1);
   binder->name[MAX_NAME_LEN - 1] = '\0';
   binder->original_term = term;
-  binder->last_occurrence_loc = 0;
+  binder->last_occurrence_loc = 0xFFFFFFFF; // None
   parser->global_binders_count++;
 }
 
@@ -57,7 +57,7 @@ static void push_lexical_binder(Parser* parser, const char* name, Term term) {
   strncpy(binder->name, name, MAX_NAME_LEN - 1);
   binder->name[MAX_NAME_LEN - 1] = '\0';
   binder->original_term = term;
-  binder->last_occurrence_loc = 0;
+  binder->last_occurrence_loc = 0xFFFFFFFF; // None
   parser->lexical_binders_count++;
 }
 
@@ -237,7 +237,7 @@ static void parse_term_var(Parser* parser, uint32_t loc) {
       snprintf(error, sizeof(error), "Undefined lexical variable: %s", name);
       parse_error(parser, error);
     }
-    if (binding->last_occurrence_loc == 0) {
+    if (binding->last_occurrence_loc == 0xFFFFFFFF) {
       // First occurrence
       parser->ic->heap[loc] = binding->original_term;
       binding->last_occurrence_loc = loc;
@@ -245,11 +245,11 @@ static void parse_term_var(Parser* parser, uint32_t loc) {
       // Subsequent occurrence
       uint32_t dup_loc = ic_alloc(parser->ic, 1);
       parser->ic->heap[dup_loc] = parser->ic->heap[binding->last_occurrence_loc];
-      Term dp0 = ic_make_co0(0, dup_loc);
+      Term dp0 = ic_make_co0(0, dup_loc); // Label 0 for auto-dup
       Term dp1 = ic_make_co1(0, dup_loc);
-      parser->ic->heap[binding->last_occurrence_loc] = dp0;
-      parser->ic->heap[loc] = dp1;
-      binding->last_occurrence_loc = loc;
+      parser->ic->heap[binding->last_occurrence_loc] = dp0; // Replace previous occurrence
+      parser->ic->heap[loc] = dp1; // Current occurrence
+      binding->last_occurrence_loc = loc; // Update to current location
     }
   }
 }
@@ -280,21 +280,16 @@ static void parse_term_lam(Parser* parser, uint32_t loc) {
 
 static void parse_term_app(Parser* parser, uint32_t loc) {
   expect(parser, "(", "for application");
-  uint32_t current_loc = ic_alloc(parser->ic, 1);
-  parse_term(parser, current_loc);
+  parse_term(parser, loc);
+  Term term = parser->ic->heap[loc];
   skip(parser);
   while (peek_char(parser) != ')') {
-    uint32_t arg_loc = ic_alloc(parser->ic, 1);
-    parse_term(parser, arg_loc);
     uint32_t app_node = ic_alloc(parser->ic, 2);
-    parser->ic->heap[app_node] = parser->ic->heap[current_loc];
-    parser->ic->heap[app_node + 1] = parser->ic->heap[arg_loc];
-    uint32_t new_loc = ic_alloc(parser->ic, 1);
-    store_term(parser, new_loc, APP, app_node);
-    current_loc = new_loc;
+    parser->ic->heap[app_node + 0] = term;
+    parse_term(parser, app_node + 1);
+    store_term(parser, loc, APP, app_node);
     skip(parser);
   }
-  parser->ic->heap[loc] = parser->ic->heap[current_loc];
   expect(parser, ")", "after terms in application");
 }
 
@@ -303,11 +298,9 @@ static void parse_term_sup(Parser* parser, uint32_t loc) {
   uint8_t label = parse_uint(parser) & 0x3;
   expect(parser, "{", "after label in superposition");
   uint32_t sup_node = ic_alloc(parser->ic, 2);
-  uint32_t lft_loc = sup_node;
-  uint32_t rgt_loc = sup_node + 1;
-  parse_term(parser, lft_loc);
+  parse_term(parser, sup_node + 0);
   expect(parser, ",", "between terms in superposition");
-  parse_term(parser, rgt_loc);
+  parse_term(parser, sup_node + 1);
   expect(parser, "}", "after terms in superposition");
   store_term(parser, loc, SUP_TAG(label), sup_node);
 }
@@ -361,9 +354,7 @@ static void parse_term_let(Parser* parser, uint32_t loc) {
   expect(parser, "=", "after name in let expression");
   uint32_t app_node = ic_alloc(parser->ic, 2);
   uint32_t lam_node = ic_alloc(parser->ic, 1);
-  uint32_t fun_loc = app_node;
-  uint32_t arg_loc = app_node + 1;
-  parse_term(parser, arg_loc);
+  parse_term(parser, app_node + 1);
   expect(parser, ";", "after value in let expression");
   Term var_term = ic_make_term(VAR, lam_node);
   bool is_lexical = !starts_with_dollar(name);
@@ -376,7 +367,7 @@ static void parse_term_let(Parser* parser, uint32_t loc) {
   if (is_lexical) {
     pop_lexical_binder(parser);
   }
-  store_term(parser, fun_loc, LAM, lam_node);
+  store_term(parser, app_node + 0, LAM, lam_node);
   store_term(parser, loc, APP, app_node);
 }
 
