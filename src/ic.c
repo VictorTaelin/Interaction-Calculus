@@ -432,22 +432,22 @@ inline Term ic_suc_era(IC* ic, Term suc, Term era) {
 //&L{+x,+y}
 inline Term ic_suc_sup(IC* ic, Term suc, Term sup) {
   ic->interactions++;
-  
+
   uint32_t sup_loc = TERM_VAL(sup);
   uint8_t sup_lab = TERM_LAB(sup);
-  
+
   Term lft = ic->heap[sup_loc + 0];
   Term rgt = ic->heap[sup_loc + 1];
-  
+
   // Create SUC nodes for each branch
   uint32_t suc0_loc = ic_suc(ic, lft);
   uint32_t suc1_loc = ic_suc(ic, rgt);
-  
+
   // Create the resulting superposition of SUCs
   uint32_t res_loc = ic_alloc(ic, 2);
   ic->heap[res_loc + 0] = ic_make_suc(suc0_loc);
   ic->heap[res_loc + 1] = ic_make_suc(suc1_loc);
-  
+
   return ic_make_sup(sup_lab, res_loc);
 }
 
@@ -456,13 +456,13 @@ inline Term ic_suc_sup(IC* ic, Term suc, Term sup) {
 //z
 inline Term ic_swi_num(IC* ic, Term swi, Term num) {
   ic->interactions++;
-  
+
   uint32_t swi_loc = TERM_VAL(swi);
   uint32_t num_val = TERM_VAL(num);
-  
+
   Term ifz = ic->heap[swi_loc + 1];
   Term ifs = ic->heap[swi_loc + 2];
-  
+
   if (num_val == 0) {
     // If the number is 0, return the zero branch
     return ifz;
@@ -490,37 +490,37 @@ inline Term ic_swi_era(IC* ic, Term swi, Term era) {
 //&L{?x{0:z0;+:s0;},?y{0:z1;+:s1;}}
 inline Term ic_swi_sup(IC* ic, Term swi, Term sup) {
   ic->interactions++;
-  
+
   uint32_t swi_loc = TERM_VAL(swi);
   uint32_t sup_loc = TERM_VAL(sup);
   uint8_t sup_lab = TERM_LAB(sup);
-  
+
   Term lft = ic->heap[sup_loc + 0];
   Term rgt = ic->heap[sup_loc + 1];
   Term ifz = ic->heap[swi_loc + 1];
   Term ifs = ic->heap[swi_loc + 2];
-  
+
   // Create duplications for ifz and ifs branches
   uint32_t dup_z_loc = ic_alloc(ic, 1);
   uint32_t dup_s_loc = ic_alloc(ic, 1);
-  
+
   ic->heap[dup_z_loc] = ifz;
   ic->heap[dup_s_loc] = ifs;
-  
+
   Term z0 = ic_make_co0(sup_lab, dup_z_loc);
   Term z1 = ic_make_co1(sup_lab, dup_z_loc);
   Term s0 = ic_make_co0(sup_lab, dup_s_loc);
   Term s1 = ic_make_co1(sup_lab, dup_s_loc);
-  
+
   // Create switch nodes for each branch
   uint32_t swi0_loc = ic_swi(ic, lft, z0, s0);
   uint32_t swi1_loc = ic_swi(ic, rgt, z1, s1);
-  
+
   // Create the resulting superposition
   uint32_t res_loc = ic_alloc(ic, 2);
   ic->heap[res_loc + 0] = ic_make_term(SWI, swi0_loc);
   ic->heap[res_loc + 1] = ic_make_term(SWI, swi1_loc);
-  
+
   return ic_make_sup(sup_lab, res_loc);
 }
 
@@ -532,15 +532,15 @@ inline Term ic_swi_sup(IC* ic, Term swi, Term sup) {
 //K
 inline Term ic_dup_num(IC* ic, Term dup, Term num) {
   ic->interactions++;
-  
+
   uint32_t dup_loc = TERM_VAL(dup);
   uint32_t num_val = TERM_VAL(num);
   TermTag dup_tag = TERM_TAG(dup);
   uint8_t is_co0 = IS_DP0(dup_tag);
-  
+
   // Numbers are duplicated by simply substituting both variables with the same number
   ic->heap[dup_loc] = ic_make_sub(num); // Set substitution for the other variable
-  
+
   return num; // Return the number
 }
 

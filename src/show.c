@@ -249,18 +249,18 @@ void assign_var_ids(IC* ic, Term term, VarNameTable* var_table, DupTable* dup_ta
       assign_var_ids(ic, ic->heap[sup_loc + 1], var_table, dup_table);
       break;
     }
-    
+
     case NUM: {
       // NUM has no variables to assign
       break;
     }
-    
+
     case SUC: {
       uint32_t suc_loc = val;
       assign_var_ids(ic, ic->heap[suc_loc], var_table, dup_table);
       break;
     }
-    
+
     case SWI: {
       uint32_t swi_loc = val;
       assign_var_ids(ic, ic->heap[swi_loc], var_table, dup_table);     // Number
@@ -399,18 +399,18 @@ void stringify_term(IC* ic, Term term, VarNameTable* var_table, char* buffer, in
       *pos += snprintf(buffer + *pos, max_len - *pos, "}");
       break;
     }
-    
+
     case NUM: {
       *pos += snprintf(buffer + *pos, max_len - *pos, "%u", val & TERM_VAL_MASK);
       break;
     }
-    
+
     case SUC: {
       *pos += snprintf(buffer + *pos, max_len - *pos, "+");
       stringify_term(ic, ic->heap[val], var_table, buffer, pos, max_len, prefix);
       break;
     }
-    
+
     case SWI: {
       *pos += snprintf(buffer + *pos, max_len - *pos, "?");
       stringify_term(ic, ic->heap[val], var_table, buffer, pos, max_len, prefix);

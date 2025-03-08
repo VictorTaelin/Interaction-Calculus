@@ -282,40 +282,40 @@ static inline Term ic_sup_swi_z(IC* ic, Term swi, Term sup) {
   uint32_t swi_loc = TERM_VAL(swi);
   uint32_t sup_loc = TERM_VAL(sup);
   uint8_t sup_lab = TERM_LAB(sup);
-  
+
   Term num = ic->heap[swi_loc + 0];
   Term z0 = ic->heap[sup_loc + 0];
   Term z1 = ic->heap[sup_loc + 1];
   Term s = ic->heap[swi_loc + 2];
-  
+
   // Create duplications for num and s
   uint32_t dup_n_loc = ic_alloc(ic, 1);
   uint32_t dup_s_loc = ic_alloc(ic, 1);
-  
+
   ic->heap[dup_n_loc] = num;
   ic->heap[dup_s_loc] = s;
-  
+
   Term n0 = ic_make_co0(sup_lab, dup_n_loc);
   Term n1 = ic_make_co1(sup_lab, dup_n_loc);
   Term s0 = ic_make_co0(sup_lab, dup_s_loc);
   Term s1 = ic_make_co1(sup_lab, dup_s_loc);
-  
+
   // Create switch nodes for each branch
   uint32_t swi0_loc = ic_alloc(ic, 3);
   ic->heap[swi0_loc + 0] = n0;
   ic->heap[swi0_loc + 1] = z0;
   ic->heap[swi0_loc + 2] = s0;
-  
+
   uint32_t swi1_loc = ic_alloc(ic, 3);
   ic->heap[swi1_loc + 0] = n1;
   ic->heap[swi1_loc + 1] = z1;
   ic->heap[swi1_loc + 2] = s1;
-  
+
   // Create the resulting superposition
   uint32_t res_loc = ic_alloc(ic, 2);
   ic->heap[res_loc + 0] = ic_make_term(SWI, swi0_loc);
   ic->heap[res_loc + 1] = ic_make_term(SWI, swi1_loc);
-  
+
   return ic_make_sup(sup_lab, res_loc);
 }
 
@@ -330,40 +330,40 @@ static inline Term ic_sup_swi_s(IC* ic, Term swi, Term sup) {
   uint32_t swi_loc = TERM_VAL(swi);
   uint32_t sup_loc = TERM_VAL(sup);
   uint8_t sup_lab = TERM_LAB(sup);
-  
+
   Term num = ic->heap[swi_loc + 0];
   Term z = ic->heap[swi_loc + 1];
   Term s0 = ic->heap[sup_loc + 0];
   Term s1 = ic->heap[sup_loc + 1];
-  
+
   // Create duplications for num and z
   uint32_t dup_n_loc = ic_alloc(ic, 1);
   uint32_t dup_z_loc = ic_alloc(ic, 1);
-  
+
   ic->heap[dup_n_loc] = num;
   ic->heap[dup_z_loc] = z;
-  
+
   Term n0 = ic_make_co0(sup_lab, dup_n_loc);
   Term n1 = ic_make_co1(sup_lab, dup_n_loc);
   Term z0 = ic_make_co0(sup_lab, dup_z_loc);
   Term z1 = ic_make_co1(sup_lab, dup_z_loc);
-  
+
   // Create switch nodes for each branch
   uint32_t swi0_loc = ic_alloc(ic, 3);
   ic->heap[swi0_loc + 0] = n0;
   ic->heap[swi0_loc + 1] = z0;
   ic->heap[swi0_loc + 2] = s0;
-  
+
   uint32_t swi1_loc = ic_alloc(ic, 3);
   ic->heap[swi1_loc + 0] = n1;
   ic->heap[swi1_loc + 1] = z1;
   ic->heap[swi1_loc + 2] = s1;
-  
+
   // Create the resulting superposition
   uint32_t res_loc = ic_alloc(ic, 2);
   ic->heap[res_loc + 0] = ic_make_term(SWI, swi0_loc);
   ic->heap[res_loc + 1] = ic_make_term(SWI, swi1_loc);
-  
+
   return ic_make_sup(sup_lab, res_loc);
 }
 
@@ -429,7 +429,7 @@ Term ic_collapse_sups(IC* ic, Term term) {
     Term num = ic->heap[loc+0];
     Term ifz = ic->heap[loc+1];
     Term ifs = ic->heap[loc+2];
-    
+
     if (IS_SUP(TERM_TAG(ifz))) {
       //printf(">> SUP-SWI-Z\n");
       return ic_collapse_sups(ic, ic_sup_swi_z(ic, term, ifz));
