@@ -131,6 +131,13 @@ z
 !&L{z0,z1} = z;
 !&L{s0,s1} = s;
 &L{?x{0:z0;+:s0;},?y{0:z1;+:s1;}}
+
+! &L{x,y} = N;
+K
+-------------- DUP-NUM
+x <- N
+y <- N
+K
 ```
 
 Where `x <- t` stands for a global substitution of `x` by `t`.

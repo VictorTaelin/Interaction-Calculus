@@ -48,7 +48,7 @@ static inline Term ic_normal_metal(IC* ic, Term term) {
 #endif
 
 // Default test term string
-const char* DEFAULT_TEST_TERM = "((λf.λx.!&0{f0,f1}=f;(f0 (f1 x)) λB.λT.λF.((B F) T)) λa.λb.a)";
+const char* DEFAULT_TEST_TERM = "(λf.λx.(f (f (f x))) λb.(b λt.λf.f λt.λf.t) λt.λf.t)";
 
 // Function declarations
 static Term normalize_term(IC* ic, Term term, int use_gpu, int use_collapse, int thread_count);
