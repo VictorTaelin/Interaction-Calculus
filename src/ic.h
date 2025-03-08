@@ -200,6 +200,7 @@ Term ic_suc_sup(IC* ic, Term suc, Term sup);
 Term ic_swi_num(IC* ic, Term swi, Term num);
 Term ic_swi_era(IC* ic, Term swi, Term era);
 Term ic_swi_sup(IC* ic, Term swi, Term sup);
+Term ic_dup_num(IC* ic, Term dup, Term num);
 
 // Reduce a term to weak head normal form (WHNF).  
 // @param ic The IC context  

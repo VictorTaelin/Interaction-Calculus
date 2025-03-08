@@ -527,6 +527,26 @@ inline Term ic_swi_sup(IC* ic, Term swi, Term sup) {
   return ic_make_sup(sup_lab, res_loc);
 }
 
+//! &L{x,y} = N;
+//K
+//-------------- DUP-NUM
+//x <- N
+//y <- N
+//K
+inline Term ic_dup_num(IC* ic, Term dup, Term num) {
+  ic->interactions++;
+  
+  uint32_t dup_loc = TERM_VAL(dup);
+  uint32_t num_val = TERM_VAL(num);
+  TermTag dup_tag = TERM_TAG(dup);
+  uint8_t is_co0 = IS_DP0(dup_tag);
+  
+  // Numbers are duplicated by simply substituting both variables with the same number
+  ic->heap[dup_loc] = ic_make_sub(num); // Set substitution for the other variable
+  
+  return num; // Return the number
+}
+
 // -----------------------------------------------------------------------------
 // Term Normalization
 // -----------------------------------------------------------------------------
@@ -619,6 +639,9 @@ inline Term ic_whnf(IC* ic, Term term) {
       } else if (tag == ERA) {
         next = ic_dup_era(ic, prev, next);
         continue;
+      } else if (tag == NUM) {
+        next = ic_dup_num(ic, prev, next);
+        continue;
       }
     } else if (ptag == SUC) {
       if (tag == NUM) {
@@ -658,7 +681,7 @@ inline Term ic_whnf(IC* ic, Term term) {
       prev = stack[--stack_pos];
       ptag = TERM_TAG(prev);
       val_loc = TERM_VAL(prev);
-      if (ptag == APP || IS_DUP(ptag)) {
+      if (ptag == APP || ptag == SWI || IS_DUP(ptag)) {
         heap[val_loc] = next;
       }
       next = prev;
