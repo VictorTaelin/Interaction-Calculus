@@ -52,11 +52,8 @@ inline void ic_free(IC* ic) {
 // @param ic The IC context
 // @param n Number of terms to allocate
 // @return Location in the heap
+// Does NOT bound check. We'll add a less frequent checker elsewhere.
 inline uint32_t ic_alloc(IC* ic, uint32_t n) {
-  if (ic->heap_pos + n >= ic->heap_size) {
-    fprintf(stderr, "Error: Out of memory (tried to allocate %u terms, %u/%u used)\n", n, ic->heap_pos, ic->heap_size);
-    exit(1);
-  }
   uint32_t ptr = ic->heap_pos;
   ic->heap_pos += n;
   return ptr;
