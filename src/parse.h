@@ -2,85 +2,41 @@
 #define PARSE_H
 
 #include "ic.h"
-#include <stdint.h>
-#include <stdbool.h>
 
-// Maximum name length for identifiers
-#define MAX_NAME_LEN 64
+#define MAX_NAME_LEN 32
+#define MAX_GLOBAL_OCCURS 1024
+#define MAX_GLOBAL_BINDERS 1024
+#define MAX_LEXICAL_BINDERS 1024
+#define MAX_SCOPE_DEPTH 64
 
-// Maximum number of variable uses and bindings to track
-#define MAX_USES 1024
-#define MAX_VARS 1024
-
-// Variable use structure to track unresolved variable uses
 typedef struct {
-  char name[MAX_NAME_LEN];  // Variable name
-  uint32_t loc;             // Location in heap to update
-} VarUse;
+  char name[MAX_NAME_LEN];
+  Term term;
+} Binding;
 
-// Variable binding structure 
 typedef struct {
-  char name[MAX_NAME_LEN];  // Variable name
-  Term term;                // Term representing the variable (VAR, DP0, DP1)
-} VarBinding;
+  char name[MAX_NAME_LEN];
+  uint32_t loc;
+} Use;
 
-// Parser state structure
 typedef struct {
-  IC* ic;              // Interaction Calculus context
-  const char* input;   // Input string
-  size_t pos;          // Current position
-  size_t line;         // Current line number
-  size_t col;          // Current column number
-
-  // Uses and bindings for variable resolution
-  VarUse lcs[MAX_USES];            // Array of unresolved variable uses
-  size_t lcs_count;                // Number of uses
-
-  VarBinding vrs[MAX_VARS];        // Map from names to variable terms
-  size_t vrs_count;                // Number of bindings
+  IC* ic;
+  const char* input;
+  size_t pos;
+  size_t line;
+  size_t col;
+  Use global_occurs[MAX_GLOBAL_OCCURS];
+  size_t global_occurs_count;
+  Binding global_binders[MAX_GLOBAL_BINDERS];
+  size_t global_binders_count;
+  Binding lexical_binders[MAX_LEXICAL_BINDERS];
+  size_t lexical_binders_count;
 } Parser;
 
-// Initialize a parser with the given input string
 void init_parser(Parser* parser, IC* ic, const char* input);
-
-// Main parsing functions
-Term parse_string(IC* ic, const char* input);
-Term parse_file(IC* ic, const char* filename);
 uint32_t parse_term_alloc(Parser* parser);
 void parse_term(Parser* parser, uint32_t loc);
-
-// Variable management
-void add_var_use(Parser* parser, const char* name, uint32_t loc);
-void bind_var(Parser* parser, const char* name, Term term);
-Term* lookup_var_binding(Parser* parser, const char* name);
-void resolve_var_uses(Parser* parser);
-
-// Helper parsing functions
-void skip(Parser* parser);
-char peek_char(Parser* parser);
-char next_char(Parser* parser);
-bool peek_is(Parser* parser, char c);
-bool consume(Parser* parser, const char* str);
-bool expect(Parser* parser, const char* token, const char* error_context);
-uint8_t parse_uint(Parser* parser);
-char* parse_name(Parser* parser);
-void parse_error(Parser* parser, const char* message);
-
-// UTF-8 helpers
-bool check_utf8(Parser* parser, uint8_t b1, uint8_t b2);
-bool check_utf8_3bytes(Parser* parser, uint8_t b1, uint8_t b2, uint8_t b3);
-bool check_utf8_4bytes(Parser* parser, uint8_t b1, uint8_t b2, uint8_t b3, uint8_t b4);
-void consume_utf8(Parser* parser, int bytes);
-
-// Term creation helpers
-void store_term(Parser* parser, uint32_t loc, TermTag tag, uint32_t value);
-
-// Individual term parsers
-void parse_term_var(Parser* parser, uint32_t loc);
-void parse_term_sup(Parser* parser, uint32_t loc);
-void parse_term_col(Parser* parser, uint32_t loc);
-void parse_term_lam(Parser* parser, uint32_t loc);
-void parse_term_app(Parser* parser, uint32_t loc);
-void parse_term_let(Parser* parser, uint32_t loc);
+Term parse_string(IC* ic, const char* input);
+Term parse_file(IC* ic, const char* filename);
 
 #endif // PARSE_H

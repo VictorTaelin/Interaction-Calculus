@@ -18,12 +18,12 @@
 // *
 static inline Term ic_era_lam(IC* ic, Term lam, Term era) {
   ic->interactions++;
-  
+
   uint32_t lam_loc = TERM_VAL(lam);
-  
+
   // Set substitution for x to an erasure
   ic->heap[lam_loc] = ic_make_sub(ic_make_era());
-  
+
   // Return an erasure
   return ic_make_era();
 }
@@ -33,7 +33,7 @@ static inline Term ic_era_lam(IC* ic, Term lam, Term era) {
 // *
 static inline Term ic_era_app(IC* ic, Term app, Term era) {
   ic->interactions++;
-  
+
   // Return an erasure
   return ic_make_era();
 }
@@ -279,7 +279,7 @@ Term ic_collapse_sups(IC* ic, Term term) {
   TermTag tag;
   uint8_t lab;
   uint32_t loc;
-  
+
   term = ic_whnf(ic, term);
   tag = TERM_TAG(term);
   lab = TERM_LAB(term);

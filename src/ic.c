@@ -148,12 +148,6 @@ inline uint32_t ic_sup(IC* ic, Term lft, Term rgt) {
   return sup_loc;
 }
 
-// Returns an immediate ERA term (no allocation needed)
-inline uint32_t ic_era(IC* ic) {
-  // ERA is just a tag, no heap allocation needed
-  return 0;
-}
-
 // Allocs a Dup node
 inline uint32_t ic_dup(IC* ic, Term val) {
   uint32_t dup_loc = ic_alloc(ic, 1);
@@ -242,17 +236,17 @@ inline Term ic_app_sup(IC* ic, Term app, Term sup) {
 //K
 inline Term ic_dup_era(IC* ic, Term dup, Term era) {
   ic->interactions++;
-  
+
   uint32_t dup_loc = TERM_VAL(dup);
   TermTag dup_tag = TERM_TAG(dup);
   uint8_t is_co0 = IS_DP0(dup_tag);
-  
+
   // Create erasure term for substitution
   Term era_term = ic_make_era();
-  
+
   // Set substitution
   ic->heap[dup_loc] = ic_make_sub(era_term);
-  
+
   // Return an erasure
   return era_term;
 }
@@ -493,7 +487,7 @@ inline Term ic_normal(IC* ic, Term term) {
   term = ic_whnf(ic, term);
   TermTag tag = TERM_TAG(term);
   uint32_t loc = TERM_VAL(term);
-  
+
   if (ic_is_era(term)) {
     // ERA has no children, so just return it
     return term;

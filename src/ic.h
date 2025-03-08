@@ -1,6 +1,3 @@
-//./../IC.md//
-//./ic.c//
-
 #ifndef IC_H
 #define IC_H
 
@@ -111,32 +108,77 @@ typedef struct {
 // IC Functions
 // -----------------------------------------------------------------------------
 
-// Function declarations
-IC* ic_new(uint32_t heap_size, uint32_t stack_size);
-IC* ic_default_new();
-void ic_free(IC* ic);
-uint32_t ic_alloc(IC* ic, uint32_t n);
-Term ic_make_term(TermTag tag, uint32_t val);
-Term ic_make_sub(Term term);
-Term ic_clear_sub(Term term);
-Term ic_make_sup(uint8_t lab, uint32_t val);
-Term ic_make_co0(uint8_t lab, uint32_t val);
-Term ic_make_co1(uint8_t lab, uint32_t val);
-Term ic_make_era();
-bool ic_is_era(Term term);
-uint32_t ic_lam(IC* ic, Term bod);
-uint32_t ic_app(IC* ic, Term fun, Term arg);
-uint32_t ic_sup(IC* ic, Term lft, Term rgt);
-uint32_t ic_era(IC* ic);
-uint32_t ic_dup(IC* ic, Term val);
-Term ic_app_lam(IC* ic, Term app, Term lam);
-Term ic_app_sup(IC* ic, Term app, Term sup);
-Term ic_app_era(IC* ic, Term app, Term era);
-Term ic_dup_lam(IC* ic, Term dup, Term lam);
-Term ic_dup_sup(IC* ic, Term dup, Term sup);
-Term ic_dup_era(IC* ic, Term dup, Term era);
-Term ic_whnf(IC* ic, Term term);
-Term ic_normal(IC* ic, Term term);
+// Create a new IC context with the specified heap and stack sizes.  
+// @param heap_size Number of terms in the heap  
+// @param stack_size Number of terms in the stack  
+// @return A new IC context or NULL if allocation failed  
+IC* ic_new(uint32_t heap_size, uint32_t stack_size);  
+
+// Create a new IC context with default heap and stack sizes.  
+// @return A new IC context or NULL if allocation failed  
+IC* ic_default_new();  
+
+// Free all resources associated with an IC context.  
+// @param ic The IC context to free  
+void ic_free(IC* ic);  
+
+// Allocate n consecutive terms in the heap.  
+// @param ic The IC context  
+// @param n Number of terms to allocate  
+// @return The starting location of the allocated block  
+uint32_t ic_alloc(IC* ic, uint32_t n);  
+
+// Create a term with the given tag and value.  
+// @param tag The term's tag  
+// @param val The term's value (typically a heap location)  
+// @return The constructed term  
+Term ic_make_term(TermTag tag, uint32_t val);  
+
+// Create a substitution term by setting the substitution bit.  
+// @param term The term to convert to a substitution  
+// @return The term with its substitution bit set  
+Term ic_make_sub(Term term);  
+
+// Clear the substitution bit from a term.  
+// @param term The term to clear  
+// @return The term with its substitution bit cleared  
+Term ic_clear_sub(Term term);  
+
+// Term constructors.
+Term ic_make_sup(uint8_t lab, uint32_t val);  
+Term ic_make_co0(uint8_t lab, uint32_t val);  
+Term ic_make_co1(uint8_t lab, uint32_t val);  
+Term ic_make_era();  
+
+// Check if a term is an erasure term.  
+// @param term The term to check  
+// @return True if the term is an erasure, false otherwise  
+bool ic_is_era(Term term);  
+
+// Allocate a node in the heap.  
+uint32_t ic_lam(IC* ic, Term bod);  
+uint32_t ic_app(IC* ic, Term fun, Term arg);  
+uint32_t ic_sup(IC* ic, Term lft, Term rgt);  
+uint32_t ic_dup(IC* ic, Term val);  
+
+// Interactions
+Term ic_app_lam(IC* ic, Term app, Term lam);  
+Term ic_app_sup(IC* ic, Term app, Term sup);  
+Term ic_app_era(IC* ic, Term app, Term era);  
+Term ic_dup_lam(IC* ic, Term dup, Term lam);  
+Term ic_dup_sup(IC* ic, Term dup, Term sup);  
+Term ic_dup_era(IC* ic, Term dup, Term era);  
+
+// Reduce a term to weak head normal form (WHNF).  
+// @param ic The IC context  
+// @param term The term to reduce  
+// @return The term in WHNF  
+Term ic_whnf(IC* ic, Term term);  
+
+// Reduce a term to full normal form by recursively normalizing subterms.  
+// @param ic The IC context  
+// @param term The term to normalize  
+// @return The normalized term  
+Term ic_normal(IC* ic, Term term);  
 
 #endif // IC_H
-
