@@ -4,26 +4,7 @@ SRC_DIR = src
 OBJ_DIR = obj
 BIN_DIR = bin
 
-# Check if NVCC exists and is usable
-NVCC_CHECK := $(shell which nvcc 2>/dev/null || echo "")
-
-ifneq ($(NVCC_CHECK),)
-  # NVCC is available but ic.cu has been removed
-  NVCC := $(NVCC_CHECK)
-  NVCCFLAGS = -O3 --std=c++11 -w
-  CUDA_CFLAGS = -DHAVE_CUDA
-  CUDA_SRCS =
-  CUDA_OBJS =
-  CUDA_LDFLAGS = -lcudart
-  HAS_CUDA = 0
-else
-  # No NVCC available
-  CUDA_SRCS =
-  CUDA_OBJS =
-  CUDA_CFLAGS =
-  CUDA_LDFLAGS =
-  HAS_CUDA = 0
-endif
+# Metal GPU acceleration is the only supported GPU backend
 
 # Check if we're on macOS for Metal support
 UNAME := $(shell uname)
@@ -82,30 +63,20 @@ TARGET_LN = $(BIN_DIR)/ic
 # Directories
 DIRS = $(OBJ_DIR) $(BIN_DIR)
 
-.PHONY: all clean check-cuda remote-build remote-run
+.PHONY: all clean status metal-status
 
 all: $(DIRS) $(TARGET) $(TARGET_LN)
 
 $(DIRS):
 	mkdir -p $@
 
-# Build target with CUDA, Metal, or neither
-ifeq ($(HAS_CUDA),1)
-ifeq ($(HAS_METAL),1)
-$(TARGET): $(OBJS) $(CUDA_OBJS) $(METAL_OBJS) $(METAL_OUTPUT)
-	$(CC) $(CFLAGS) -o $@ $(OBJS) $(CUDA_OBJS) $(METAL_OBJS) $(CUDA_LDFLAGS) $(METAL_LDFLAGS)
-else
-$(TARGET): $(OBJS) $(CUDA_OBJS)
-	$(CC) $(CFLAGS) -o $@ $^ $(CUDA_LDFLAGS)
-endif
-else
+# Build target with Metal or CPU-only
 ifeq ($(HAS_METAL),1)
 $(TARGET): $(OBJS) $(METAL_OBJS) $(METAL_OUTPUT)
 	$(CC) $(CFLAGS) -o $@ $(OBJS) $(METAL_OBJS) $(METAL_LDFLAGS)
 else
 $(TARGET): $(OBJS)
 	$(CC) $(CFLAGS) -o $@ $^
-endif
 endif
 
 $(TARGET_LN): $(TARGET)
@@ -116,15 +87,6 @@ $(METAL_OUTPUT): $(SRC_DIR)/ic.metal | $(BIN_DIR)
 	$(METAL_COMPILER) $(METAL_COMPILER_FLAGS) -o $@ $<
 
 # Compile C files
-ifeq ($(HAS_CUDA),1)
-ifeq ($(HAS_METAL),1)
-$(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
-	$(CC) $(CFLAGS) $(CUDA_CFLAGS) $(METAL_CFLAGS) -c -o $@ $<
-else
-$(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
-	$(CC) $(CFLAGS) $(CUDA_CFLAGS) -c -o $@ $<
-endif
-else
 ifeq ($(HAS_METAL),1)
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
 	$(CC) $(CFLAGS) $(METAL_CFLAGS) -c -o $@ $<
@@ -132,9 +94,6 @@ else
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 endif
-endif
-
-# CUDA compilation has been removed since ic.cu no longer exists
 
 # Compile Metal Objective-C++
 ifeq ($(HAS_METAL),1)
@@ -145,18 +104,12 @@ endif
 clean:
 	rm -rf $(OBJ_DIR) $(BIN_DIR)
 
-# Show GPU/Metal compilation status
+# Show GPU acceleration status
 status:
-ifeq ($(HAS_CUDA),1)
-	@echo "CUDA compiler found ($(NVCC)). Building with CUDA GPU support."
-else
-	@echo "CUDA compiler not found. Building without CUDA GPU support."
-endif
-
 ifeq ($(HAS_METAL),1)
 	@echo "Metal supported on this system. Building with Metal GPU support."
 else
-	@echo "Metal not supported on this system. Building without Metal GPU support."
+	@echo "No GPU acceleration available. Building CPU-only version."
 endif
 
 metal-status: $(TARGET)

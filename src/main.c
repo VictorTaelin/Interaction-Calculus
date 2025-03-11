@@ -8,31 +8,10 @@
 #include "parse.h"
 #include "show.h"
 
-// Forward declarations for GPU functions
-#ifdef HAVE_CUDA
-extern Term ic_normal_cuda(IC* ic, Term term, int thread_count);
-extern int ic_cuda_available();
-#endif
-
+// Forward declarations for Metal GPU functions
 #ifdef HAVE_METAL
 extern Term ic_normal_metal(IC* ic, Term term);
 extern int ic_metal_available();
-#endif
-
-// Stub functions when CUDA is not available
-#ifndef HAVE_CUDA
-static inline int ic_cuda_available() {
-  return 0; // CUDA not available
-}
-
-static inline Term ic_normal_cuda(IC* ic, Term term, int thread_count) {
-  fprintf(stderr, "Warning: CUDA GPU support not compiled. Falling back to other methods.\n");
-  #ifdef HAVE_METAL
-  return ic_normal_metal(ic, term);
-  #else
-  return ic_normal(ic, term);
-  #endif
-}
 #endif
 
 // Stub functions when Metal is not available
@@ -62,9 +41,7 @@ static Term normalize_term(IC* ic, Term term, int use_gpu, int use_collapse, int
   if (use_collapse) {
     if (use_gpu) {
       fprintf(stderr, "Warning: Collapse mode is not available for GPU. Using normal GPU normalization.\n");
-      if (ic_cuda_available()) {
-        return ic_normal_cuda(ic, term, thread_count);
-      } else if (ic_metal_available()) {
+      if (ic_metal_available()) {
         return ic_normal_metal(ic, term);
       } else {
         fprintf(stderr, "Warning: No GPU acceleration available. Falling back to CPU normalization.\n");
@@ -77,16 +54,13 @@ static Term normalize_term(IC* ic, Term term, int use_gpu, int use_collapse, int
     }
   } else {
     if (use_gpu) {
-      if (ic_cuda_available()) {
-        return ic_normal_cuda(ic, term, thread_count);
-      } else if (ic_metal_available()) {
+      if (ic_metal_available()) {
         return ic_normal_metal(ic, term);
       } else {
         fprintf(stderr, "Warning: No GPU acceleration available. Falling back to CPU normalization.\n");
         return ic_normal(ic, term);
       }
     } else {
-      //return term;
       return ic_normal(ic, term);
     }
   }
@@ -124,10 +98,7 @@ static void process_term(IC* ic, Term term, int use_gpu, int use_collapse, int t
   if (use_collapse && !use_gpu) {
     mode_str = "CPU (collapse)";
   } else if (use_gpu) {
-    if (ic_cuda_available()) {
-      mode_str = "CUDA GPU";
-      printf("THREADS: %d\n", thread_count);
-    } else if (ic_metal_available()) {
+    if (ic_metal_available()) {
       mode_str = "Metal GPU";
     } else {
       mode_str = "CPU";
@@ -198,10 +169,7 @@ static void benchmark_term(IC* ic, Term term, int use_gpu, int use_collapse, int
   if (use_collapse && !use_gpu) {
     mode_str = "CPU (collapse)";
   } else if (use_gpu) {
-    if (ic_cuda_available()) {
-      mode_str = "CUDA GPU";
-      printf("- THREADS: %d\n", thread_count);
-    } else if (ic_metal_available()) {
+    if (ic_metal_available()) {
       mode_str = "Metal GPU";
     } else {
       mode_str = "CPU";
@@ -229,15 +197,14 @@ static void print_usage(void) {
   printf("Usage: ic <command> [arguments] [options]\n\n");
   printf("Commands:\n");
   printf("  run <file>       - Parse and normalize a IC file on CPU\n");
-  printf("  run-gpu <file>   - Parse and normalize a IC file on GPU (CUDA or Metal)\n");
+  printf("  run-gpu <file>   - Parse and normalize a IC file on GPU (Metal)\n");
   printf("  eval <expr>      - Parse and normalize a IC expression on CPU\n");
-  printf("  eval-gpu <expr>  - Parse and normalize a IC expression on GPU (CUDA or Metal)\n");
+  printf("  eval-gpu <expr>  - Parse and normalize a IC expression on GPU (Metal)\n");
   printf("  bench <file>     - Benchmark normalization of a IC file on CPU\n");
-  printf("  bench-gpu <file> - Benchmark normalization of a IC file on GPU (CUDA or Metal)\n");
+  printf("  bench-gpu <file> - Benchmark normalization of a IC file on GPU (Metal)\n");
   printf("\n");
   printf("Options:\n");
   printf("  -C             - Use collapse mode (CPU only)\n");
-  printf("  -t <num>       - Number of CUDA threads to use (default: 1)\n");
   printf("\n");
 }
 
@@ -279,19 +246,6 @@ int main(int argc, char* argv[]) {
   for (int i = 3; i < argc; i++) {
     if (strcmp(argv[i], "-C") == 0) {
       use_collapse = 1;
-    } else if (strcmp(argv[i], "-t") == 0) {
-      if (i + 1 < argc) {
-        thread_count = atoi(argv[++i]);
-        if (thread_count <= 0) {
-          fprintf(stderr, "Warning: Invalid thread count '%s', using default (1)\n", argv[i]);
-          thread_count = 1;
-        }
-      } else {
-        fprintf(stderr, "Error: -t flag requires a number\n");
-        print_usage();
-        result = 1;
-        goto cleanup;
-      }
     } else {
       fprintf(stderr, "Error: Unknown flag '%s'\n", argv[i]);
       print_usage();
