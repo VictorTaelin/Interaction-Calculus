@@ -58,8 +58,8 @@ static inline Term ic_sup_lam(IC* ic, Term lam, Term sup) {
   ic->heap[lam1_loc + 0] = f1;
 
   // Create variables x0 and x1 pointing to lam0 and lam1
-  Term x0 = ic_make_term(VAR, lam0_loc);
-  Term x1 = ic_make_term(VAR, lam1_loc);
+  Term x0 = ic_make_term(VAR, 0, lam0_loc);
+  Term x1 = ic_make_term(VAR, 0, lam1_loc);
 
   // Create the new SUP &L{x0,x1}
   Val new_sup_loc = ic_alloc(ic, 2);
@@ -71,8 +71,8 @@ static inline Term ic_sup_lam(IC* ic, Term lam, Term sup) {
   ic->heap[lam_loc] = ic_make_sub(new_sup);
 
   // Create the result SUP &L{lam0, lam1}
-  Term lam0_term = ic_make_term(LAM, lam0_loc);
-  Term lam1_term = ic_make_term(LAM, lam1_loc);
+  Term lam0_term = ic_make_term(LAM, 0, lam0_loc);
+  Term lam1_term = ic_make_term(LAM, 0, lam1_loc);
   Val result_sup_loc = ic_alloc(ic, 2);
   ic->heap[result_sup_loc + 0] = lam0_term;
   ic->heap[result_sup_loc + 1] = lam1_term;
@@ -105,13 +105,13 @@ static inline Term ic_sup_app(IC* ic, Term app, Term sup) {
   Val app0_loc = ic_alloc(ic, 2);
   ic->heap[app0_loc + 0] = f0;
   ic->heap[app0_loc + 1] = lft;
-  Term app0 = ic_make_term(APP, app0_loc);
+  Term app0 = ic_make_term(APP, 0, app0_loc);
 
   // Create app1 = (f1 rgt)
   Val app1_loc = ic_alloc(ic, 2);
   ic->heap[app1_loc + 0] = f1;
   ic->heap[app1_loc + 1] = rgt;
-  Term app1 = ic_make_term(APP, app1_loc);
+  Term app1 = ic_make_term(APP, 0, app1_loc);
 
   // Create result SUP &L{app0, app1}
   Val result_sup_loc = ic_alloc(ic, 2);
@@ -253,13 +253,13 @@ static inline Term ic_dup_app(IC* ic, Term dup, Term app) {
   Val app0_loc = ic_alloc(ic, 2);
   ic->heap[app0_loc + 0] = f0;
   ic->heap[app0_loc + 1] = x0;
-  Term app0 = ic_make_term(APP, app0_loc);
+  Term app0 = ic_make_term(APP, 0, app0_loc);
 
   // Create app1 = (f1 x1)
   Val app1_loc = ic_alloc(ic, 2);
   ic->heap[app1_loc + 0] = f1;
   ic->heap[app1_loc + 1] = x1;
-  Term app1 = ic_make_term(APP, app1_loc);
+  Term app1 = ic_make_term(APP, 0, app1_loc);
 
   // Set substitution and return
   if (is_co0) {
@@ -313,8 +313,8 @@ static inline Term ic_sup_swi_z(IC* ic, Term swi, Term sup) {
 
   // Create the resulting superposition
   Val res_loc = ic_alloc(ic, 2);
-  ic->heap[res_loc + 0] = ic_make_term(SWI, swi0_loc);
-  ic->heap[res_loc + 1] = ic_make_term(SWI, swi1_loc);
+  ic->heap[res_loc + 0] = ic_make_term(SWI, 0, swi0_loc);
+  ic->heap[res_loc + 1] = ic_make_term(SWI, 0, swi1_loc);
 
   return ic_make_sup(sup_lab, res_loc);
 }
@@ -361,8 +361,8 @@ static inline Term ic_sup_swi_s(IC* ic, Term swi, Term sup) {
 
   // Create the resulting superposition
   Val res_loc = ic_alloc(ic, 2);
-  ic->heap[res_loc + 0] = ic_make_term(SWI, swi0_loc);
-  ic->heap[res_loc + 1] = ic_make_term(SWI, swi1_loc);
+  ic->heap[res_loc + 0] = ic_make_term(SWI, 0, swi0_loc);
+  ic->heap[res_loc + 1] = ic_make_term(SWI, 0, swi1_loc);
 
   return ic_make_sup(sup_lab, res_loc);
 }

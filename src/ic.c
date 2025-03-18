@@ -67,8 +67,8 @@ inline Val ic_alloc(IC* ic, Val n) {
 // @param tag Term type tag (includes label for SUP, CX, CY)
 // @param val Value/pointer into the heap
 // @return The constructed term
-inline Term ic_make_term(TermTag tag, Val val) {
-  return MAKE_TERM(false, tag, val);
+inline Term ic_make_term(TermTag tag, Lab lab, Val val) {
+  return MAKE_TERM(false, tag, lab, val);
 }
 
 // Create a substitution term.
@@ -90,7 +90,7 @@ inline Term ic_clear_sub(Term term) {
 // @param val Value/pointer into the heap
 // @return The constructed superposition term
 inline Term ic_make_sup(Lab lab, Val val) {
-  return ic_make_term(SUP_TAG(lab), val);
+  return ic_make_term(SUP_BASE_TAG, lab, val);
 }
 
 // Helper to create a DP0 term with the appropriate tag for a label
@@ -98,7 +98,7 @@ inline Term ic_make_sup(Lab lab, Val val) {
 // @param val Value/pointer into the heap
 // @return The constructed DP0 term
 inline Term ic_make_co0(Lab lab, Val val) {
-  return ic_make_term(DP0_TAG(lab), val);
+  return ic_make_term(DP0_BASE_TAG, lab, val);
 }
 
 // Helper to create a DP1 term with the appropriate tag for a label
@@ -106,34 +106,34 @@ inline Term ic_make_co0(Lab lab, Val val) {
 // @param val Value/pointer into the heap
 // @return The constructed DP1 term
 inline Term ic_make_co1(Lab lab, Val val) {
-  return ic_make_term(DP1_TAG(lab), val);
+  return ic_make_term(DP1_BASE_TAG, lab, val);
 }
 
 // Helper to create an erasure term
 // @return An erasure term (ERA tag with no value)
 inline Term ic_make_era() {
-  return ic_make_term(ERA, 0);
+  return ic_make_term(ERA, 0, 0);
 }
 
 // Helper to create a number term
 // @param val The numeric value
 // @return A number term
 inline Term ic_make_num(Val val) {
-  return ic_make_term(NUM, val);
+  return ic_make_term(NUM, 0, val);
 }
 
 // Helper to create a successor term
 // @param val Pointer to the successor node
 // @return A successor term
 inline Term ic_make_suc(Val val) {
-  return ic_make_term(SUC, val);
+  return ic_make_term(SUC, 0, val);
 }
 
 // Helper to create a switch term
 // @param val Pointer to the switch node
 // @return A switch term
 inline Term ic_make_swi(Val val) {
-  return ic_make_term(SWI, val);
+  return ic_make_term(SWI, 0, val);
 }
 
 // Check if a term is an erasure
@@ -230,7 +230,6 @@ inline Term ic_app_sup(IC* ic, Term app, Term sup) {
   Val app_loc = TERM_VAL(app);
   Val sup_loc = TERM_VAL(sup);
   Lab sup_lab = TERM_LAB(sup);
-  TermTag sup_tag = TERM_TAG(sup);
 
   Term arg = ic->heap[app_loc + 1];
   Term lft = ic->heap[sup_loc + 0];
@@ -255,11 +254,11 @@ inline Term ic_app_sup(IC* ic, Term app, Term sup) {
   ic->heap[app1_loc + 1] = x1;
 
   // Reuse app_loc for the result superposition
-  ic->heap[app_loc + 0] = ic_make_term(APP, sup_loc);
-  ic->heap[app_loc + 1] = ic_make_term(APP, app1_loc);
+  ic->heap[app_loc + 0] = ic_make_term(APP, 0, sup_loc);
+  ic->heap[app_loc + 1] = ic_make_term(APP, 0, app1_loc);
 
   // Use same superposition tag as input
-  return ic_make_term(sup_tag, app_loc);
+  return ic_make_sup(sup_lab, app_loc);
 }
 
 //! &L{r,s} = *;
@@ -312,8 +311,8 @@ inline Term ic_dup_lam(IC* ic, Term dup, Term lam) {
   Val dup_new_loc = alloc_start + 4;
 
   // Set up the superposition
-  ic->heap[sup_loc + 0] = ic_make_term(VAR, lam0_loc);
-  ic->heap[sup_loc + 1] = ic_make_term(VAR, lam1_loc);
+  ic->heap[sup_loc + 0] = ic_make_term(VAR, 0, lam0_loc);
+  ic->heap[sup_loc + 1] = ic_make_term(VAR, 0, lam1_loc);
 
   // Replace lambda's variable with the superposition
   ic->heap[lam_loc] = ic_make_sub(ic_make_sup(dup_lab, sup_loc));
@@ -327,11 +326,11 @@ inline Term ic_dup_lam(IC* ic, Term dup, Term lam) {
 
   // Create and return the appropriate lambda
   if (is_co0) {
-    ic->heap[dup_loc] = ic_make_sub(ic_make_term(LAM, lam1_loc));
-    return ic_make_term(LAM, lam0_loc);
+    ic->heap[dup_loc] = ic_make_sub(ic_make_term(LAM, 0, lam1_loc));
+    return ic_make_term(LAM, 0, lam0_loc);
   } else {
-    ic->heap[dup_loc] = ic_make_sub(ic_make_term(LAM, lam0_loc));
-    return ic_make_term(LAM, lam1_loc);
+    ic->heap[dup_loc] = ic_make_sub(ic_make_term(LAM, 0, lam0_loc));
+    return ic_make_term(LAM, 0, lam1_loc);
   }
 }
 
@@ -358,7 +357,6 @@ inline Term ic_dup_sup(IC* ic, Term dup, Term sup) {
   Lab dup_lab = TERM_LAB(dup);
   Lab sup_lab = TERM_LAB(sup);
   TermTag dup_tag = TERM_TAG(dup);
-  TermTag sup_tag = TERM_TAG(sup);
   bool is_co0 = IS_DP0(dup_tag);
 
   Term lft = ic->heap[sup_loc + 0];
@@ -471,7 +469,7 @@ inline Term ic_swi_num(IC* ic, Term swi, Term num) {
     Val app_loc = ic_alloc(ic, 2);
     ic->heap[app_loc + 0] = ifs;
     ic->heap[app_loc + 1] = ic_make_num(num_val - 1);
-    return ic_make_term(APP, app_loc);
+    return ic_make_term(APP, 0, app_loc);
   }
 }
 
@@ -518,8 +516,8 @@ inline Term ic_swi_sup(IC* ic, Term swi, Term sup) {
 
   // Create the resulting superposition
   Val res_loc = ic_alloc(ic, 2);
-  ic->heap[res_loc + 0] = ic_make_term(SWI, swi0_loc);
-  ic->heap[res_loc + 1] = ic_make_term(SWI, swi1_loc);
+  ic->heap[res_loc + 0] = ic_make_term(SWI, 0, swi0_loc);
+  ic->heap[res_loc + 1] = ic_make_term(SWI, 0, swi1_loc);
 
   return ic_make_sup(sup_lab, res_loc);
 }

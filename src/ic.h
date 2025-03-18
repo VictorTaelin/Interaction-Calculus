@@ -31,63 +31,98 @@
 // Core Types and Constants
 // -----------------------------------------------------------------------------
 
-// Term tags for new, compact memory format
-typedef enum {
-  VAR = 0x00, // Variable
-  LAM = 0x01, // Lambda
-  APP = 0x02, // Application
-  ERA = 0x03, // Erasure
-  NUM = 0x04, // Number
-  SUC = 0x05, // Successor
-  SWI = 0x06, // Switch
-  TMP = 0x07, // Temporary
-  SP0 = 0x08, // Superposition with label 0
-  SP1 = 0x09, // Superposition with label 1
-  SP2 = 0x0A, // Superposition with label 2
-  SP3 = 0x0B, // Superposition with label 3
-  SP4 = 0x0C, // Superposition with label 4
-  SP5 = 0x0D, // Superposition with label 5
-  SP6 = 0x0E, // Superposition with label 6
-  SP7 = 0x0F, // Superposition with label 7
-  DX0 = 0x10, // Duplication variable 0 with label 0
-  DX1 = 0x11, // Duplication variable 0 with label 1
-  DX2 = 0x12, // Duplication variable 0 with label 2
-  DX3 = 0x13, // Duplication variable 0 with label 3
-  DX4 = 0x14, // Duplication variable 0 with label 4
-  DX5 = 0x15, // Duplication variable 0 with label 5
-  DX6 = 0x16, // Duplication variable 0 with label 6
-  DX7 = 0x17, // Duplication variable 0 with label 7
-  DY0 = 0x18, // Duplication variable 1 with label 0
-  DY1 = 0x19, // Duplication variable 1 with label 1
-  DY2 = 0x1A, // Duplication variable 1 with label 2
-  DY3 = 0x1B, // Duplication variable 1 with label 3
-  DY4 = 0x1C, // Duplication variable 1 with label 4
-  DY5 = 0x1D, // Duplication variable 1 with label 5
-  DY6 = 0x1E, // Duplication variable 1 with label 6
-  DY7 = 0x1F, // Duplication variable 1 with label 7
-} TermTag;
-
 #ifdef IC_64BIT
+  typedef enum {
+    VAR = 0x00, // Variable
+    LAM = 0x01, // Lambda
+    APP = 0x02, // Application
+    ERA = 0x03, // Erasure
+    NUM = 0x04, // Number
+    SUC = 0x05, // Successor
+    SWI = 0x06, // Switch
+    SUP = 0x07, // Superposition
+    DPX = 0x08, // Duplication variable 0
+    DPY = 0x09, // Duplication variable 1
+  } TermTag;
+
   // Term 64-bit packed representation
   typedef uint64_t Term;
   typedef uint64_t Val;
-  typedef uint8_t Lab;
-
-  #define TERM_BITS 64
+  typedef uint16_t Lab;
 
   // Term components
   #define TERM_SUB_MASK 0x8000000000000000ULL // 1-bit: Is this a substitution?
-  #define TERM_TAG_MASK 0x7C00000000000000ULL // 5-bits: Term tag
-  #define TERM_VAL_MASK 0x03FFFFFFFFFFFFFFULL // 58-bits: Value/pointer
+  #define TERM_TAG_MASK 0x7F00000000000000ULL // 7-bits: Term tag
+  #define TERM_LAB_MASK 0x00FFFF0000000000ULL // 16-bits: Label
+  #define TERM_VAL_MASK 0x000000FFFFFFFFFFULL // 40-bits: Value/pointer
 
   #define NONE 0xFFFFFFFFFFFFFFFFULL
+  #define LAB_MAX 0xFFFF
+
+// Term component extraction
+  #define TERM_SUB(term) (((term) & TERM_SUB_MASK) != 0)
+  #define TERM_TAG(term) ((TermTag)(((term) & TERM_TAG_MASK) >> 56))
+  #define TERM_VAL(term) ((term) & TERM_VAL_MASK)
+
+  // Label helpers (for compatibility with existing code)
+  #define TERM_LAB(term) ((Lab)(((term) & TERM_LAB_MASK) >> 40))
+  #define IS_SUP(tag) ((tag) == SUP)
+  #define IS_DP0(tag) ((tag) == DPX)
+  #define IS_DP1(tag) ((tag) == DPY)
+  #define IS_DUP(tag) ((tag) == DPX || (tag) == DPY)
+  #define IS_ERA(tag) ((tag) == ERA)
+  #define IS_NUM(tag) ((tag) == NUM)
+  #define IS_SUC(tag) ((tag) == SUC)
+  #define IS_SWI(tag) ((tag) == SWI)
+  #define SUP_BASE_TAG ((TermTag)(SUP))
+  #define DP0_BASE_TAG ((TermTag)(DPX))
+  #define DP1_BASE_TAG ((TermTag)(DPY))
+
+  #define MAKE_TERM(sub, tag, lab, val) \
+    (((sub) ? TERM_SUB_MASK : 0) | \
+    (((Term)(tag) << 56)) | \
+    (((Term)(lab) << 40)) | \
+    ((Term)(val) & TERM_VAL_MASK))
 #else
+  typedef enum {
+    VAR = 0x00, // Variable
+    LAM = 0x01, // Lambda
+    APP = 0x02, // Application
+    ERA = 0x03, // Erasure
+    NUM = 0x04, // Number
+    SUC = 0x05, // Successor
+    SWI = 0x06, // Switch
+    TMP = 0x07, // Temporary
+    SP0 = 0x08, // Superposition with label 0
+    SP1 = 0x09, // Superposition with label 1
+    SP2 = 0x0A, // Superposition with label 2
+    SP3 = 0x0B, // Superposition with label 3
+    SP4 = 0x0C, // Superposition with label 4
+    SP5 = 0x0D, // Superposition with label 5
+    SP6 = 0x0E, // Superposition with label 6
+    SP7 = 0x0F, // Superposition with label 7
+    DX0 = 0x10, // Duplication variable 0 with label 0
+    DX1 = 0x11, // Duplication variable 0 with label 1
+    DX2 = 0x12, // Duplication variable 0 with label 2
+    DX3 = 0x13, // Duplication variable 0 with label 3
+    DX4 = 0x14, // Duplication variable 0 with label 4
+    DX5 = 0x15, // Duplication variable 0 with label 5
+    DX6 = 0x16, // Duplication variable 0 with label 6
+    DX7 = 0x17, // Duplication variable 0 with label 7
+    DY0 = 0x18, // Duplication variable 1 with label 0
+    DY1 = 0x19, // Duplication variable 1 with label 1
+    DY2 = 0x1A, // Duplication variable 1 with label 2
+    DY3 = 0x1B, // Duplication variable 1 with label 3
+    DY4 = 0x1C, // Duplication variable 1 with label 4
+    DY5 = 0x1D, // Duplication variable 1 with label 5
+    DY6 = 0x1E, // Duplication variable 1 with label 6
+    DY7 = 0x1F, // Duplication variable 1 with label 7
+  } TermTag;
+
   // Term 32-bit packed representation
   typedef uint32_t Term;
   typedef uint32_t Val;
   typedef uint8_t Lab;
-
-  #define TERM_BITS 32
 
   // Term components
   #define TERM_SUB_MASK 0x80000000UL // 1-bit: Is this a substitution?
@@ -95,33 +130,34 @@ typedef enum {
   #define TERM_VAL_MASK 0x03FFFFFFUL // 26-bits: Value/pointer
 
   #define NONE 0xFFFFFFFF
+  #define LAB_MAX 0x7
+
+  // Term component extraction
+  #define TERM_SUB(term) (((term) & TERM_SUB_MASK) != 0)
+  #define TERM_TAG(term) ((TermTag)(((term) & TERM_TAG_MASK) >> 26))
+  #define TERM_VAL(term) ((term) & TERM_VAL_MASK)
+
+  // Label helpers (for compatibility with existing code)
+  #define TERM_LAB(term) ((TERM_TAG(term) & LAB_MAX)) // Extract label from tag (last 3 bits)
+  #define IS_SUP(tag) ((tag) >= SP0 && (tag) <= SP7)
+  #define IS_DP0(tag) ((tag) >= DX0 && (tag) <= DX7)
+  #define IS_DP1(tag) ((tag) >= DY0 && (tag) <= DY7)
+  #define IS_DUP(tag) ((tag) >= DX0 && (tag) <= DY7)
+  #define IS_ERA(tag) ((tag) == ERA)
+  #define IS_NUM(tag) ((tag) == NUM)
+  #define IS_SUC(tag) ((tag) == SUC)
+  #define IS_SWI(tag) ((tag) == SWI)
+  #define SUP_BASE_TAG ((TermTag)(SP0))
+  #define DP0_BASE_TAG ((TermTag)(DX0))
+  #define DP1_BASE_TAG ((TermTag)(DY0))
+
+  // Term creation
+  #define MAKE_TERM(sub, tag, lab, val) \
+    (((sub) ? TERM_SUB_MASK : 0) | \
+    (((Term)(tag + lab) << 26)) | \
+    ((Term)(val) & TERM_VAL_MASK))
 #endif
 
-// Term component extraction
-#define TERM_TAG_SHIFT (TERM_BITS - 6)
-#define TERM_SUB(term) (((term) & TERM_SUB_MASK) != 0)
-#define TERM_TAG(term) ((TermTag)(((term) & TERM_TAG_MASK) >> TERM_TAG_SHIFT))
-#define TERM_VAL(term) ((term) & TERM_VAL_MASK)
-
-// Label helpers (for compatibility with existing code)
-#define TERM_LAB(term) ((TERM_TAG(term) & 0x7)) // Extract label from tag (last 3 bits)
-#define IS_SUP(tag) ((tag) >= SP0 && (tag) <= SP7)
-#define IS_DP0(tag) ((tag) >= DX0 && (tag) <= DX7)
-#define IS_DP1(tag) ((tag) >= DY0 && (tag) <= DY7)
-#define IS_DUP(tag) ((tag) >= DX0 && (tag) <= DY7)
-#define IS_ERA(tag) ((tag) == ERA)
-#define IS_NUM(tag) ((tag) == NUM)
-#define IS_SUC(tag) ((tag) == SUC)
-#define IS_SWI(tag) ((tag) == SWI)
-#define SUP_TAG(lab) ((TermTag)(SP0 + ((lab) & 0x7)))
-#define DP0_TAG(lab) ((TermTag)(DX0 + ((lab) & 0x7)))
-#define DP1_TAG(lab) ((TermTag)(DY0 + ((lab) & 0x7)))
-
-// Term creation
-#define MAKE_TERM(sub, tag, val) \
-  (((sub) ? TERM_SUB_MASK : 0) | \
-   (((Term)(tag) << TERM_TAG_SHIFT)) | \
-   ((Term)(val) & TERM_VAL_MASK))
 
 // -----------------------------------------------------------------------------
 // IC Structure
@@ -176,9 +212,10 @@ Val ic_alloc(IC* ic, Val n);
 
 // Create a term with the given tag and value.  
 // @param tag The term's tag  
+// @param lab The term's label  
 // @param val The term's value (typically a heap location)  
 // @return The constructed term  
-Term ic_make_term(TermTag tag, Val val);
+Term ic_make_term(TermTag tag, Lab lab, Val val);
 
 // Create a substitution term by setting the substitution bit.  
 // @param term The term to convert to a substitution  

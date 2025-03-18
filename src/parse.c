@@ -172,8 +172,8 @@ bool peek_is(Parser* parser, char c) {
   return peek_char(parser) == c;
 }
 
-void store_term(Parser* parser, Val loc, TermTag tag, Val value) {
-  parser->ic->heap[loc] = ic_make_term(tag, value);
+void store_term(Parser* parser, Val loc, TermTag tag, Lab lab, Val value) {
+  parser->ic->heap[loc] = ic_make_term(tag, lab, value);
 }
 
 Val parse_uint(Parser* parser) {
@@ -263,7 +263,7 @@ static void parse_term_lam(Parser* parser, Val loc) {
   parse_name(parser, name);
   expect(parser, ".", "after name in lambda");
   Val lam_node = ic_alloc(parser->ic, 1);
-  Term var_term = ic_make_term(VAR, lam_node);
+  Term var_term = ic_make_term(VAR, 0, lam_node);
   if (starts_with_dollar(name)) {
     size_t idx = find_or_add_global_var(parser, name);
     if (parser->global_vars[idx].var != NONE) {
@@ -279,7 +279,7 @@ static void parse_term_lam(Parser* parser, Val loc) {
   if (!starts_with_dollar(name)) {
     pop_lexical_binder(parser);
   }
-  store_term(parser, loc, LAM, lam_node);
+  store_term(parser, loc, LAM, 0, lam_node);
 }
 
 static void parse_term_app(Parser* parser, Val loc) {
@@ -290,7 +290,7 @@ static void parse_term_app(Parser* parser, Val loc) {
     Val app_node = ic_alloc(parser->ic, 2);
     move_term(parser, loc, app_node + 0);
     parse_term(parser, app_node + 1);
-    store_term(parser, loc, APP, app_node);
+    store_term(parser, loc, APP, 0, app_node);
     skip(parser);
   }
   expect(parser, ")", "after terms in application");
@@ -298,19 +298,19 @@ static void parse_term_app(Parser* parser, Val loc) {
 
 static void parse_term_sup(Parser* parser, Val loc) {
   expect(parser, "&", "for superposition");
-  Lab label = parse_uint(parser) & 0x7;
+  Lab label = parse_uint(parser) & LAB_MAX;
   expect(parser, "{", "after label in superposition");
   Val sup_node = ic_alloc(parser->ic, 2);
   parse_term(parser, sup_node + 0);
   expect(parser, ",", "between terms in superposition");
   parse_term(parser, sup_node + 1);
   expect(parser, "}", "after terms in superposition");
-  store_term(parser, loc, SUP_TAG(label), sup_node);
+  parser->ic->heap[loc] = ic_make_sup(label, sup_node);
 }
 
 static void parse_term_dup(Parser* parser, Val loc) {
   expect(parser, "!&", "for duplication");
-  Lab label = parse_uint(parser) & 0x7;
+  Lab label = parse_uint(parser) & LAB_MAX;
   expect(parser, "{", "after label in duplication");
   char x0[MAX_NAME_LEN];
   char x1[MAX_NAME_LEN];
@@ -357,19 +357,19 @@ static void parse_term_dup(Parser* parser, Val loc) {
 
 static void parse_term_era(Parser* parser, Val loc) {
   expect(parser, "*", "for erasure");
-  store_term(parser, loc, ERA, 0);
+  store_term(parser, loc, ERA, 0, 0);
 }
 
 static void parse_term_num(Parser* parser, Val loc) {
   Val value = parse_uint(parser);
-  store_term(parser, loc, NUM, value);
+  store_term(parser, loc, NUM, 0, value);
 }
 
 static void parse_term_suc(Parser* parser, Val loc) {
   expect(parser, "+", "for successor");
   Val suc_node = ic_alloc(parser->ic, 1);
   parse_term(parser, suc_node);
-  store_term(parser, loc, SUC, suc_node);
+  store_term(parser, loc, SUC, 0, suc_node);
 }
 
 static void parse_term_swi(Parser* parser, Val loc) {
@@ -386,7 +386,7 @@ static void parse_term_swi(Parser* parser, Val loc) {
   parse_term(parser, swi_node + 2);
   expect(parser, ";", "after successor case");
   expect(parser, "}", "to close switch");
-  store_term(parser, loc, SWI, swi_node);
+  store_term(parser, loc, SWI, 0, swi_node);
 }
 
 static void parse_term_let(Parser* parser, Val loc) {
@@ -398,7 +398,7 @@ static void parse_term_let(Parser* parser, Val loc) {
   Val lam_node = ic_alloc(parser->ic, 1);
   parse_term(parser, app_node + 1);
   expect(parser, ";", "after value in let expression");
-  Term var_term = ic_make_term(VAR, lam_node);
+  Term var_term = ic_make_term(VAR, 0, lam_node);
   if (starts_with_dollar(name)) {
     size_t idx = find_or_add_global_var(parser, name);
     if (parser->global_vars[idx].var != NONE) {
@@ -414,8 +414,8 @@ static void parse_term_let(Parser* parser, Val loc) {
   if (!starts_with_dollar(name)) {
     pop_lexical_binder(parser);
   }
-  store_term(parser, app_node + 0, LAM, lam_node);
-  store_term(parser, loc, APP, app_node);
+  store_term(parser, app_node + 0, LAM, 0, lam_node);
+  store_term(parser, loc, APP, 0, app_node);
 }
 
 void parse_term(Parser* parser, Val loc) {

@@ -183,94 +183,58 @@ void assign_var_ids(IC* ic, Term term, VarNameTable* var_table, DupTable* dup_ta
   Val val = TERM_VAL(term);
   Lab lab = TERM_LAB(term);
 
-  switch (tag) {
-    case VAR: {
-      Val loc = val;
-      Term subst = ic->heap[loc];
-      if (TERM_SUB(subst)) {
-        assign_var_ids(ic, ic_clear_sub(subst), var_table, dup_table);
+  if (tag == VAR) {
+    Val loc = val;
+    Term subst = ic->heap[loc];
+    if (TERM_SUB(subst)) {
+      assign_var_ids(ic, ic_clear_sub(subst), var_table, dup_table);
+    }
+    // For VAR, nothing else to do
+
+  } else if (IS_DUP(tag)) {
+    Val loc = val;
+    Term subst = ic->heap[loc];
+    if (TERM_SUB(subst)) {
+      assign_var_ids(ic, ic_clear_sub(subst), var_table, dup_table);
+    } else {
+      if (register_duplication(dup_table, loc, lab)) {
+        assign_var_ids(ic, subst, var_table, dup_table);
       }
-      // For VAR, nothing else to do
-      break;
     }
+    
+  } else if (tag == LAM) {
+    Val lam_loc = val;
+    add_variable(var_table, lam_loc, VAR);
+    assign_var_ids(ic, ic->heap[lam_loc], var_table, dup_table);
 
-    // Handle all DUP X variants (DX0-DX3)
-    case DX0:
-    case DX1:
-    case DX2:
-    case DX3:
-    // Handle all DUP Y variants (DY0-DY3)
-    case DY0:
-    case DY1:
-    case DY2:
-    case DY3: {
-      Val loc = val;
-      Term subst = ic->heap[loc];
-      if (TERM_SUB(subst)) {
-        assign_var_ids(ic, ic_clear_sub(subst), var_table, dup_table);
-      } else {
-        if (register_duplication(dup_table, loc, lab)) {
-          assign_var_ids(ic, subst, var_table, dup_table);
-        }
-      }
-      break;
-    }
+  } else if (tag == APP) {
+    Val app_loc = val;
+    assign_var_ids(ic, ic->heap[app_loc], var_table, dup_table);
+    assign_var_ids(ic, ic->heap[app_loc + 1], var_table, dup_table);
 
-    case LAM: {
-      Val lam_loc = val;
-      add_variable(var_table, lam_loc, VAR);
-      assign_var_ids(ic, ic->heap[lam_loc], var_table, dup_table);
-      break;
-    }
+  } else if (tag == ERA) {
+    // ERA terms don't have children, so nothing to do
 
-    case APP: {
-      Val app_loc = val;
-      assign_var_ids(ic, ic->heap[app_loc], var_table, dup_table);
-      assign_var_ids(ic, ic->heap[app_loc + 1], var_table, dup_table);
-      break;
-    }
+  } else if (IS_SUP(tag)) {
+    Val sup_loc = val;
+    assign_var_ids(ic, ic->heap[sup_loc], var_table, dup_table);
+    assign_var_ids(ic, ic->heap[sup_loc + 1], var_table, dup_table);
 
-    case ERA: {
-      // ERA terms don't have children, so nothing to do
-      break;
-    }
+  } else if (tag == NUM) {
+    // NUM has no variables to assign
 
-    // Handle all superposition variants (SP0-SP7)
-    case SP0:
-    case SP1:
-    case SP2:
-    case SP3:
-    case SP4:
-    case SP5:
-    case SP6:
-    case SP7: {
-      Val sup_loc = val;
-      assign_var_ids(ic, ic->heap[sup_loc], var_table, dup_table);
-      assign_var_ids(ic, ic->heap[sup_loc + 1], var_table, dup_table);
-      break;
-    }
+  } else if (tag == SUC) {
+    Val suc_loc = val;
+    assign_var_ids(ic, ic->heap[suc_loc], var_table, dup_table);
 
-    case NUM: {
-      // NUM has no variables to assign
-      break;
-    }
+  } else if (tag == SWI) {
+    Val swi_loc = val;
+    assign_var_ids(ic, ic->heap[swi_loc], var_table, dup_table);     // Number
+    assign_var_ids(ic, ic->heap[swi_loc + 1], var_table, dup_table); // Zero branch
+    assign_var_ids(ic, ic->heap[swi_loc + 2], var_table, dup_table); // Successor branch
 
-    case SUC: {
-      Val suc_loc = val;
-      assign_var_ids(ic, ic->heap[suc_loc], var_table, dup_table);
-      break;
-    }
-
-    case SWI: {
-      Val swi_loc = val;
-      assign_var_ids(ic, ic->heap[swi_loc], var_table, dup_table);     // Number
-      assign_var_ids(ic, ic->heap[swi_loc + 1], var_table, dup_table); // Zero branch
-      assign_var_ids(ic, ic->heap[swi_loc + 2], var_table, dup_table); // Successor branch
-      break;
-    }
-
-    default:
-      break;
+  } else {
+    // Unknown tag, so nothing to do
   }
 }
 
@@ -314,117 +278,80 @@ void stringify_term(IC* ic, Term term, VarNameTable* var_table, char* buffer, in
   Val val = TERM_VAL(term);
   Lab lab = TERM_LAB(term);
 
-  switch (tag) {
-    case VAR: {
-      Val loc = val;
-      Term subst = ic->heap[loc];
-      if (TERM_SUB(subst)) {
-        stringify_term(ic, ic_clear_sub(subst), var_table, buffer, pos, max_len, prefix);
-      } else {
-        char* name = get_var_name(var_table, loc, VAR);
-        if (prefix) {
-          *pos += snprintf(buffer + *pos, max_len - *pos, "%s%s", prefix, name);
-        } else {
-          *pos += snprintf(buffer + *pos, max_len - *pos, "%s", name);
-        }
-      }
-      break;
-    }
-
-    // Handle all DUP X variants (DX0-DX3)
-    case DX0:
-    case DX1:
-    case DX2:
-    case DX3:
-    // Handle all DUP Y variants (DY0-DY3)
-    case DY0:
-    case DY1:
-    case DY2:
-    case DY3: {
-      TermTag co_type = (tag >= DX0 && tag <= DX3) ? DP0 : DP1;
-      Val loc = val;
-      Term subst = ic->heap[loc];
-      if (TERM_SUB(subst)) {
-        stringify_term(ic, ic_clear_sub(subst), var_table, buffer, pos, max_len, prefix);
-      } else {
-        char* name = get_var_name(var_table, loc, co_type);
-        if (prefix) {
-          *pos += snprintf(buffer + *pos, max_len - *pos, "%s%s", prefix, name);
-        } else {
-          *pos += snprintf(buffer + *pos, max_len - *pos, "%s", name);
-        }
-      }
-      break;
-    }
-
-    case LAM: {
-      Val lam_loc = val;
-      char* var_name = get_var_name(var_table, lam_loc, VAR);
+  if (tag == VAR) {
+    Val loc = val;
+    Term subst = ic->heap[loc];
+    if (TERM_SUB(subst)) {
+      stringify_term(ic, ic_clear_sub(subst), var_table, buffer, pos, max_len, prefix);
+    } else {
+      char* name = get_var_name(var_table, loc, VAR);
       if (prefix) {
-        *pos += snprintf(buffer + *pos, max_len - *pos, "λ%s%s.", prefix, var_name);
+        *pos += snprintf(buffer + *pos, max_len - *pos, "%s%s", prefix, name);
       } else {
-        *pos += snprintf(buffer + *pos, max_len - *pos, "λ%s.", var_name);
+        *pos += snprintf(buffer + *pos, max_len - *pos, "%s", name);
       }
-      stringify_term(ic, ic->heap[lam_loc], var_table, buffer, pos, max_len, prefix);
-      break;
     }
 
-    case APP: {
-      *pos += snprintf(buffer + *pos, max_len - *pos, "(");
-      stringify_term(ic, ic->heap[val], var_table, buffer, pos, max_len, prefix);
-      *pos += snprintf(buffer + *pos, max_len - *pos, " ");
-      stringify_term(ic, ic->heap[val + 1], var_table, buffer, pos, max_len, prefix);
-      *pos += snprintf(buffer + *pos, max_len - *pos, ")");
-      break;
+  } else if (IS_DUP(tag)) {
+    TermTag co_type = IS_DP0(tag) ? DP0 : DP1;
+    Val loc = val;
+    Term subst = ic->heap[loc];
+    if (TERM_SUB(subst)) {
+      stringify_term(ic, ic_clear_sub(subst), var_table, buffer, pos, max_len, prefix);
+    } else {
+      char* name = get_var_name(var_table, loc, co_type);
+      if (prefix) {
+        *pos += snprintf(buffer + *pos, max_len - *pos, "%s%s", prefix, name);
+      } else {
+        *pos += snprintf(buffer + *pos, max_len - *pos, "%s", name);
+      }
     }
 
-    case ERA: {
-      *pos += snprintf(buffer + *pos, max_len - *pos, "*");
-      break;
+  } else if (tag == LAM) {
+    Val lam_loc = val;
+    char* var_name = get_var_name(var_table, lam_loc, VAR);
+    if (prefix) {
+      *pos += snprintf(buffer + *pos, max_len - *pos, "λ%s%s.", prefix, var_name);
+    } else {
+      *pos += snprintf(buffer + *pos, max_len - *pos, "λ%s.", var_name);
     }
+    stringify_term(ic, ic->heap[lam_loc], var_table, buffer, pos, max_len, prefix);
 
-    // Handle all superposition variants (SP0-SP7)
-    case SP0:
-    case SP1:
-    case SP2:
-    case SP3:
-    case SP4:
-    case SP5:
-    case SP6:
-    case SP7: {
-      *pos += snprintf(buffer + *pos, max_len - *pos, "&%u{", lab);
-      stringify_term(ic, ic->heap[val], var_table, buffer, pos, max_len, prefix);
-      *pos += snprintf(buffer + *pos, max_len - *pos, ",");
-      stringify_term(ic, ic->heap[val + 1], var_table, buffer, pos, max_len, prefix);
-      *pos += snprintf(buffer + *pos, max_len - *pos, "}");
-      break;
-    }
+  } else if (tag == APP) {
+    *pos += snprintf(buffer + *pos, max_len - *pos, "(");
+    stringify_term(ic, ic->heap[val], var_table, buffer, pos, max_len, prefix);
+    *pos += snprintf(buffer + *pos, max_len - *pos, " ");
+    stringify_term(ic, ic->heap[val + 1], var_table, buffer, pos, max_len, prefix);
+    *pos += snprintf(buffer + *pos, max_len - *pos, ")");
 
-    case NUM: {
-      *pos += snprintf(buffer + *pos, max_len - *pos, "%u", val & TERM_VAL_MASK);
-      break;
-    }
+  } else if (tag == ERA) {
+    *pos += snprintf(buffer + *pos, max_len - *pos, "*");
 
-    case SUC: {
-      *pos += snprintf(buffer + *pos, max_len - *pos, "+");
-      stringify_term(ic, ic->heap[val], var_table, buffer, pos, max_len, prefix);
-      break;
-    }
+  } else if (IS_SUP(tag)) {
+    *pos += snprintf(buffer + *pos, max_len - *pos, "&%u{", lab);
+    stringify_term(ic, ic->heap[val], var_table, buffer, pos, max_len, prefix);
+    *pos += snprintf(buffer + *pos, max_len - *pos, ",");
+    stringify_term(ic, ic->heap[val + 1], var_table, buffer, pos, max_len, prefix);
+    *pos += snprintf(buffer + *pos, max_len - *pos, "}");
 
-    case SWI: {
-      *pos += snprintf(buffer + *pos, max_len - *pos, "?");
-      stringify_term(ic, ic->heap[val], var_table, buffer, pos, max_len, prefix);
-      *pos += snprintf(buffer + *pos, max_len - *pos, "{0:");
-      stringify_term(ic, ic->heap[val + 1], var_table, buffer, pos, max_len, prefix);
-      *pos += snprintf(buffer + *pos, max_len - *pos, ";+:");
-      stringify_term(ic, ic->heap[val + 2], var_table, buffer, pos, max_len, prefix);
-      *pos += snprintf(buffer + *pos, max_len - *pos, ";}");
-      break;
-    }
+  } else if (tag == NUM) {
+    *pos += snprintf(buffer + *pos, max_len - *pos, "%u", val & TERM_VAL_MASK);
 
-    default:
-      *pos += snprintf(buffer + *pos, max_len - *pos, "<?unknown term>");
-      break;
+  } else if (tag == SUC) {
+    *pos += snprintf(buffer + *pos, max_len - *pos, "+");
+    stringify_term(ic, ic->heap[val], var_table, buffer, pos, max_len, prefix);
+
+  } else if (tag == SWI) {
+    *pos += snprintf(buffer + *pos, max_len - *pos, "?");
+    stringify_term(ic, ic->heap[val], var_table, buffer, pos, max_len, prefix);
+    *pos += snprintf(buffer + *pos, max_len - *pos, "{0:");
+    stringify_term(ic, ic->heap[val + 1], var_table, buffer, pos, max_len, prefix);
+    *pos += snprintf(buffer + *pos, max_len - *pos, ";+:");
+    stringify_term(ic, ic->heap[val + 2], var_table, buffer, pos, max_len, prefix);
+    *pos += snprintf(buffer + *pos, max_len - *pos, ";}");
+
+  } else {
+    *pos += snprintf(buffer + *pos, max_len - *pos, "<?unknown term>");
   }
 }
 
