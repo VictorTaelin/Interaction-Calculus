@@ -8,7 +8,7 @@
 // @param heap_size Number of terms in the heap
 // @param stack_size Number of terms in the stack
 // @return A new IC context or NULL if allocation failed
-inline IC* ic_new(uint32_t heap_size, uint32_t stack_size) {
+inline IC* ic_new(Val heap_size, Val stack_size) {
   IC* ic = (IC*)malloc(sizeof(IC));
   if (!ic) return NULL;
 
@@ -53,8 +53,8 @@ inline void ic_free(IC* ic) {
 // @param n Number of terms to allocate
 // @return Location in the heap
 // Does NOT bound check. We'll add a less frequent checker elsewhere.
-inline uint32_t ic_alloc(IC* ic, uint32_t n) {
-  uint32_t ptr = ic->heap_pos;
+inline Val ic_alloc(IC* ic, Val n) {
+  Val ptr = ic->heap_pos;
   ic->heap_pos += n;
   return ptr;
 }
@@ -67,7 +67,7 @@ inline uint32_t ic_alloc(IC* ic, uint32_t n) {
 // @param tag Term type tag (includes label for SUP, CX, CY)
 // @param val Value/pointer into the heap
 // @return The constructed term
-inline Term ic_make_term(TermTag tag, uint32_t val) {
+inline Term ic_make_term(TermTag tag, Val val) {
   return MAKE_TERM(false, tag, val);
 }
 
@@ -89,7 +89,7 @@ inline Term ic_clear_sub(Term term) {
 // @param lab Label value (0-3)
 // @param val Value/pointer into the heap
 // @return The constructed superposition term
-inline Term ic_make_sup(uint8_t lab, uint32_t val) {
+inline Term ic_make_sup(Lab lab, Val val) {
   return ic_make_term(SUP_TAG(lab), val);
 }
 
@@ -97,7 +97,7 @@ inline Term ic_make_sup(uint8_t lab, uint32_t val) {
 // @param lab Label value (0-3)
 // @param val Value/pointer into the heap
 // @return The constructed DP0 term
-inline Term ic_make_co0(uint8_t lab, uint32_t val) {
+inline Term ic_make_co0(Lab lab, Val val) {
   return ic_make_term(DP0_TAG(lab), val);
 }
 
@@ -105,7 +105,7 @@ inline Term ic_make_co0(uint8_t lab, uint32_t val) {
 // @param lab Label value (0-3)
 // @param val Value/pointer into the heap
 // @return The constructed DP1 term
-inline Term ic_make_co1(uint8_t lab, uint32_t val) {
+inline Term ic_make_co1(Lab lab, Val val) {
   return ic_make_term(DP1_TAG(lab), val);
 }
 
@@ -118,21 +118,21 @@ inline Term ic_make_era() {
 // Helper to create a number term
 // @param val The numeric value
 // @return A number term
-inline Term ic_make_num(uint32_t val) {
+inline Term ic_make_num(Val val) {
   return ic_make_term(NUM, val);
 }
 
 // Helper to create a successor term
 // @param val Pointer to the successor node
 // @return A successor term
-inline Term ic_make_suc(uint32_t val) {
+inline Term ic_make_suc(Val val) {
   return ic_make_term(SUC, val);
 }
 
 // Helper to create a switch term
 // @param val Pointer to the switch node
 // @return A switch term
-inline Term ic_make_swi(uint32_t val) {
+inline Term ic_make_swi(Val val) {
   return ic_make_term(SWI, val);
 }
 
@@ -144,45 +144,45 @@ inline bool ic_is_era(Term term) {
 }
 
 // Allocs a Lam node
-inline uint32_t ic_lam(IC* ic, Term bod) {
-  uint32_t lam_loc = ic_alloc(ic, 1);
+inline Val ic_lam(IC* ic, Term bod) {
+  Val lam_loc = ic_alloc(ic, 1);
   ic->heap[lam_loc + 0] = bod;
   return lam_loc;
 }
 
 // Allocs an App node
-inline uint32_t ic_app(IC* ic, Term fun, Term arg) {
-  uint32_t app_loc = ic_alloc(ic, 2);
+inline Val ic_app(IC* ic, Term fun, Term arg) {
+  Val app_loc = ic_alloc(ic, 2);
   ic->heap[app_loc + 0] = fun;
   ic->heap[app_loc + 1] = arg;
   return app_loc;
 }
 
 // Allocs a Sup node
-inline uint32_t ic_sup(IC* ic, Term lft, Term rgt) {
-  uint32_t sup_loc = ic_alloc(ic, 2);
+inline Val ic_sup(IC* ic, Term lft, Term rgt) {
+  Val sup_loc = ic_alloc(ic, 2);
   ic->heap[sup_loc + 0] = lft;
   ic->heap[sup_loc + 1] = rgt;
   return sup_loc;
 }
 
 // Allocs a Dup node
-inline uint32_t ic_dup(IC* ic, Term val) {
-  uint32_t dup_loc = ic_alloc(ic, 1);
+inline Val ic_dup(IC* ic, Term val) {
+  Val dup_loc = ic_alloc(ic, 1);
   ic->heap[dup_loc] = val;
   return dup_loc;
 }
 
 // Allocs a Suc node
-inline uint32_t ic_suc(IC* ic, Term num) {
-  uint32_t suc_loc = ic_alloc(ic, 1);
+inline Val ic_suc(IC* ic, Term num) {
+  Val suc_loc = ic_alloc(ic, 1);
   ic->heap[suc_loc] = num;
   return suc_loc;
 }
 
 // Allocs a Swi node
-inline uint32_t ic_swi(IC* ic, Term num, Term ifz, Term ifs) {
-  uint32_t swi_loc = ic_alloc(ic, 3);
+inline Val ic_swi(IC* ic, Term num, Term ifz, Term ifs) {
+  Val swi_loc = ic_alloc(ic, 3);
   ic->heap[swi_loc + 0] = num;
   ic->heap[swi_loc + 1] = ifz;
   ic->heap[swi_loc + 2] = ifs;
@@ -200,8 +200,8 @@ inline uint32_t ic_swi(IC* ic, Term num, Term ifz, Term ifs) {
 inline Term ic_app_lam(IC* ic, Term app, Term lam) {
   ic->interactions++;
 
-  uint32_t app_loc = TERM_VAL(app);
-  uint32_t lam_loc = TERM_VAL(lam);
+  Val app_loc = TERM_VAL(app);
+  Val lam_loc = TERM_VAL(lam);
 
   Term arg = ic->heap[app_loc + 1];
   Term bod = ic->heap[lam_loc + 0];
@@ -227,9 +227,9 @@ inline Term ic_app_era(IC* ic, Term app, Term era) {
 inline Term ic_app_sup(IC* ic, Term app, Term sup) {
   ic->interactions++;
 
-  uint32_t app_loc = TERM_VAL(app);
-  uint32_t sup_loc = TERM_VAL(sup);
-  uint8_t sup_lab = TERM_LAB(sup);
+  Val app_loc = TERM_VAL(app);
+  Val sup_loc = TERM_VAL(sup);
+  Lab sup_lab = TERM_LAB(sup);
   TermTag sup_tag = TERM_TAG(sup);
 
   Term arg = ic->heap[app_loc + 1];
@@ -237,8 +237,8 @@ inline Term ic_app_sup(IC* ic, Term app, Term sup) {
   Term rgt = ic->heap[sup_loc + 1];
 
   // Allocate only what's necessary
-  uint32_t dup_loc = ic_alloc(ic, 1);
-  uint32_t app1_loc = ic_alloc(ic, 2);
+  Val dup_loc = ic_alloc(ic, 1);
+  Val app1_loc = ic_alloc(ic, 2);
 
   // Store the arg in the duplication location
   ic->heap[dup_loc] = arg;
@@ -271,9 +271,9 @@ inline Term ic_app_sup(IC* ic, Term app, Term sup) {
 inline Term ic_dup_era(IC* ic, Term dup, Term era) {
   ic->interactions++;
 
-  uint32_t dup_loc = TERM_VAL(dup);
+  Val dup_loc = TERM_VAL(dup);
   TermTag dup_tag = TERM_TAG(dup);
-  uint8_t is_co0 = IS_DP0(dup_tag);
+  bool is_co0 = IS_DP0(dup_tag);
 
   // Create erasure term for substitution
   Term era_term = ic_make_era();
@@ -296,20 +296,20 @@ inline Term ic_dup_era(IC* ic, Term dup, Term era) {
 inline Term ic_dup_lam(IC* ic, Term dup, Term lam) {
   ic->interactions++;
 
-  uint32_t dup_loc = TERM_VAL(dup);
-  uint32_t lam_loc = TERM_VAL(lam);
-  uint8_t dup_lab = TERM_LAB(dup);
+  Val dup_loc = TERM_VAL(dup);
+  Val lam_loc = TERM_VAL(lam);
+  Lab dup_lab = TERM_LAB(dup);
   TermTag dup_tag = TERM_TAG(dup);
-  uint8_t is_co0 = IS_DP0(dup_tag);
+  bool is_co0 = IS_DP0(dup_tag);
 
   Term bod = ic->heap[lam_loc + 0];
 
   // Batch allocate memory for efficiency
-  uint32_t alloc_start = ic_alloc(ic, 5);
-  uint32_t lam0_loc = alloc_start;
-  uint32_t lam1_loc = alloc_start + 1;
-  uint32_t sup_loc = alloc_start + 2; // 2 locations
-  uint32_t dup_new_loc = alloc_start + 4;
+  Val alloc_start = ic_alloc(ic, 5);
+  Val lam0_loc = alloc_start;
+  Val lam1_loc = alloc_start + 1;
+  Val sup_loc = alloc_start + 2; // 2 locations
+  Val dup_new_loc = alloc_start + 4;
 
   // Set up the superposition
   ic->heap[sup_loc + 0] = ic_make_term(VAR, lam0_loc);
@@ -353,13 +353,13 @@ inline Term ic_dup_lam(IC* ic, Term dup, Term lam) {
 inline Term ic_dup_sup(IC* ic, Term dup, Term sup) {
   ic->interactions++;
 
-  uint32_t dup_loc = TERM_VAL(dup);
-  uint32_t sup_loc = TERM_VAL(sup);
-  uint8_t dup_lab = TERM_LAB(dup);
-  uint8_t sup_lab = TERM_LAB(sup);
+  Val dup_loc = TERM_VAL(dup);
+  Val sup_loc = TERM_VAL(sup);
+  Lab dup_lab = TERM_LAB(dup);
+  Lab sup_lab = TERM_LAB(sup);
   TermTag dup_tag = TERM_TAG(dup);
   TermTag sup_tag = TERM_TAG(sup);
-  uint8_t is_co0 = IS_DP0(dup_tag);
+  bool is_co0 = IS_DP0(dup_tag);
 
   Term lft = ic->heap[sup_loc + 0];
   Term rgt = ic->heap[sup_loc + 1];
@@ -376,13 +376,13 @@ inline Term ic_dup_sup(IC* ic, Term dup, Term sup) {
     }
   } else {
     // Labels don't match: create nested duplications
-    uint32_t sup_start = ic_alloc(ic, 4); // 2 sups with 2 terms each
-    uint32_t sup0_loc = sup_start;
-    uint32_t sup1_loc = sup_start + 2;
+    Val sup_start = ic_alloc(ic, 4); // 2 sups with 2 terms each
+    Val sup0_loc = sup_start;
+    Val sup1_loc = sup_start + 2;
 
     // Use existing locations as duplication locations
-    uint32_t dup_lft_loc = sup_loc + 0;
-    uint32_t dup_rgt_loc = sup_loc + 1;
+    Val dup_lft_loc = sup_loc + 0;
+    Val dup_rgt_loc = sup_loc + 1;
 
     // Set up the first superposition (for DP0)
     ic->heap[sup0_loc + 0] = ic_make_co0(dup_lab, dup_lft_loc);
@@ -433,18 +433,18 @@ inline Term ic_suc_era(IC* ic, Term suc, Term era) {
 inline Term ic_suc_sup(IC* ic, Term suc, Term sup) {
   ic->interactions++;
 
-  uint32_t sup_loc = TERM_VAL(sup);
-  uint8_t sup_lab = TERM_LAB(sup);
+  Val sup_loc = TERM_VAL(sup);
+  Lab sup_lab = TERM_LAB(sup);
 
   Term lft = ic->heap[sup_loc + 0];
   Term rgt = ic->heap[sup_loc + 1];
 
   // Create SUC nodes for each branch
-  uint32_t suc0_loc = ic_suc(ic, lft);
-  uint32_t suc1_loc = ic_suc(ic, rgt);
+  Val suc0_loc = ic_suc(ic, lft);
+  Val suc1_loc = ic_suc(ic, rgt);
 
   // Create the resulting superposition of SUCs
-  uint32_t res_loc = ic_alloc(ic, 2);
+  Val res_loc = ic_alloc(ic, 2);
   ic->heap[res_loc + 0] = ic_make_suc(suc0_loc);
   ic->heap[res_loc + 1] = ic_make_suc(suc1_loc);
 
@@ -457,8 +457,8 @@ inline Term ic_suc_sup(IC* ic, Term suc, Term sup) {
 inline Term ic_swi_num(IC* ic, Term swi, Term num) {
   ic->interactions++;
 
-  uint32_t swi_loc = TERM_VAL(swi);
-  uint32_t num_val = TERM_VAL(num);
+  Val swi_loc = TERM_VAL(swi);
+  Val num_val = TERM_VAL(num);
 
   Term ifz = ic->heap[swi_loc + 1];
   Term ifs = ic->heap[swi_loc + 2];
@@ -468,7 +468,7 @@ inline Term ic_swi_num(IC* ic, Term swi, Term num) {
     return ifz;
   } else {
     // Otherwise, apply the successor branch to N-1
-    uint32_t app_loc = ic_alloc(ic, 2);
+    Val app_loc = ic_alloc(ic, 2);
     ic->heap[app_loc + 0] = ifs;
     ic->heap[app_loc + 1] = ic_make_num(num_val - 1);
     return ic_make_term(APP, app_loc);
@@ -491,9 +491,9 @@ inline Term ic_swi_era(IC* ic, Term swi, Term era) {
 inline Term ic_swi_sup(IC* ic, Term swi, Term sup) {
   ic->interactions++;
 
-  uint32_t swi_loc = TERM_VAL(swi);
-  uint32_t sup_loc = TERM_VAL(sup);
-  uint8_t sup_lab = TERM_LAB(sup);
+  Val swi_loc = TERM_VAL(swi);
+  Val sup_loc = TERM_VAL(sup);
+  Lab sup_lab = TERM_LAB(sup);
 
   Term lft = ic->heap[sup_loc + 0];
   Term rgt = ic->heap[sup_loc + 1];
@@ -501,8 +501,8 @@ inline Term ic_swi_sup(IC* ic, Term swi, Term sup) {
   Term ifs = ic->heap[swi_loc + 2];
 
   // Create duplications for ifz and ifs branches
-  uint32_t dup_z_loc = ic_alloc(ic, 1);
-  uint32_t dup_s_loc = ic_alloc(ic, 1);
+  Val dup_z_loc = ic_alloc(ic, 1);
+  Val dup_s_loc = ic_alloc(ic, 1);
 
   ic->heap[dup_z_loc] = ifz;
   ic->heap[dup_s_loc] = ifs;
@@ -513,11 +513,11 @@ inline Term ic_swi_sup(IC* ic, Term swi, Term sup) {
   Term s1 = ic_make_co1(sup_lab, dup_s_loc);
 
   // Create switch nodes for each branch
-  uint32_t swi0_loc = ic_swi(ic, lft, z0, s0);
-  uint32_t swi1_loc = ic_swi(ic, rgt, z1, s1);
+  Val swi0_loc = ic_swi(ic, lft, z0, s0);
+  Val swi1_loc = ic_swi(ic, rgt, z1, s1);
 
   // Create the resulting superposition
-  uint32_t res_loc = ic_alloc(ic, 2);
+  Val res_loc = ic_alloc(ic, 2);
   ic->heap[res_loc + 0] = ic_make_term(SWI, swi0_loc);
   ic->heap[res_loc + 1] = ic_make_term(SWI, swi1_loc);
 
@@ -533,10 +533,10 @@ inline Term ic_swi_sup(IC* ic, Term swi, Term sup) {
 inline Term ic_dup_num(IC* ic, Term dup, Term num) {
   ic->interactions++;
 
-  uint32_t dup_loc = TERM_VAL(dup);
-  uint32_t num_val = TERM_VAL(num);
+  Val dup_loc = TERM_VAL(dup);
+  Val num_val = TERM_VAL(num);
   TermTag dup_tag = TERM_TAG(dup);
-  uint8_t is_co0 = IS_DP0(dup_tag);
+  bool is_co0 = IS_DP0(dup_tag);
 
   // Numbers are duplicated by simply substituting both variables with the same number
   ic->heap[dup_loc] = ic_make_sub(num); // Set substitution for the other variable
@@ -554,14 +554,14 @@ inline Term ic_dup_num(IC* ic, Term dup, Term num) {
 // @param term The term to reduce
 // @return The term in WHNF
 inline Term ic_whnf(IC* ic, Term term) {
-  uint32_t stop = ic->stack_pos;
+  Val stop = ic->stack_pos;
   Term next = term;
   Term* heap = ic->heap;
   Term* stack = ic->stack;
-  uint32_t stack_pos = stop;
+  Val stack_pos = stop;
 
   TermTag tag;
-  uint32_t val_loc;
+  Val val_loc;
   Term val;
   Term prev;
   TermTag ptag;
@@ -693,7 +693,7 @@ inline Term ic_whnf(IC* ic, Term term) {
 inline Term ic_normal(IC* ic, Term term) {
   term = ic_whnf(ic, term);
   TermTag tag = TERM_TAG(term);
-  uint32_t loc = TERM_VAL(term);
+  Val loc = TERM_VAL(term);
 
   if (ic_is_era(term) || tag == NUM) {
     // ERA and NUM have no children, so just return them

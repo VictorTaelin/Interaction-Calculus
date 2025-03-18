@@ -10,7 +10,7 @@
 #define DP1 101  // Just a value not used for any other tag
 
 // Helper functions for numeric operations
-static uint32_t get_num_val(Term term) {
+static Val get_num_val(Term term) {
   if (TERM_TAG(term) == NUM) {
     return TERM_VAL(term) & TERM_VAL_MASK;
   } else {
@@ -24,7 +24,7 @@ static uint32_t get_num_val(Term term) {
 // Structure to track variable names
 typedef struct {
   uint32_t count;        // Number of variables encountered
-  uint32_t* locations;   // Array of variable locations
+  Val* locations;        // Array of variable locations
   TermTag* types;        // Array of variable types (VAR, DP0, DP1)
   char** names;          // Array of variable names
   uint32_t capacity;     // Capacity of the arrays
@@ -32,8 +32,8 @@ typedef struct {
 
 // Structure to track duplication nodes
 typedef struct {
-  uint32_t* locations;   // Array of duplication locations
-  uint8_t* labels;       // Array of duplication labels
+  Val* locations;        // Array of duplication locations
+  Lab* labels;           // Array of duplication labels
   uint32_t count;        // Number of duplications
   uint32_t capacity;     // Capacity of the array
 } DupTable;
@@ -42,7 +42,7 @@ typedef struct {
 void init_var_table(VarNameTable* table) {
   table->count = 0;
   table->capacity = 64;
-  table->locations = (uint32_t*)malloc(table->capacity * sizeof(uint32_t));
+  table->locations = (Val*)malloc(table->capacity * sizeof(Val));
   table->types = (TermTag*)malloc(table->capacity * sizeof(TermTag));
   table->names = (char**)malloc(table->capacity * sizeof(char*));
 }
@@ -61,8 +61,8 @@ void free_var_table(VarNameTable* table) {
 void init_dup_table(DupTable* table) {
   table->count = 0;
   table->capacity = 64;
-  table->locations = (uint32_t*)malloc(table->capacity * sizeof(uint32_t));
-  table->labels = (uint8_t*)malloc(table->capacity * sizeof(uint8_t));
+  table->locations = (Val*)malloc(table->capacity * sizeof(Val));
+  table->labels = (Lab*)malloc(table->capacity * sizeof(Lab));
 }
 
 // Free duplication table
@@ -87,11 +87,11 @@ char* index_to_var_name(uint32_t index) {
 }
 
 // Add a variable to the table and return its name
-char* add_variable(VarNameTable* table, uint32_t location, TermTag type) {
+char* add_variable(VarNameTable* table, Val location, TermTag type) {
   // Check if we need to expand the table
   if (table->count >= table->capacity) {
     table->capacity *= 2;
-    table->locations = (uint32_t*)realloc(table->locations, table->capacity * sizeof(uint32_t));
+    table->locations = (Val*)realloc(table->locations, table->capacity * sizeof(Val));
     table->types = (TermTag*)realloc(table->types, table->capacity * sizeof(TermTag));
     table->names = (char**)realloc(table->names, table->capacity * sizeof(char*));
   }
@@ -133,7 +133,7 @@ char* add_variable(VarNameTable* table, uint32_t location, TermTag type) {
 }
 
 // Get a variable name from the table
-char* get_var_name(VarNameTable* table, uint32_t location, TermTag type) {
+char* get_var_name(VarNameTable* table, Val location, TermTag type) {
   // Convert to basic type for lookup
   TermTag basicType = type;
   if (IS_DP0(type)) {
@@ -156,7 +156,7 @@ void stringify_term(IC* ic, Term term, VarNameTable* var_table, char* buffer, in
 void stringify_duplications(IC* ic, DupTable* dup_table, VarNameTable* var_table, char* buffer, int* pos, int max_len, const char* prefix);
 
 // Register a duplication in the table
-bool register_duplication(DupTable* table, uint32_t location, uint8_t label) {
+bool register_duplication(DupTable* table, Val location, Lab label) {
   for (uint32_t i = 0; i < table->count; i++) {
     if (table->locations[i] == location) {
       if (table->labels[i] != label) {
@@ -168,8 +168,8 @@ bool register_duplication(DupTable* table, uint32_t location, uint8_t label) {
   }
   if (table->count >= table->capacity) {
     table->capacity *= 2;
-    table->locations = (uint32_t*)realloc(table->locations, table->capacity * sizeof(uint32_t));
-    table->labels = (uint8_t*)realloc(table->labels, table->capacity * sizeof(uint8_t));
+    table->locations = (Val*)realloc(table->locations, table->capacity * sizeof(Val));
+    table->labels = (Lab*)realloc(table->labels, table->capacity * sizeof(Lab));
   }
   table->locations[table->count] = location;
   table->labels[table->count] = label;
@@ -180,12 +180,12 @@ bool register_duplication(DupTable* table, uint32_t location, uint8_t label) {
 // Assign IDs to variables and register duplications
 void assign_var_ids(IC* ic, Term term, VarNameTable* var_table, DupTable* dup_table) {
   TermTag tag = TERM_TAG(term);
-  uint32_t val = TERM_VAL(term);
-  uint8_t lab = TERM_LAB(term);
+  Val val = TERM_VAL(term);
+  Lab lab = TERM_LAB(term);
 
   switch (tag) {
     case VAR: {
-      uint32_t loc = val;
+      Val loc = val;
       Term subst = ic->heap[loc];
       if (TERM_SUB(subst)) {
         assign_var_ids(ic, ic_clear_sub(subst), var_table, dup_table);
@@ -204,7 +204,7 @@ void assign_var_ids(IC* ic, Term term, VarNameTable* var_table, DupTable* dup_ta
     case DY1:
     case DY2:
     case DY3: {
-      uint32_t loc = val;
+      Val loc = val;
       Term subst = ic->heap[loc];
       if (TERM_SUB(subst)) {
         assign_var_ids(ic, ic_clear_sub(subst), var_table, dup_table);
@@ -217,14 +217,14 @@ void assign_var_ids(IC* ic, Term term, VarNameTable* var_table, DupTable* dup_ta
     }
 
     case LAM: {
-      uint32_t lam_loc = val;
+      Val lam_loc = val;
       add_variable(var_table, lam_loc, VAR);
       assign_var_ids(ic, ic->heap[lam_loc], var_table, dup_table);
       break;
     }
 
     case APP: {
-      uint32_t app_loc = val;
+      Val app_loc = val;
       assign_var_ids(ic, ic->heap[app_loc], var_table, dup_table);
       assign_var_ids(ic, ic->heap[app_loc + 1], var_table, dup_table);
       break;
@@ -244,7 +244,7 @@ void assign_var_ids(IC* ic, Term term, VarNameTable* var_table, DupTable* dup_ta
     case SP5:
     case SP6:
     case SP7: {
-      uint32_t sup_loc = val;
+      Val sup_loc = val;
       assign_var_ids(ic, ic->heap[sup_loc], var_table, dup_table);
       assign_var_ids(ic, ic->heap[sup_loc + 1], var_table, dup_table);
       break;
@@ -256,13 +256,13 @@ void assign_var_ids(IC* ic, Term term, VarNameTable* var_table, DupTable* dup_ta
     }
 
     case SUC: {
-      uint32_t suc_loc = val;
+      Val suc_loc = val;
       assign_var_ids(ic, ic->heap[suc_loc], var_table, dup_table);
       break;
     }
 
     case SWI: {
-      uint32_t swi_loc = val;
+      Val swi_loc = val;
       assign_var_ids(ic, ic->heap[swi_loc], var_table, dup_table);     // Number
       assign_var_ids(ic, ic->heap[swi_loc + 1], var_table, dup_table); // Zero branch
       assign_var_ids(ic, ic->heap[swi_loc + 2], var_table, dup_table); // Successor branch
@@ -278,15 +278,15 @@ void assign_var_ids(IC* ic, Term term, VarNameTable* var_table, DupTable* dup_ta
 void stringify_duplications(IC* ic, DupTable* dup_table, VarNameTable* var_table, char* buffer, int* pos, int max_len, const char* prefix) {
   // First, add all duplication variables
   for (uint32_t i = 0; i < dup_table->count; i++) {
-    uint32_t dup_loc = dup_table->locations[i];
+    Val dup_loc = dup_table->locations[i];
     add_variable(var_table, dup_loc, DP0);
     add_variable(var_table, dup_loc, DP1);
   }
 
   // Then, stringify each duplication
   for (uint32_t i = 0; i < dup_table->count; i++) {
-    uint32_t dup_loc = dup_table->locations[i];
-    uint8_t lab = dup_table->labels[i];
+    Val dup_loc = dup_table->locations[i];
+    Lab lab = dup_table->labels[i];
     Term val_term = ic->heap[dup_loc];
 
     // Get variable names
@@ -311,12 +311,12 @@ void stringify_duplications(IC* ic, DupTable* dup_table, VarNameTable* var_table
 // Stringify a term
 void stringify_term(IC* ic, Term term, VarNameTable* var_table, char* buffer, int* pos, int max_len, const char* prefix) {
   TermTag tag = TERM_TAG(term);
-  uint32_t val = TERM_VAL(term);
-  uint8_t lab = TERM_LAB(term);
+  Val val = TERM_VAL(term);
+  Lab lab = TERM_LAB(term);
 
   switch (tag) {
     case VAR: {
-      uint32_t loc = val;
+      Val loc = val;
       Term subst = ic->heap[loc];
       if (TERM_SUB(subst)) {
         stringify_term(ic, ic_clear_sub(subst), var_table, buffer, pos, max_len, prefix);
@@ -342,7 +342,7 @@ void stringify_term(IC* ic, Term term, VarNameTable* var_table, char* buffer, in
     case DY2:
     case DY3: {
       TermTag co_type = (tag >= DX0 && tag <= DX3) ? DP0 : DP1;
-      uint32_t loc = val;
+      Val loc = val;
       Term subst = ic->heap[loc];
       if (TERM_SUB(subst)) {
         stringify_term(ic, ic_clear_sub(subst), var_table, buffer, pos, max_len, prefix);
@@ -358,7 +358,7 @@ void stringify_term(IC* ic, Term term, VarNameTable* var_table, char* buffer, in
     }
 
     case LAM: {
-      uint32_t lam_loc = val;
+      Val lam_loc = val;
       char* var_name = get_var_name(var_table, lam_loc, VAR);
       if (prefix) {
         *pos += snprintf(buffer + *pos, max_len - *pos, "λ%s%s.", prefix, var_name);

@@ -19,14 +19,12 @@
 #include <string.h>
 
 // Default heap and stack sizes
-#define IC_DEFAULT_HEAP_SIZE (1 << 27) // 128M terms
-#define IC_DEFAULT_STACK_SIZE (1 << 24) // 16M terms
-
-#ifdef HAVE_METAL
-#include <stdbool.h>
-// Forward declarations for Metal functions
-bool metal_is_available();
-void metal_execute_sup_reduction(uint32_t* heap, uint32_t sup_count, uint32_t* sup_indices);
+#ifdef IC_64BIT
+  #define IC_DEFAULT_HEAP_SIZE (1ULL << 30) // 1G terms
+  #define IC_DEFAULT_STACK_SIZE (1ULL << 28) // 256M terms
+#else
+  #define IC_DEFAULT_HEAP_SIZE (1UL << 27) // 128M terms
+  #define IC_DEFAULT_STACK_SIZE (1UL << 24) // 16M terms
 #endif
 
 // -----------------------------------------------------------------------------
@@ -69,17 +67,40 @@ typedef enum {
   DY7 = 0x1F, // Duplication variable 1 with label 7
 } TermTag;
 
-// Term 32-bit packed representation
-typedef uint32_t Term;
+#ifdef IC_64BIT
+  // Term 64-bit packed representation
+  typedef uint64_t Term;
+  typedef uint64_t Val;
+  typedef uint8_t Lab;
 
-// Term components
-#define TERM_SUB_MASK 0x80000000UL // 1-bit: Is this a substitution?
-#define TERM_TAG_MASK 0x7C000000UL // 5-bits: Term tag
-#define TERM_VAL_MASK 0x03FFFFFFUL // 26-bits: Value/pointer
+  #define TERM_BITS 64
+
+  // Term components
+  #define TERM_SUB_MASK 0x8000000000000000ULL // 1-bit: Is this a substitution?
+  #define TERM_TAG_MASK 0x7C00000000000000ULL // 5-bits: Term tag
+  #define TERM_VAL_MASK 0x03FFFFFFFFFFFFFFULL // 58-bits: Value/pointer
+
+  #define NONE 0xFFFFFFFFFFFFFFFFULL
+#else
+  // Term 32-bit packed representation
+  typedef uint32_t Term;
+  typedef uint32_t Val;
+  typedef uint8_t Lab;
+
+  #define TERM_BITS 32
+
+  // Term components
+  #define TERM_SUB_MASK 0x80000000UL // 1-bit: Is this a substitution?
+  #define TERM_TAG_MASK 0x7C000000UL // 5-bits: Term tag
+  #define TERM_VAL_MASK 0x03FFFFFFUL // 26-bits: Value/pointer
+
+  #define NONE 0xFFFFFFFF
+#endif
 
 // Term component extraction
+#define TERM_TAG_SHIFT (TERM_BITS - 6)
 #define TERM_SUB(term) (((term) & TERM_SUB_MASK) != 0)
-#define TERM_TAG(term) ((TermTag)(((term) & TERM_TAG_MASK) >> 26))
+#define TERM_TAG(term) ((TermTag)(((term) & TERM_TAG_MASK) >> TERM_TAG_SHIFT))
 #define TERM_VAL(term) ((term) & TERM_VAL_MASK)
 
 // Label helpers (for compatibility with existing code)
@@ -99,8 +120,8 @@ typedef uint32_t Term;
 // Term creation
 #define MAKE_TERM(sub, tag, val) \
   (((sub) ? TERM_SUB_MASK : 0) | \
-   (((uint32_t)(tag) << 26)) | \
-   ((uint32_t)(val) & TERM_VAL_MASK))
+   (((Term)(tag) << TERM_TAG_SHIFT)) | \
+   ((Term)(val) & TERM_VAL_MASK))
 
 // -----------------------------------------------------------------------------
 // IC Structure
@@ -111,13 +132,13 @@ typedef uint32_t Term;
 typedef struct {
   // Memory management
   Term* heap;          // Heap memory for terms
-  uint32_t heap_size;  // Total size of the heap
-  uint32_t heap_pos;   // Current allocation position
+  Val heap_size;  // Total size of the heap
+  Val heap_pos;   // Current allocation position
 
   // Evaluation stack
   Term* stack;          // Stack for term evaluation
-  uint32_t stack_size;  // Total size of the stack
-  uint32_t stack_pos;   // Current stack position
+  Val stack_size;  // Total size of the stack
+  Val stack_pos;   // Current stack position
 
   // Statistics
   uint64_t interactions; // Interaction counter
@@ -127,11 +148,17 @@ typedef struct {
 // IC Functions
 // -----------------------------------------------------------------------------
 
+#ifdef HAVE_METAL
+// Forward declarations for Metal functions
+bool metal_is_available();
+void metal_execute_sup_reduction(uint32_t* heap, uint32_t sup_count, uint32_t* sup_indices);
+#endif
+
 // Create a new IC context with the specified heap and stack sizes.  
 // @param heap_size Number of terms in the heap  
 // @param stack_size Number of terms in the stack  
 // @return A new IC context or NULL if allocation failed  
-IC* ic_new(uint32_t heap_size, uint32_t stack_size);  
+IC* ic_new(Val heap_size, Val stack_size);  
 
 // Create a new IC context with default heap and stack sizes.  
 // @return A new IC context or NULL if allocation failed  
@@ -145,13 +172,13 @@ void ic_free(IC* ic);
 // @param ic The IC context  
 // @param n Number of terms to allocate  
 // @return The starting location of the allocated block  
-uint32_t ic_alloc(IC* ic, uint32_t n);  
+Val ic_alloc(IC* ic, Val n);  
 
 // Create a term with the given tag and value.  
 // @param tag The term's tag  
 // @param val The term's value (typically a heap location)  
 // @return The constructed term  
-Term ic_make_term(TermTag tag, uint32_t val);
+Term ic_make_term(TermTag tag, Val val);
 
 // Create a substitution term by setting the substitution bit.  
 // @param term The term to convert to a substitution  
@@ -164,13 +191,13 @@ Term ic_make_sub(Term term);
 Term ic_clear_sub(Term term);  
 
 // Term constructors.
-Term ic_make_sup(uint8_t lab, uint32_t val);  
-Term ic_make_co0(uint8_t lab, uint32_t val);  
-Term ic_make_co1(uint8_t lab, uint32_t val);  
+Term ic_make_sup(Lab lab, Val val);  
+Term ic_make_co0(Lab lab, Val val);  
+Term ic_make_co1(Lab lab, Val val);  
 Term ic_make_era();
-Term ic_make_num(uint32_t val);
-Term ic_make_suc(uint32_t val);
-Term ic_make_swi(uint32_t val);
+Term ic_make_num(Val val);
+Term ic_make_suc(Val val);
+Term ic_make_swi(Val val);
 
 // Check if a term is an erasure term.  
 // @param term The term to check  
@@ -178,12 +205,12 @@ Term ic_make_swi(uint32_t val);
 bool ic_is_era(Term term);  
 
 // Allocate a node in the heap.  
-uint32_t ic_lam(IC* ic, Term bod);  
-uint32_t ic_app(IC* ic, Term fun, Term arg);  
-uint32_t ic_sup(IC* ic, Term lft, Term rgt);  
-uint32_t ic_dup(IC* ic, Term val);
-uint32_t ic_suc(IC* ic, Term num);
-uint32_t ic_swi(IC* ic, Term num, Term ifz, Term ifs);
+Val ic_lam(IC* ic, Term bod);  
+Val ic_app(IC* ic, Term fun, Term arg);  
+Val ic_sup(IC* ic, Term lft, Term rgt);  
+Val ic_dup(IC* ic, Term val);
+Val ic_suc(IC* ic, Term num);
+Val ic_swi(IC* ic, Term num, Term ifz, Term ifs);
 
 // Interactions
 Term ic_app_lam(IC* ic, Term app, Term lam);  
@@ -213,7 +240,5 @@ Term ic_whnf(IC* ic, Term term);
 // @param term The term to normalize  
 // @return The normalized term  
 Term ic_normal(IC* ic, Term term);  
-
-#define NONE 0xFFFFFFFF
 
 #endif // IC_H
