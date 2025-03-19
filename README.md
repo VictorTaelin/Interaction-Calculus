@@ -18,8 +18,8 @@ some computations exponentially faster. Finally, being fully affine makes its
 garbage collector very efficient, and greatly simplifies parallelism.
 
 The [HVM](https://github.com/HigherOrderCO/HVM3) is an efficient, fully featured
-implementation of this calculus. This repository includes a reference
-implementation in C, which is also quite fast, but not fully featured.
+implementation of this calculus. This repo includes a reference implementation
+in C, which is also quite fast.
 
 ## Usage
 
