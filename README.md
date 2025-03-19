@@ -3,7 +3,7 @@
 The Interaction Calculus is a minimal term rewriting system inspired by the
 Lambda Calculus (λC), but with some key differences that make it inherently more
 efficient, in a way that closely resembles Lamping's optimal λ-calculus
-evaluator, and expressive. In particular:
+evaluator, and more expressive, in some ways. In particular:
 
 1. Vars are affine: they can only occur up to one time.
 
