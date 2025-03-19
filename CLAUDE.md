@@ -1,7 +1,7 @@
 # IC Project Guide
 
 ## Important Files
-- `IC.md` - Project Spec (ALWAYS READ IT)
+- `README.md` - Project Spec (ALWAYS READ IT)
 - `src/main.c` - Program entry point (CLI)
 - `src/ic.h` - The complete IC runtime
 - `src/parse.[c|h]` - Term parsing
