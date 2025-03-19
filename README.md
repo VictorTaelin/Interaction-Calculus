@@ -275,7 +275,7 @@ The following term can be used to test all interactions:
 λa.λb.a
 ```
 
-# Collapsing
+## Collapsing
 
 An Interaction Calculus term can be collapsed to a superposed tree of pure
 Lambda Calculus terms without SUPs and DUPs, by extending the evaluator with the
@@ -316,7 +316,7 @@ a1 <- (f1 x1)
 K
 ```
 
-# IC = Lambda Calculus U Interaction Combinators
+## IC = Lambda Calculus U Interaction Combinators
 
 Consider the conventional Lambda Calculus, with pairs. It has two computational rules:
 
@@ -434,7 +434,7 @@ similar to the λ-Calculus, yet, with key differences that make it more
 efficient in some senses, and capable of expressing new things (like call/cc,
 O(1) queues, linear HOAS), but unable to express others (like `λx.(x x)`).
 
-# IC32: a 32-Bit Runtime
+## IC32: a 32-Bit Runtime
 
 IC32 is implemented in portable C.
 
@@ -544,7 +544,7 @@ def dup_sup(dup, sup):
 
 The NUM, SUC and SWI terms extend the IC with unboxed unsigned integers.
 
-# Parsing IC32
+## Parsing IC32
 
 On IC32, all bound variables have global range. For example, consider the term:
 
@@ -614,7 +614,7 @@ def parse_dup(loc):
   vars[co1] = Term(DP1, lab, loc)
 ```
 
-# Stringifying IC32
+## Stringifying IC32
 
 Converting IC32 terms to strings faces two challenges:
 
