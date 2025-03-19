@@ -316,7 +316,7 @@ a1 <- (f1 x1)
 K
 ```
 
-# Interaction Calculus = Lambda Calculus U Interaction Combinators
+# IC = Lambda Calculus U Interaction Combinators
 
 Consider the conventional Lambda Calculus, with pairs. It has two computational rules:
 
