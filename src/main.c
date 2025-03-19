@@ -116,7 +116,7 @@ static void process_term(IC* ic, Term term, int use_gpu, int use_collapse, int t
 // Benchmark normalization performance over 1 second
 static void benchmark_term(IC* ic, Term term, int use_gpu, int use_collapse, int thread_count) {
   // Snapshot initial heap state
-  Val original_heap_pos = ic->heap_pos;
+  uint32_t original_heap_pos = ic->heap_pos;
   Term* original_heap_state = (Term*)malloc(original_heap_pos * sizeof(Term));
   if (!original_heap_state) {
     fprintf(stderr, "Error: Memory allocation failed for heap snapshot\n");
@@ -137,7 +137,7 @@ static void benchmark_term(IC* ic, Term term, int use_gpu, int use_collapse, int
 
   // Benchmark loop
   uint64_t total_interactions = 0;
-  uint64_t iterations = 0;
+  uint32_t iterations = 0;
   struct timeval start_time, current_time;
   gettimeofday(&start_time, NULL);
   double elapsed_seconds = 0;

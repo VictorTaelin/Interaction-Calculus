@@ -12,7 +12,7 @@
 typedef struct {
   char name[MAX_NAME_LEN];
   Term var;
-  Val loc;
+  uint32_t loc;
 } Binder;
 
 typedef struct {
