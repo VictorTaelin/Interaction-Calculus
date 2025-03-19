@@ -29,7 +29,7 @@ Where:
 - SUP represents a superposition.
 - DUP represents a duplication.
 - NUM represents a number.
-- SUC represents a successor
+- SUC represents a successor.
 - SWI represents a switch.
 
 Lambdas are curried, and work like their λC counterpart, except with a relaxed

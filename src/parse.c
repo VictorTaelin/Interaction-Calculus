@@ -6,8 +6,8 @@
 #include <ctype.h>
 
 // Forward declarations
-uint32_t parse_term_alloc(Parser* parser);
-void parse_term(Parser* parser, uint32_t loc);
+Val parse_term_alloc(Parser* parser);
+void parse_term(Parser* parser, Val loc);
 void skip(Parser* parser);
 char peek_char(Parser* parser);
 char next_char(Parser* parser);
@@ -78,7 +78,7 @@ static void resolve_global_vars(Parser* parser) {
   }
 }
 
-static void move_term(Parser* parser, uint32_t from_loc, uint32_t to_loc) {
+static void move_term(Parser* parser, Val from_loc, Val to_loc) {
   for (size_t i = 0; i < parser->global_vars_count; i++) {
     if (parser->global_vars[i].loc == from_loc) {
       parser->global_vars[i].loc = to_loc;
@@ -172,12 +172,12 @@ bool peek_is(Parser* parser, char c) {
   return peek_char(parser) == c;
 }
 
-void store_term(Parser* parser, uint32_t loc, TermTag tag, uint32_t value) {
-  parser->ic->heap[loc] = ic_make_term(tag, value);
+void store_term(Parser* parser, Val loc, TermTag tag, Lab lab, Val value) {
+  parser->ic->heap[loc] = ic_make_term(tag, lab, value);
 }
 
-uint32_t parse_uint(Parser* parser) {
-  uint32_t value = 0;
+Val parse_uint(Parser* parser) {
+  Val value = 0;
   bool has_digit = false;
   while (isdigit(peek_char(parser))) {
     value = value * 10 + (next_char(parser) - '0');
@@ -221,7 +221,7 @@ void consume_utf8(Parser* parser, int bytes) {
 }
 
 // Term parsing functions
-static void parse_term_var(Parser* parser, uint32_t loc) {
+static void parse_term_var(Parser* parser, Val loc) {
   char name[MAX_NAME_LEN];
   parse_name(parser, name);
   if (starts_with_dollar(name)) {
@@ -242,7 +242,7 @@ static void parse_term_var(Parser* parser, uint32_t loc) {
       parser->ic->heap[loc] = binder->var;
       binder->loc = loc;
     } else {
-      uint32_t dup_loc = ic_alloc(parser->ic, 1);
+      Val dup_loc = ic_alloc(parser->ic, 1);
       parser->ic->heap[dup_loc] = parser->ic->heap[binder->loc];
       Term dp0 = ic_make_co0(0, dup_loc);
       Term dp1 = ic_make_co1(0, dup_loc);
@@ -253,7 +253,7 @@ static void parse_term_var(Parser* parser, uint32_t loc) {
   }
 }
 
-static void parse_term_lam(Parser* parser, uint32_t loc) {
+static void parse_term_lam(Parser* parser, Val loc) {
   if (check_utf8(parser, 0xCE, 0xBB)) {
     consume_utf8(parser, 2);
   } else if (!consume(parser, "λ")) {
@@ -262,8 +262,8 @@ static void parse_term_lam(Parser* parser, uint32_t loc) {
   char name[MAX_NAME_LEN];
   parse_name(parser, name);
   expect(parser, ".", "after name in lambda");
-  uint32_t lam_node = ic_alloc(parser->ic, 1);
-  Term var_term = ic_make_term(VAR, lam_node);
+  Val lam_node = ic_alloc(parser->ic, 1);
+  Term var_term = ic_make_term(VAR, 0, lam_node);
   if (starts_with_dollar(name)) {
     size_t idx = find_or_add_global_var(parser, name);
     if (parser->global_vars[idx].var != NONE) {
@@ -279,38 +279,38 @@ static void parse_term_lam(Parser* parser, uint32_t loc) {
   if (!starts_with_dollar(name)) {
     pop_lexical_binder(parser);
   }
-  store_term(parser, loc, LAM, lam_node);
+  store_term(parser, loc, LAM, 0, lam_node);
 }
 
-static void parse_term_app(Parser* parser, uint32_t loc) {
+static void parse_term_app(Parser* parser, Val loc) {
   expect(parser, "(", "for application");
   parse_term(parser, loc);
   skip(parser);
   while (peek_char(parser) != ')') {
-    uint32_t app_node = ic_alloc(parser->ic, 2);
+    Val app_node = ic_alloc(parser->ic, 2);
     move_term(parser, loc, app_node + 0);
     parse_term(parser, app_node + 1);
-    store_term(parser, loc, APP, app_node);
+    store_term(parser, loc, APP, 0, app_node);
     skip(parser);
   }
   expect(parser, ")", "after terms in application");
 }
 
-static void parse_term_sup(Parser* parser, uint32_t loc) {
+static void parse_term_sup(Parser* parser, Val loc) {
   expect(parser, "&", "for superposition");
-  uint8_t label = parse_uint(parser) & 0x7;
+  Lab label = parse_uint(parser) & LAB_MAX;
   expect(parser, "{", "after label in superposition");
-  uint32_t sup_node = ic_alloc(parser->ic, 2);
+  Val sup_node = ic_alloc(parser->ic, 2);
   parse_term(parser, sup_node + 0);
   expect(parser, ",", "between terms in superposition");
   parse_term(parser, sup_node + 1);
   expect(parser, "}", "after terms in superposition");
-  store_term(parser, loc, SUP_TAG(label), sup_node);
+  parser->ic->heap[loc] = ic_make_sup(label, sup_node);
 }
 
-static void parse_term_dup(Parser* parser, uint32_t loc) {
+static void parse_term_dup(Parser* parser, Val loc) {
   expect(parser, "!&", "for duplication");
-  uint8_t label = parse_uint(parser) & 0x7;
+  Lab label = parse_uint(parser) & LAB_MAX;
   expect(parser, "{", "after label in duplication");
   char x0[MAX_NAME_LEN];
   char x1[MAX_NAME_LEN];
@@ -319,7 +319,7 @@ static void parse_term_dup(Parser* parser, uint32_t loc) {
   parse_name(parser, x1);
   expect(parser, "}", "after names in duplication");
   expect(parser, "=", "after names in duplication");
-  uint32_t dup_node = ic_alloc(parser->ic, 1);
+  Val dup_node = ic_alloc(parser->ic, 1);
   parse_term(parser, dup_node);
   expect(parser, ";", "after value in duplication");
   Term co0_term = ic_make_co0(label, dup_node);
@@ -355,26 +355,26 @@ static void parse_term_dup(Parser* parser, uint32_t loc) {
   }
 }
 
-static void parse_term_era(Parser* parser, uint32_t loc) {
+static void parse_term_era(Parser* parser, Val loc) {
   expect(parser, "*", "for erasure");
-  store_term(parser, loc, ERA, 0);
+  store_term(parser, loc, ERA, 0, 0);
 }
 
-static void parse_term_num(Parser* parser, uint32_t loc) {
-  uint32_t value = parse_uint(parser);
-  store_term(parser, loc, NUM, value);
+static void parse_term_num(Parser* parser, Val loc) {
+  Val value = parse_uint(parser);
+  store_term(parser, loc, NUM, 0, value);
 }
 
-static void parse_term_suc(Parser* parser, uint32_t loc) {
+static void parse_term_suc(Parser* parser, Val loc) {
   expect(parser, "+", "for successor");
-  uint32_t suc_node = ic_alloc(parser->ic, 1);
+  Val suc_node = ic_alloc(parser->ic, 1);
   parse_term(parser, suc_node);
-  store_term(parser, loc, SUC, suc_node);
+  store_term(parser, loc, SUC, 0, suc_node);
 }
 
-static void parse_term_swi(Parser* parser, uint32_t loc) {
+static void parse_term_swi(Parser* parser, Val loc) {
   expect(parser, "?", "for switch");
-  uint32_t swi_node = ic_alloc(parser->ic, 3);
+  Val swi_node = ic_alloc(parser->ic, 3);
   parse_term(parser, swi_node);
   expect(parser, "{", "after condition in switch");
   expect(parser, "0", "for zero case");
@@ -386,19 +386,19 @@ static void parse_term_swi(Parser* parser, uint32_t loc) {
   parse_term(parser, swi_node + 2);
   expect(parser, ";", "after successor case");
   expect(parser, "}", "to close switch");
-  store_term(parser, loc, SWI, swi_node);
+  store_term(parser, loc, SWI, 0, swi_node);
 }
 
-static void parse_term_let(Parser* parser, uint32_t loc) {
+static void parse_term_let(Parser* parser, Val loc) {
   expect(parser, "!", "for let expression");
   char name[MAX_NAME_LEN];
   parse_name(parser, name);
   expect(parser, "=", "after name in let expression");
-  uint32_t app_node = ic_alloc(parser->ic, 2);
-  uint32_t lam_node = ic_alloc(parser->ic, 1);
+  Val app_node = ic_alloc(parser->ic, 2);
+  Val lam_node = ic_alloc(parser->ic, 1);
   parse_term(parser, app_node + 1);
   expect(parser, ";", "after value in let expression");
-  Term var_term = ic_make_term(VAR, lam_node);
+  Term var_term = ic_make_term(VAR, 0, lam_node);
   if (starts_with_dollar(name)) {
     size_t idx = find_or_add_global_var(parser, name);
     if (parser->global_vars[idx].var != NONE) {
@@ -414,11 +414,11 @@ static void parse_term_let(Parser* parser, uint32_t loc) {
   if (!starts_with_dollar(name)) {
     pop_lexical_binder(parser);
   }
-  store_term(parser, app_node + 0, LAM, lam_node);
-  store_term(parser, loc, APP, app_node);
+  store_term(parser, app_node + 0, LAM, 0, lam_node);
+  store_term(parser, loc, APP, 0, app_node);
 }
 
-void parse_term(Parser* parser, uint32_t loc) {
+void parse_term(Parser* parser, Val loc) {
   skip(parser);
   if (parser->input[parser->pos] == '\0') {
     parse_error(parser, "Unexpected end of input");
@@ -458,8 +458,8 @@ void parse_term(Parser* parser, uint32_t loc) {
   }
 }
 
-uint32_t parse_term_alloc(Parser* parser) {
-  uint32_t loc = ic_alloc(parser->ic, 1);
+Val parse_term_alloc(Parser* parser) {
+  Val loc = ic_alloc(parser->ic, 1);
   parse_term(parser, loc);
   return loc;
 }
@@ -468,7 +468,7 @@ Term parse_string(IC* ic, const char* input) {
   Parser parser;
   init_parser(&parser, ic, input);
   skip(&parser);
-  uint32_t term_loc = parse_term_alloc(&parser);
+  Val term_loc = parse_term_alloc(&parser);
   resolve_global_vars(&parser);
   return parser.ic->heap[term_loc];
 }

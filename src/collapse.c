@@ -19,7 +19,7 @@
 static inline Term ic_era_lam(IC* ic, Term lam, Term era) {
   ic->interactions++;
 
-  uint32_t lam_loc = TERM_VAL(lam);
+  Val lam_loc = TERM_VAL(lam);
 
   // Set substitution for x to an erasure
   ic->heap[lam_loc] = ic_make_sub(ic_make_era());
@@ -45,24 +45,24 @@ static inline Term ic_era_app(IC* ic, Term app, Term era) {
 static inline Term ic_sup_lam(IC* ic, Term lam, Term sup) {
   ic->interactions++;
 
-  uint32_t lam_loc = TERM_VAL(lam);
-  uint32_t sup_loc = TERM_VAL(sup);
-  uint8_t sup_lab = TERM_LAB(sup);
+  Val lam_loc = TERM_VAL(lam);
+  Val sup_loc = TERM_VAL(sup);
+  Lab sup_lab = TERM_LAB(sup);
   Term f0 = ic->heap[sup_loc + 0];
   Term f1 = ic->heap[sup_loc + 1];
 
   // Allocate two new LAM nodes
-  uint32_t lam0_loc = ic_alloc(ic, 1);
-  uint32_t lam1_loc = ic_alloc(ic, 1);
+  Val lam0_loc = ic_alloc(ic, 1);
+  Val lam1_loc = ic_alloc(ic, 1);
   ic->heap[lam0_loc + 0] = f0;
   ic->heap[lam1_loc + 0] = f1;
 
   // Create variables x0 and x1 pointing to lam0 and lam1
-  Term x0 = ic_make_term(VAR, lam0_loc);
-  Term x1 = ic_make_term(VAR, lam1_loc);
+  Term x0 = ic_make_term(VAR, 0, lam0_loc);
+  Term x1 = ic_make_term(VAR, 0, lam1_loc);
 
   // Create the new SUP &L{x0,x1}
-  uint32_t new_sup_loc = ic_alloc(ic, 2);
+  Val new_sup_loc = ic_alloc(ic, 2);
   ic->heap[new_sup_loc + 0] = x0;
   ic->heap[new_sup_loc + 1] = x1;
   Term new_sup = ic_make_sup(sup_lab, new_sup_loc);
@@ -71,9 +71,9 @@ static inline Term ic_sup_lam(IC* ic, Term lam, Term sup) {
   ic->heap[lam_loc] = ic_make_sub(new_sup);
 
   // Create the result SUP &L{lam0, lam1}
-  Term lam0_term = ic_make_term(LAM, lam0_loc);
-  Term lam1_term = ic_make_term(LAM, lam1_loc);
-  uint32_t result_sup_loc = ic_alloc(ic, 2);
+  Term lam0_term = ic_make_term(LAM, 0, lam0_loc);
+  Term lam1_term = ic_make_term(LAM, 0, lam1_loc);
+  Val result_sup_loc = ic_alloc(ic, 2);
   ic->heap[result_sup_loc + 0] = lam0_term;
   ic->heap[result_sup_loc + 1] = lam1_term;
   return ic_make_sup(sup_lab, result_sup_loc);
@@ -86,15 +86,15 @@ static inline Term ic_sup_lam(IC* ic, Term lam, Term sup) {
 static inline Term ic_sup_app(IC* ic, Term app, Term sup) {
   ic->interactions++;
 
-  uint32_t app_loc = TERM_VAL(app);
-  uint8_t sup_lab = TERM_LAB(sup);
+  Val app_loc = TERM_VAL(app);
+  Lab sup_lab = TERM_LAB(sup);
   Term fun = ic->heap[app_loc + 0];
-  uint32_t sup_loc = TERM_VAL(sup);
+  Val sup_loc = TERM_VAL(sup);
   Term lft = ic->heap[sup_loc + 0];
   Term rgt = ic->heap[sup_loc + 1];
 
   // Allocate DUP node for fun
-  uint32_t dup_loc = ic_alloc(ic, 1);
+  Val dup_loc = ic_alloc(ic, 1);
   ic->heap[dup_loc] = fun;
 
   // Create f0 and f1
@@ -102,19 +102,19 @@ static inline Term ic_sup_app(IC* ic, Term app, Term sup) {
   Term f1 = ic_make_co1(sup_lab, dup_loc);
 
   // Create app0 = (f0 lft)
-  uint32_t app0_loc = ic_alloc(ic, 2);
+  Val app0_loc = ic_alloc(ic, 2);
   ic->heap[app0_loc + 0] = f0;
   ic->heap[app0_loc + 1] = lft;
-  Term app0 = ic_make_term(APP, app0_loc);
+  Term app0 = ic_make_term(APP, 0, app0_loc);
 
   // Create app1 = (f1 rgt)
-  uint32_t app1_loc = ic_alloc(ic, 2);
+  Val app1_loc = ic_alloc(ic, 2);
   ic->heap[app1_loc + 0] = f1;
   ic->heap[app1_loc + 1] = rgt;
-  Term app1 = ic_make_term(APP, app1_loc);
+  Term app1 = ic_make_term(APP, 0, app1_loc);
 
   // Create result SUP &L{app0, app1}
-  uint32_t result_sup_loc = ic_alloc(ic, 2);
+  Val result_sup_loc = ic_alloc(ic, 2);
   ic->heap[result_sup_loc + 0] = app0;
   ic->heap[result_sup_loc + 1] = app1;
   return ic_make_sup(sup_lab, result_sup_loc);
@@ -127,16 +127,16 @@ static inline Term ic_sup_app(IC* ic, Term app, Term sup) {
 static inline Term ic_sup_sup_x(IC* ic, Term outer_sup, Term inner_sup) {
   ic->interactions++;
 
-  uint32_t outer_sup_loc = TERM_VAL(outer_sup);
-  uint8_t outer_lab = TERM_LAB(outer_sup);
-  uint32_t inner_sup_loc = TERM_VAL(inner_sup);
-  uint8_t inner_lab = TERM_LAB(inner_sup);
+  Val outer_sup_loc = TERM_VAL(outer_sup);
+  Lab outer_lab = TERM_LAB(outer_sup);
+  Val inner_sup_loc = TERM_VAL(inner_sup);
+  Lab inner_lab = TERM_LAB(inner_sup);
   Term x0 = ic->heap[inner_sup_loc + 0];
   Term x1 = ic->heap[inner_sup_loc + 1];
   Term y = ic->heap[outer_sup_loc + 1];
 
   // Allocate DUP node for y with label outer_lab
-  uint32_t dup_loc = ic_alloc(ic, 1);
+  Val dup_loc = ic_alloc(ic, 1);
   ic->heap[dup_loc] = y;
 
   // Create y0 and y1 with label outer_lab
@@ -144,19 +144,19 @@ static inline Term ic_sup_sup_x(IC* ic, Term outer_sup, Term inner_sup) {
   Term y1 = ic_make_co1(outer_lab, dup_loc);
 
   // Create sup0 = &outer_lab{x0, y0}
-  uint32_t sup0_loc = ic_alloc(ic, 2);
+  Val sup0_loc = ic_alloc(ic, 2);
   ic->heap[sup0_loc + 0] = x0;
   ic->heap[sup0_loc + 1] = y0;
   Term sup0 = ic_make_sup(outer_lab, sup0_loc);
 
   // Create sup1 = &outer_lab{x1, y1}
-  uint32_t sup1_loc = ic_alloc(ic, 2);
+  Val sup1_loc = ic_alloc(ic, 2);
   ic->heap[sup1_loc + 0] = x1;
   ic->heap[sup1_loc + 1] = y1;
   Term sup1 = ic_make_sup(outer_lab, sup1_loc);
 
   // Create result SUP &inner_lab{sup0, sup1}
-  uint32_t result_sup_loc = ic_alloc(ic, 2);
+  Val result_sup_loc = ic_alloc(ic, 2);
   ic->heap[result_sup_loc + 0] = sup0;
   ic->heap[result_sup_loc + 1] = sup1;
   return ic_make_sup(inner_lab, result_sup_loc);
@@ -169,16 +169,16 @@ static inline Term ic_sup_sup_x(IC* ic, Term outer_sup, Term inner_sup) {
 static inline Term ic_sup_sup_y(IC* ic, Term outer_sup, Term inner_sup) {
   ic->interactions++;
 
-  uint32_t outer_sup_loc = TERM_VAL(outer_sup);
-  uint8_t outer_lab = TERM_LAB(outer_sup);
-  uint32_t inner_sup_loc = TERM_VAL(inner_sup);
-  uint8_t inner_lab = TERM_LAB(inner_sup);
+  Val outer_sup_loc = TERM_VAL(outer_sup);
+  Lab outer_lab = TERM_LAB(outer_sup);
+  Val inner_sup_loc = TERM_VAL(inner_sup);
+  Lab inner_lab = TERM_LAB(inner_sup);
   Term x = ic->heap[outer_sup_loc + 0];
   Term y0 = ic->heap[inner_sup_loc + 0];
   Term y1 = ic->heap[inner_sup_loc + 1];
 
   // Allocate DUP node for x with label outer_lab
-  uint32_t dup_loc = ic_alloc(ic, 1);
+  Val dup_loc = ic_alloc(ic, 1);
   ic->heap[dup_loc] = x;
 
   // Create x0 and x1 with label outer_lab
@@ -186,19 +186,19 @@ static inline Term ic_sup_sup_y(IC* ic, Term outer_sup, Term inner_sup) {
   Term x1 = ic_make_co1(outer_lab, dup_loc);
 
   // Create sup0 = &outer_lab{x0, y0}
-  uint32_t sup0_loc = ic_alloc(ic, 2);
+  Val sup0_loc = ic_alloc(ic, 2);
   ic->heap[sup0_loc + 0] = x0;
   ic->heap[sup0_loc + 1] = y0;
   Term sup0 = ic_make_sup(outer_lab, sup0_loc);
 
   // Create sup1 = &outer_lab{x1, y1}
-  uint32_t sup1_loc = ic_alloc(ic, 2);
+  Val sup1_loc = ic_alloc(ic, 2);
   ic->heap[sup1_loc + 0] = x1;
   ic->heap[sup1_loc + 1] = y1;
   Term sup1 = ic_make_sup(outer_lab, sup1_loc);
 
   // Create result SUP &inner_lab{sup0, sup1}
-  uint32_t result_sup_loc = ic_alloc(ic, 2);
+  Val result_sup_loc = ic_alloc(ic, 2);
   ic->heap[result_sup_loc + 0] = sup0;
   ic->heap[result_sup_loc + 1] = sup1;
   return ic_make_sup(inner_lab, result_sup_loc);
@@ -211,7 +211,7 @@ static inline Term ic_sup_sup_y(IC* ic, Term outer_sup, Term inner_sup) {
 // K
 static inline Term ic_dup_var(IC* ic, Term dup, Term var) {
   ic->interactions++;
-  uint32_t dup_loc = TERM_VAL(dup);
+  Val dup_loc = TERM_VAL(dup);
   ic->heap[dup_loc] = ic_make_sub(var);
   return var;
 }
@@ -226,19 +226,19 @@ static inline Term ic_dup_var(IC* ic, Term dup, Term var) {
 static inline Term ic_dup_app(IC* ic, Term dup, Term app) {
   ic->interactions++;
 
-  uint32_t dup_loc = TERM_VAL(dup);
-  uint8_t lab = TERM_LAB(dup);
+  Val dup_loc = TERM_VAL(dup);
+  Lab lab = TERM_LAB(dup);
   TermTag tag = TERM_TAG(dup);
   bool is_co0 = IS_DP0(tag);
 
-  uint32_t app_loc = TERM_VAL(app);
+  Val app_loc = TERM_VAL(app);
   Term fun = ic->heap[app_loc + 0];
   Term arg = ic->heap[app_loc + 1];
 
   // Allocate DUP nodes for fun and arg
-  uint32_t dup_fun_loc = ic_alloc(ic, 1);
+  Val dup_fun_loc = ic_alloc(ic, 1);
   ic->heap[dup_fun_loc] = fun;
-  uint32_t dup_arg_loc = ic_alloc(ic, 1);
+  Val dup_arg_loc = ic_alloc(ic, 1);
   ic->heap[dup_arg_loc] = arg;
 
   // Create DP0 and DP1 for fun
@@ -250,16 +250,16 @@ static inline Term ic_dup_app(IC* ic, Term dup, Term app) {
   Term x1 = ic_make_co1(lab, dup_arg_loc);
 
   // Create app0 = (f0 x0)
-  uint32_t app0_loc = ic_alloc(ic, 2);
+  Val app0_loc = ic_alloc(ic, 2);
   ic->heap[app0_loc + 0] = f0;
   ic->heap[app0_loc + 1] = x0;
-  Term app0 = ic_make_term(APP, app0_loc);
+  Term app0 = ic_make_term(APP, 0, app0_loc);
 
   // Create app1 = (f1 x1)
-  uint32_t app1_loc = ic_alloc(ic, 2);
+  Val app1_loc = ic_alloc(ic, 2);
   ic->heap[app1_loc + 0] = f1;
   ic->heap[app1_loc + 1] = x1;
-  Term app1 = ic_make_term(APP, app1_loc);
+  Term app1 = ic_make_term(APP, 0, app1_loc);
 
   // Set substitution and return
   if (is_co0) {
@@ -279,9 +279,9 @@ static inline Term ic_dup_app(IC* ic, Term dup, Term app) {
 static inline Term ic_sup_swi_z(IC* ic, Term swi, Term sup) {
   ic->interactions++;
 
-  uint32_t swi_loc = TERM_VAL(swi);
-  uint32_t sup_loc = TERM_VAL(sup);
-  uint8_t sup_lab = TERM_LAB(sup);
+  Val swi_loc = TERM_VAL(swi);
+  Val sup_loc = TERM_VAL(sup);
+  Lab sup_lab = TERM_LAB(sup);
 
   Term num = ic->heap[swi_loc + 0];
   Term z0 = ic->heap[sup_loc + 0];
@@ -289,8 +289,8 @@ static inline Term ic_sup_swi_z(IC* ic, Term swi, Term sup) {
   Term s = ic->heap[swi_loc + 2];
 
   // Create duplications for num and s
-  uint32_t dup_n_loc = ic_alloc(ic, 1);
-  uint32_t dup_s_loc = ic_alloc(ic, 1);
+  Val dup_n_loc = ic_alloc(ic, 1);
+  Val dup_s_loc = ic_alloc(ic, 1);
 
   ic->heap[dup_n_loc] = num;
   ic->heap[dup_s_loc] = s;
@@ -301,20 +301,20 @@ static inline Term ic_sup_swi_z(IC* ic, Term swi, Term sup) {
   Term s1 = ic_make_co1(sup_lab, dup_s_loc);
 
   // Create switch nodes for each branch
-  uint32_t swi0_loc = ic_alloc(ic, 3);
+  Val swi0_loc = ic_alloc(ic, 3);
   ic->heap[swi0_loc + 0] = n0;
   ic->heap[swi0_loc + 1] = z0;
   ic->heap[swi0_loc + 2] = s0;
 
-  uint32_t swi1_loc = ic_alloc(ic, 3);
+  Val swi1_loc = ic_alloc(ic, 3);
   ic->heap[swi1_loc + 0] = n1;
   ic->heap[swi1_loc + 1] = z1;
   ic->heap[swi1_loc + 2] = s1;
 
   // Create the resulting superposition
-  uint32_t res_loc = ic_alloc(ic, 2);
-  ic->heap[res_loc + 0] = ic_make_term(SWI, swi0_loc);
-  ic->heap[res_loc + 1] = ic_make_term(SWI, swi1_loc);
+  Val res_loc = ic_alloc(ic, 2);
+  ic->heap[res_loc + 0] = ic_make_term(SWI, 0, swi0_loc);
+  ic->heap[res_loc + 1] = ic_make_term(SWI, 0, swi1_loc);
 
   return ic_make_sup(sup_lab, res_loc);
 }
@@ -327,9 +327,9 @@ static inline Term ic_sup_swi_z(IC* ic, Term swi, Term sup) {
 static inline Term ic_sup_swi_s(IC* ic, Term swi, Term sup) {
   ic->interactions++;
 
-  uint32_t swi_loc = TERM_VAL(swi);
-  uint32_t sup_loc = TERM_VAL(sup);
-  uint8_t sup_lab = TERM_LAB(sup);
+  Val swi_loc = TERM_VAL(swi);
+  Val sup_loc = TERM_VAL(sup);
+  Lab sup_lab = TERM_LAB(sup);
 
   Term num = ic->heap[swi_loc + 0];
   Term z = ic->heap[swi_loc + 1];
@@ -337,8 +337,8 @@ static inline Term ic_sup_swi_s(IC* ic, Term swi, Term sup) {
   Term s1 = ic->heap[sup_loc + 1];
 
   // Create duplications for num and z
-  uint32_t dup_n_loc = ic_alloc(ic, 1);
-  uint32_t dup_z_loc = ic_alloc(ic, 1);
+  Val dup_n_loc = ic_alloc(ic, 1);
+  Val dup_z_loc = ic_alloc(ic, 1);
 
   ic->heap[dup_n_loc] = num;
   ic->heap[dup_z_loc] = z;
@@ -349,20 +349,20 @@ static inline Term ic_sup_swi_s(IC* ic, Term swi, Term sup) {
   Term z1 = ic_make_co1(sup_lab, dup_z_loc);
 
   // Create switch nodes for each branch
-  uint32_t swi0_loc = ic_alloc(ic, 3);
+  Val swi0_loc = ic_alloc(ic, 3);
   ic->heap[swi0_loc + 0] = n0;
   ic->heap[swi0_loc + 1] = z0;
   ic->heap[swi0_loc + 2] = s0;
 
-  uint32_t swi1_loc = ic_alloc(ic, 3);
+  Val swi1_loc = ic_alloc(ic, 3);
   ic->heap[swi1_loc + 0] = n1;
   ic->heap[swi1_loc + 1] = z1;
   ic->heap[swi1_loc + 2] = s1;
 
   // Create the resulting superposition
-  uint32_t res_loc = ic_alloc(ic, 2);
-  ic->heap[res_loc + 0] = ic_make_term(SWI, swi0_loc);
-  ic->heap[res_loc + 1] = ic_make_term(SWI, swi1_loc);
+  Val res_loc = ic_alloc(ic, 2);
+  ic->heap[res_loc + 0] = ic_make_term(SWI, 0, swi0_loc);
+  ic->heap[res_loc + 1] = ic_make_term(SWI, 0, swi1_loc);
 
   return ic_make_sup(sup_lab, res_loc);
 }
@@ -373,8 +373,8 @@ static inline Term ic_sup_swi_s(IC* ic, Term swi, Term sup) {
 
 Term ic_collapse_sups(IC* ic, Term term) {
   TermTag tag;
-  uint8_t lab;
-  uint32_t loc;
+  Lab lab;
+  Val loc;
 
   term = ic_whnf(ic, term);
   tag = TERM_TAG(term);
@@ -445,7 +445,7 @@ Term ic_collapse_sups(IC* ic, Term term) {
 Term ic_collapse_dups(IC* ic, Term term) {
   term = ic_whnf(ic, term);
   TermTag tag = TERM_TAG(term);
-  uint32_t loc = TERM_VAL(term);
+  Val loc = TERM_VAL(term);
   if (IS_DUP(tag)) {
     // Get the value this collapser points to
     Term val = ic_collapse_dups(ic, ic->heap[loc]);

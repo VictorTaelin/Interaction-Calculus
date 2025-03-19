@@ -1,5 +1,10 @@
 CC = gcc
 CFLAGS = -w -std=c99 -O3 -march=native -mtune=native -flto
+
+# Check for 64-bit mode flag
+ifdef USE_64BIT
+  CFLAGS += -DIC_64BIT
+endif
 SRC_DIR = src
 OBJ_DIR = obj
 BIN_DIR = bin
@@ -63,7 +68,7 @@ TARGET_LN = $(BIN_DIR)/ic
 # Directories
 DIRS = $(OBJ_DIR) $(BIN_DIR)
 
-.PHONY: all clean status metal-status
+.PHONY: all clean status metal-status 64bit
 
 all: $(DIRS) $(TARGET) $(TARGET_LN)
 
@@ -115,3 +120,7 @@ endif
 metal-status: $(TARGET)
 	@echo "Testing Metal availability..."
 	@./$(TARGET) eval-gpu "λx.x" 2>&1 | grep -i "Metal" || true
+
+# 64-bit build target
+64bit:
+	$(MAKE) USE_64BIT=1
