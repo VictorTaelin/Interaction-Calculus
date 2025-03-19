@@ -316,6 +316,124 @@ a1 <- (f1 x1)
 K
 ```
 
+# Interaction Calculus = Lambda Calculus U Interaction Combinators
+
+Consider the conventional Lambda Calculus, with pairs. It has two computational rules:
+
+- Lambda Application : `(λx.body arg)`
+
+- Pair Projection : `let {a,b} = {fst,snd} in cont`
+
+When compiling the Lambda Calculus to Interaction Combinators:
+
+- `lams` and `apps` can be represented as constructor nodes (γ) 
+
+- `pars` and `lets` can be represented as duplicator nodes (δ)
+
+As such, lambda applications and pair projections are just annihilations:
+
+```
+      Lambda Application                 Pair Projection
+                                                                   
+      (λx.body arg)                      let {a,b} = {fst,snd} in cont 
+      ----------------                   -----------------------------
+      x <- arg                           a <- fst                  
+      body                               b <- snd                  
+                                         cont                      
+                                                                   
+    ret  arg    ret  arg                  b   a       b    a       
+     |   |       |    |                   |   |       |    |       
+     |___|       |    |                   |___|       |    |       
+ app  \ /         \  /                let  \#/         \  /        
+       |    ==>    \/                       |    ==>    \/         
+       |           /\                       |           /\         
+ lam  /_\         /  \               pair  /#\         /  \        
+     |   |       |    |                   |   |       |    |       
+     |   |       |    |                   |   |       |    |       
+     x  body     x   body                fst snd    fst   snd      
+                                                                   
+ "The application of a lambda        "The projection of a pair just 
+ substitutes the lambda's var        substitutes the projected vars
+ by the application's arg, and       by each element of the pair, and
+ returns the lambda body."           returns the continuation."
+```
+
+But annihilations only happen when identical nodes interact. On interaction
+nets, it is possible for different nodes to interact, which triggers another rule,
+the commutation. That rule could be seen as handling the following expressions:
+
+- Lambda Projection : `let {a b} = (λx body) in cont`
+
+- Pair Application : `({fst snd} arg)`
+
+But how could we "project" a lambda or "apply" a pair? On the Lambda Calculus, these
+cases are undefined and stuck, and should be type errors. Yet, by interpreting the
+effects of the commutation rule on the interaction combinator point of view, we
+can propose a reasonable reduction for these lambda expressions:
+
+```
+   Lambda Application                         Pair Application
+                                                                  
+   let {a,b} = (λx.body) in cont             ({fst,snd} arg)   
+   ------------------------------             ---------------
+   a <- λx0.b0                               let {x0,x1} = arg in
+   b <- λx1.b1                               {(fst x0),(snd x1)}
+   x <- {x0,x1}
+   let {b0,b1} = body in
+   cont                   
+       
+    ret  arg         ret  arg            ret  arg         ret  arg  
+     |   |            |    |              |   |            |    |   
+     |___|            |    |              |___|            |    |   
+ let  \#/            /_\  /_\         app  \ /            /#\  /#\  
+       |      ==>    |  \/  |               |      ==>    |  \/  |  
+       |             |_ /\ _|               |             |_ /\ _|  
+ lam  /_\            \#/  \#/        pair  /#\            \ /  \ /  
+     |   |            |    |              |   |            |    |   
+     |   |            |    |              |   |            |    |   
+     x  body          x   body           var body         var  body 
+
+ "The projection of a lambda         "The application of a pair is a pair
+ substitutes the projected vars      of the first element and the second
+ by a copies of the lambda that      element applied to projections of the
+ return its projected body, with     application argument."
+ the bound variable substituted
+ by the new lambda vars paired."
+```
+
+This, in a way, completes the lambda calculus; i.e., previously "stuck"
+expressions now have a meaningful computation. That system, as written, is
+Turing complete, yet, it is very limited, since it isn't capable of cloning
+pairs, or cloning cloned lambdas. There is a simple way to greatly increase its
+expressivity, though: by decorating lets with labels, and upgrading the pair
+projection rule to:
+
+```
+let &i{a,b} = &j{fst,snd} in cont
+---------------------------------
+if i == j:
+  a <- fst
+  b <- snd
+  cont
+else:
+  a <- &j{a0,a1}
+  b <- &j{b0,b1} 
+  let &i{a0,a1} = fst in
+  let &i{b0,b1} = snd in
+  cont
+```
+
+That is, it may correspond to either an Interaction Combinator annihilation or
+commutation, depending on the value of the labels `&i` and `&j`. This makes IC
+capable of cloning pairs, cloning cloned lambdas, computing nested loops,
+performing Church-encoded arithmetic up to exponentiation, expressing arbitrary
+recursive functions such as the Y-combinators and so on. In other words, with
+this simple extension, IC becomes extraordinarily powerful and expressive,
+giving us a new foundation for symbolic computing, that is, in many ways, very
+similar to the λ-Calculus, yet, with key differences that make it more
+efficient in some senses, and capable of expressing new things (like call/cc,
+O(1) queues, linear HOAS), but unable to express others (like `λx.(x x)`).
+
 # IC32: a 32-Bit Runtime
 
 IC32 is implemented in portable C.
