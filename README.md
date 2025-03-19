@@ -40,7 +40,7 @@ Then, run one of the examples:
 
 An IC term is defined by the following grammar:
 
-```
+```haskell
 Term ::=
   | VAR: Name
   | ERA: "*"
@@ -75,7 +75,7 @@ The 'Label' is just a numeric value. It affects the DUP-SUP interaction.
 
 The core interaction rules are listed below:
 
-```
+```haskell
 (* a)
 ----- APP-ERA
 *
@@ -133,7 +133,7 @@ setup with a single atomic-swap.
 
 Below is a pseudocode implementation of these interaction rules:
 
-```
+```python
 def app_lam(app, lam):
   sub[lam.nam] = app.arg
   return lam.bod
@@ -166,7 +166,7 @@ Terms can be reduced to weak head normal form, which means reducing until the
 outermost constructor is a value (LAM, SUP, etc.), or until no more reductions
 are possible. Example:
 
-```
+```python
 def whnf(term):
   while True:
     match term:
@@ -193,7 +193,7 @@ def whnf(term):
 
 Terms can be reduced to full normal form by recursively taking the whnf:
 
-```
+```python
 def normal(term):
   term = whnf(term)
   match term:
@@ -281,7 +281,7 @@ An Interaction Calculus term can be collapsed to a superposed tree of pure
 Lambda Calculus terms without SUPs and DUPs, by extending the evaluator with the
 following collapse interactions:
 
-```
+```haskell
 λx.*
 ------ ERA-LAM
 x <- *
@@ -408,7 +408,7 @@ pairs, or cloning cloned lambdas. There is a simple way to greatly increase its
 expressivity, though: by decorating lets with labels, and upgrading the pair
 projection rule to:
 
-```
+```haskell
 let &i{a,b} = &j{fst,snd} in cont
 ---------------------------------
 if i == j:
@@ -516,7 +516,7 @@ variable), the first half of the duplicated term is returned, and the other half
 is stored where the Dup node was, allowing the other variable to get it as a
 substitution. For example, the DUP-SUP interaction could be implemented as:
 
-```
+```python
 def dup_sup(dup, sup):
   dup_lab = dup.tag & 0x3
   sup_lab = sup.tag & 0x3
@@ -563,7 +563,7 @@ to it to the 'vars' map. Then, once the parsing is done, we run iterate through
 the 'uses' array, and write, to each location, the corresponding term. Below
 are some example parsers using this strategy:
 
-```
+```python
 def parse_var(loc):
   nam = parse_name()
   uses.push((nam,loc))
@@ -637,10 +637,12 @@ same dup node is pointed to by up to 2 variables, DP0 and DP1)
 Then, to stringify the term, we first stringify each DUP node, and then we
 stringify the actual term. As such, the result will always be in the form:
 
+```haskell
 ! &{x0 x1} = t0
 ! &{x2 x3} = t1
 ! &{x4 x5} = t2
 ...
 term
+```
 
 With no Dup nodes inside the ASTs of t0, t1, t2 ... and term.
