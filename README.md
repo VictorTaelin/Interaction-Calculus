@@ -34,7 +34,7 @@ make
 Then, run one of the examples:
 
 ```
-./bin/ic run book/test_0.ic
+./bin/ic run examples/test_0.ic
 ```
 
 ## Specification
