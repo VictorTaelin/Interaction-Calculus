@@ -20,7 +20,7 @@ garbage collector very efficient, and greatly simplifies parallelism.
 The [HVM](https://github.com/HigherOrderCO/HVM3) is a fast, fully featured
 implementation of this calculus.
 
-**This repo now includes a reference implementation in C, which is also quite fast.**
+**This repo now includes a reference implementation in C, which is also quite fast!**
 
 ## Usage
 
