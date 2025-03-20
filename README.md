@@ -22,6 +22,8 @@ implementation of this calculus.
 
 **This repo now includes a reference implementation in C, which is also quite fast!**
 
+**Now it also includes a single-file implementation in Haskell, great for learning!**
+
 ## Usage
 
 This repository includes a reference implementation of the Interaction Calculus
@@ -37,6 +39,8 @@ Then, run one of the examples:
 ```
 ./bin/ic run examples/test_0.ic
 ```
+
+For learning, edit the Haskell file: it is simpler, and has a step debugger.
 
 ## Specification
 
@@ -316,6 +320,40 @@ a1 <- (f1 x1)
 !&L{f0,f1} = f;
 !&L{x0,x1} = x;
 K
+```
+
+## DUP Permutations
+
+These interactions move a nested DUP out of a redex position.
+
+```
+(!&L{k0,k1}=k;f x)
+------------------ APP-DUP
+!&L{k0,k1}=k;(f x)
+
+! &L{x0,x1} = (!$R{y0,y1}=Y;X); T
+------------------------------------- DUP-DUP
+! &L{x0,x1} = X; ! &L{y0,y1} = Y; T
+```
+
+They're only needed in implementations that store a DUP's body.
+
+## Labeled Lambdas
+
+Another possible extension of IC is to include labels on lams/apps:
+
+```haskell
+  | LAM: "&" Label "λ" Name "." Term
+  | APP: "&" Label "(" Term " " Term ")"
+```
+
+The APP-LAM rule must, then, be extended with:
+
+```haskell
+&L(&Rλx.bod arg)
+----------------------- APP-LAM (if different labels)
+x <- &Lλy.z
+&Rλz.&L(body &R(arg y))
 ```
 
 ## IC = Lambda Calculus U Interaction Combinators
