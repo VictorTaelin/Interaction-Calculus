@@ -17,9 +17,10 @@ Superpositions and duplications allow the IC to be optimally evaluated, making
 some computations exponentially faster. Finally, being fully affine makes its
 garbage collector very efficient, and greatly simplifies parallelism.
 
-The [HVM](https://github.com/HigherOrderCO/HVM3) is an efficient, fully featured
-implementation of this calculus. This repo includes a reference implementation
-in C, which is also quite fast.
+The [HVM](https://github.com/HigherOrderCO/HVM3) is a fast, fully featured
+implementation of this calculus.
+
+**This repo now includes a reference implementation in C, which is also quite fast.**
 
 ## Usage
 
