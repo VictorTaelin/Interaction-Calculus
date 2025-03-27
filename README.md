@@ -166,6 +166,14 @@ def dup_sup(dup, sup):
     sub[dup.lft] = sup.lft
     sub[dup.rgt] = sup.rgt
     return dup.bod
+  else:
+    a0 = fresh()
+    a1 = fresh()
+    b0 = fresh()
+    b1 = fresh()
+    sub[dup.lft] = Sup(sup.lab, Var(a0), Var(b0))
+    sub[dup.rgt] = Sup(sup.lab, Var(a1), Var(b1))
+    return Dup(dup.lab, a0, a1, sup.lft, Dup(dup.lab, b0, b1, sup.rgt, dup.bod))
 ```
 
 Terms can be reduced to weak head normal form, which means reducing until the
