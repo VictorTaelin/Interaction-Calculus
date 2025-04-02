@@ -412,7 +412,7 @@ fn parse_name(code: &Str) -> (&Str, &Str) {
 
 fn skip_whitespace(code: &Str) -> &Str {
   let mut i: usize = 0;
-  while i < code.len() && (code[i] == b' ' || code[i] == b'\n') {
+  while i < code.len() && code[i].is_ascii_whitespace() {
     i += 1;
   }
   &code[i..]
