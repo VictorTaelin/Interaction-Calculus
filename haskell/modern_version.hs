@@ -1,3 +1,82 @@
+-- The Interaction Calculus
+-- ========================
+-- A term rewrite system for the following language:
+-- 
+-- Term ::=
+-- | Var ::= Name
+-- | Dp0 ::= Name "₀"
+-- | Dp1 ::= Name "₁"
+-- | Ref ::= "@" Name
+-- | Era ::= "&{}"
+-- | Sup ::= "&" Name "{" Term "," Term "}"
+-- | Dup ::= "!" Name "&" Name "=" Term ";" Term
+-- | Lam ::= "λ" Name "." Term
+-- | App ::= "(" Term " " Term ")"
+-- | Tup ::= "#" "(" Term "," Term ")"
+-- | Bt0 ::= "#F"
+-- | Bt1 ::= "#T"
+-- | Zer ::= "0"
+-- | Suc ::= "1+"
+-- | Nil ::= "[]"
+-- | Con ::= Term "<>" Term
+--
+-- Where:
+-- - Name ::= any sequence of base-64 chars in _ A-Z a-z 0-9 $
+-- 
+-- In it, variables are affine (they must occur at most once), and range
+-- globally (they can occur "outside" of their binder's "body"). Example:
+-- 
+--   (Af. !F0 &A = f; !F1 &A = λx0. (F0₀ (F0₁ x0)); λx1.(F1₀ (F1₁ x1)))
+-- 
+-- Is a valid term, representing 'λf.λx.(f (f x))'.
+-- 
+-- Functions can be defined as:
+-- 
+-- Func ::= "@" Name "=" Case
+-- 
+-- Where a Case-Tree can be defined as:
+-- 
+-- Case ::=
+-- | Abs  ::= "λ" Name "." Case
+-- | TupM ::= "λ" "{" "#(,)" ":" Case ";"? "}"
+-- | BitM ::= "λ" "{" "#F" ":" Case ";"? "#T" ":" Case ";"? "}"
+-- | NatM ::= "λ" "{" "0" ":" Case ";"? "1+" ":" Case ";"? "}"
+-- | LstM ::= "λ" "{" "[]" ":" Case ";"? "<>" ":" Case ";"? "}"
+-- | Body ::= Term
+-- 
+-- (Not implemented yet. Will be futurely.)
+-- 
+-- Terms are rewritten via the following interaction rules:
+-- 
+-- (λx.f a)
+-- -------- app-lam
+-- x ← a
+-- f
+-- 
+-- (&L{f,g} a)
+-- ----------------- app-sup
+-- ! A &L = a
+-- &L{(f A₀),(g A₁)}
+-- 
+-- ! F &L = λx.f
+-- ------------- dup-lam
+-- F₀ ← λ$x0.G₀
+-- F₁ ← λ$x1.G₁
+-- x  ← &L{$x0,$x1}
+-- ! G &L = f
+-- 
+-- ! X &L = &R{a,b}
+-- ---------------- dup-sup
+-- if L == R:
+--   X₀ ← a
+--   X₁ ← b
+-- else:
+--   ! A &L = a
+--   ! B &L = b
+--   X₀ ← &R{A₀,B₀}
+--   X₁ ← &R{A₁,B₁}
+
+
 {-# LANGUAGE BangPatterns #-}
 {-# OPTIONS_GHC -O2 #-}
 
@@ -15,18 +94,28 @@ import qualified Data.Map.Strict as M
 -- Types
 -- =====
 
-type Lab  = Int
+type Lab  = Int
 type Name = Int
 
 data Term
-  = Var !Name
-  | Dp0 !Name
-  | Dp1 !Name
-  | Era
-  | Sup !Lab !Term !Term
-  | Dup !Name !Lab !Term !Term
-  | Lam !Name !Term
-  | App !Term !Term
+  = Var !Name
+  | Dp0 !Name
+  | Dp1 !Name
+  | Era
+  | Sup !Lab !Term !Term
+  | Dup !Name !Lab !Term !Term
+  | Lam !Name !Term
+  | App !Term !Term
+
+-- Stack (for tail-recursive WNF)
+-- ==============================
+
+-- We introduce an explicit stack to manage the evaluation context, enabling tail recursion.
+data Frame
+  = FApp Term        -- Stores the argument 'x' while reducing the function 'f' in (f x).
+  | FDp0 Name Lab    -- Stores the context (k, l) when Dp0 k accesses a delayed dup !k &l = v.
+  | FDp1 Name Lab    -- Stores the context (k, l) when Dp1 k accesses a delayed dup.
+type Stack = [Frame]
 
 -- Name Encoding/Decoding
 -- ======================
@@ -41,14 +130,14 @@ char_map = M.fromList (zip alphabet [0..])
 
 name_to_int :: String -> Int
 name_to_int = foldl' go 0
-  where go acc c = (acc `shiftL` 6) + char_map M.! c
+  where go acc c = (acc `shiftL` 6) + char_map M.! c
 
 int_to_name :: Int -> String
 int_to_name 0 = "_"
 int_to_name n = reverse $ go n
-  where go 0 = ""
-        go m = let (q,r) = m `divMod` 64
-               in alphabet !! r : go q
+  where go 0 = ""
+        go m = let (q,r) = m `divMod` 64
+               in alphabet !! r : go q
 
 -- Parsing
 -- =======
@@ -61,94 +150,94 @@ parse_nam = lexeme $ munch1 (`M.member` char_map)
 
 parse_term :: ReadP Term
 parse_term = lexeme $ choice
-  [ parse_lam, parse_dup, parse_app, parse_sup, parse_era, parse_var ]
+  [ parse_lam, parse_dup, parse_app, parse_sup, parse_era, parse_var ]
 
 parse_app :: ReadP Term
 parse_app = between (lexeme (char '(')) (lexeme (char ')')) $ do
-  ts <- many1 parse_term
-  let (t:rest) = ts
-  return (foldl' App t rest)
+  ts <- many1 parse_term
+  let (t:rest) = ts
+  return (foldl' App t rest)
 
 parse_lam :: ReadP Term
 parse_lam = do
-  lexeme (choice [char 'λ', char '\\'])
-  k <- parse_nam
-  lexeme (char '.')
-  body <- parse_term
-  return (Lam (name_to_int k) body)
+  lexeme (choice [char 'λ', char '\\'])
+  k <- parse_nam
+  lexeme (char '.')
+  body <- parse_term
+  return (Lam (name_to_int k) body)
 
 parse_dup :: ReadP Term
 parse_dup = do
-  lexeme (char '!')
-  k <- parse_nam
-  lexeme (char '&')
-  l <- parse_nam
-  lexeme (char '=')
-  v <- parse_term
-  lexeme (char ';')
-  t <- parse_term
-  return (Dup (name_to_int k) (name_to_int l) v t)
+  lexeme (char '!')
+  k <- parse_nam
+  lexeme (char '&')
+  l <- parse_nam
+  lexeme (char '=')
+  v <- parse_term
+  lexeme (char ';')
+  t <- parse_term
+  return (Dup (name_to_int k) (name_to_int l) v t)
 
 parse_sup :: ReadP Term
 parse_sup = do
-  lexeme (char '&')
-  l <- parse_nam
-  between (lexeme (char '{')) (lexeme (char '}')) $ do
-    a <- parse_term
-    lexeme (char ',')
-    b <- parse_term
-    return (Sup (name_to_int l) a b)
+  lexeme (char '&')
+  l <- parse_nam
+  between (lexeme (char '{')) (lexeme (char '}')) $ do
+    a <- parse_term
+    lexeme (char ',')
+    b <- parse_term
+    return (Sup (name_to_int l) a b)
 
 parse_era :: ReadP Term
 parse_era = lexeme (string "&{}") >> return Era
 
 parse_var :: ReadP Term
 parse_var = do
-  k <- parse_nam
-  let kid = name_to_int k
-  choice
-    [ string "₀"  >> return (Dp0 kid)
-    , string "₁"  >> return (Dp1 kid)
-    , return (Var kid)
-    ]
+  k <- parse_nam
+  let kid = name_to_int k
+  choice
+    [ string "₀"  >> return (Dp0 kid)
+    , string "₁"  >> return (Dp1 kid)
+    , return (Var kid)
+    ]
 
 read_term :: String -> Term
 read_term s = case readP_to_S (parse_term <* skipSpaces <* eof) s of
-  [(t, "")] -> t
-  _         -> error "bad-parse"
+  [(t, "")] -> t
+  _         -> error "bad-parse"
 
 -- Environment
 -- ===========
 
 data Env = Env
-  { inters  :: !(IORef Int)
-  , id_new  :: !(IORef Int)
-  , var_map :: !(IORef (IM.IntMap Term))
-  , dp0_map :: !(IORef (IM.IntMap Term))
-  , dp1_map :: !(IORef (IM.IntMap Term))
-  , dup_map :: !(IORef (IM.IntMap (Lab, Term)))
-  }
+  { inters  :: !(IORef Int)
+  , id_new  :: !(IORef Int)
+  , var_map :: !(IORef (IM.IntMap Term))
+  , dp0_map :: !(IORef (IM.IntMap Term))
+  , dp1_map :: !(IORef (IM.IntMap Term))
+  , dup_map :: !(IORef (IM.IntMap (Lab, Term)))
+  }
 
 new_env :: IO Env
 new_env = do
-  itr <- newIORef 0
-  ids <- newIORef 0
-  vm  <- newIORef IM.empty
-  d0m <- newIORef IM.empty
-  d1m <- newIORef IM.empty
-  dm  <- newIORef IM.empty
-  return $ Env itr ids vm d0m d1m dm
+  itr <- newIORef 0
+  ids <- newIORef 0
+  vm  <- newIORef IM.empty
+  d0m <- newIORef IM.empty
+  d1m <- newIORef IM.empty
+  dm  <- newIORef IM.empty
+  return $ Env itr ids vm d0m d1m dm
 
 inc_inters :: Env -> IO ()
 inc_inters e = do
-  !n <- readIORef (inters e)
-  writeIORef (inters e) (n + 1)
+  !n <- readIORef (inters e)
+  writeIORef (inters e) (n + 1)
 
 fresh :: Env -> IO Name
 fresh e = do
-  !n <- readIORef (id_new e)
-  writeIORef (id_new e) (n + 1)
-  return ((n `shiftL` 6) + 63)
+  !n <- readIORef (id_new e)
+  writeIORef (id_new e) (n + 1)
+  return ((n `shiftL` 6) + 63)
 
 subst_var :: Env -> Name -> Term -> IO ()
 subst_var e k v = modifyIORef' (var_map e) (IM.insert k v)
@@ -162,14 +251,15 @@ subst_dp1 e k v = modifyIORef' (dp1_map e) (IM.insert k v)
 delay_dup :: Env -> Name -> Lab -> Term -> IO ()
 delay_dup e k l v = modifyIORef' (dup_map e) (IM.insert k (l, v))
 
+-- Atomically takes a value from a map.
 taker :: IORef (IM.IntMap a) -> Name -> IO (Maybe a)
 taker ref k = do
-  !m <- readIORef ref
-  case IM.lookup k m of
-    Nothing -> return Nothing
-    Just v  -> do
-      writeIORef ref (IM.delete k m)
-      return (Just v)
+  !m <- readIORef ref
+  case IM.lookup k m of
+    Nothing -> return Nothing
+    Just v  -> do
+      writeIORef ref (IM.delete k m)
+      return (Just v)
 
 take_var :: Env -> Name -> IO (Maybe Term)
 take_var e = taker (var_map e)
@@ -183,173 +273,170 @@ take_dp1 e = taker (dp1_map e)
 take_dup :: Env -> Name -> IO (Maybe (Lab, Term))
 take_dup e = taker (dup_map e)
 
--- Evaluation (Weak Head Normal Form)
--- ==================================
+-- Evaluation (Weak Head Normal Form, Tail-Recursive)
+-- ==================================================
 
-wnf :: Env -> Term -> IO Term
-wnf e (App f x) = do
-  !f0 <- wnf e f
-  app e f0 x
-wnf e (Dup k l v t) = do
-  delay_dup e k l v
-  wnf e t
-wnf e (Var x) = var e x
-wnf e (Dp0 x) = dp0 e x
-wnf e (Dp1 x) = dp1 e x
-wnf e f = return f
+-- Main WNF loop: drives reduction by analyzing the term structure.
+wnf :: Env -> Stack -> Term -> IO Term
+wnf e s (App f x)     = wnf e (FApp x : s) f
+wnf e s (Dup k l v t) = delay_dup e k l v >> wnf e s t
+wnf e s (Var k)       = var e s k
+wnf e s (Dp0 k)       = wnf_dup e s k FDp0 dp0
+wnf e s (Dp1 k)       = wnf_dup e s k FDp1 dp1
+wnf e s f             = unwind e s f -- Reached a head form (Lam, Sup, Era).
 
-app :: Env -> Term -> Term -> IO Term
-app e (Lam fk ff)    x = app_lam e fk ff x
-app e (Sup fl fa fb) x = app_sup e fl fa fb x
-app e f              x = return $ App f x
+-- Auxiliary function for handling Dp0/Dp1 in wnf: checks for delayed dup
+wnf_dup :: Env -> Stack -> Name -> (Name -> Lab -> Frame) -> (Env -> Stack -> Name -> IO Term) -> IO Term
+wnf_dup e s k mkFrame fallback = do
+  mlv <- take_dup e k
+  case mlv of
+    Just (l, v) -> wnf e (mkFrame k l : s) v
+    Nothing     -> fallback e s k
 
-dup :: Env -> Name -> Lab -> Term -> Term -> IO Term
-dup e k l (Lam vk vf)    t = dup_lam e k l vk vf t
-dup e k l (Sup vl va vb) t = dup_sup e k l vl va vb t
-dup e k l v              t = return $ Dup k l v t
+-- Unwind loop: applies the reduced term (head form) to the stack frames (context).
+unwind :: Env -> Stack -> Term -> IO Term
+unwind e []             v = return v
+unwind e (FApp x   : s) v = app e s v x
+unwind e (FDp0 k l : s) v = dup e s k l v (Dp0 k)
+unwind e (FDp1 k l : s) v = dup e s k l v (Dp1 k)
+
+-- Variable and Port Handlers (Substitution)
+-- -----------------------------------------
+
+get_subst :: Env -> Stack -> Name -> (Env -> Name -> IO (Maybe Term)) -> (Name -> Term) -> IO Term
+get_subst e s k takeFunc mkTerm = do
+  mt <- takeFunc e k
+  case mt of
+    Just t  -> wnf e s t
+    Nothing -> unwind e s (mkTerm k)
+
+-- Var: Check for substitution in var_map.
+var :: Env -> Stack -> Name -> IO Term
+var e s k = get_subst e s k take_var Var
+
+-- Dp0: Check for substitution in dp0_map.
+dp0 :: Env -> Stack -> Name -> IO Term
+dp0 e s k = get_subst e s k take_dp0 Dp0
+
+-- Dp1: Check for substitution in dp1_map.
+dp1 :: Env -> Stack -> Name -> IO Term
+dp1 e s k = get_subst e s k take_dp1 Dp1
+
+-- Interaction Dispatchers
+-- -----------------------
+
+-- App: Handles application interactions.
+app :: Env -> Stack -> Term -> Term -> IO Term
+app e s (Lam fk ff)    x = app_lam e s fk ff x
+app e s (Sup fl fa fb) x = app_sup e s fl fa fb x
+app e s f              x = unwind e s (App f x)
+
+-- Dup: Handles duplication interactions. 'v' is the reduced value, 't' is the continuation.
+dup :: Env -> Stack -> Name -> Lab -> Term -> Term -> IO Term
+dup e s k l (Lam vk vf)    t = dup_lam e s k l vk vf t
+dup e s k l (Sup vl va vb) t = dup_sup e s k l vl va vb t
+dup e s k l v              t = unwind e s (Dup k l v t)
+
+-- Interaction Rules
+-- -----------------
 
 -- (λx.f a)
--- -------- app-lam
--- x ← a
--- f
-
-app_lam :: Env -> Name -> Term -> Term -> IO Term
-app_lam e fx ff v = do
-  inc_inters e
-  subst_var e fx v
-  wnf e ff
+app_lam :: Env -> Stack -> Name -> Term -> Term -> IO Term
+app_lam e s fx ff v = do
+  inc_inters e
+  subst_var e fx v
+  wnf e s ff
 
 -- (&L{f,g} a)
--- ----------------- app-sup
--- ! A &L = a
--- &L{(f A₀),(g A₁)}
-
-app_sup :: Env -> Lab -> Term -> Term -> Term -> IO Term
-app_sup e fL fa fb v = do
-  inc_inters e
-  x <- fresh e
-  delay_dup e x fL v
-  wnf e (Sup fL (App fa (Dp0 x)) (App fb (Dp1 x)))
-
+app_sup :: Env -> Stack -> Lab -> Term -> Term -> Term -> IO Term
+app_sup e s fL fa fb v = do
+  inc_inters e
+  x <- fresh e
+  delay_dup e x fL v
+  wnf e s (Sup fL (App fa (Dp0 x)) (App fb (Dp1 x)))
 
 -- ! F &L = λx.f
--- ---------------- dup-lam
--- F₀ ← λ$x0.G₀
--- F₁ ← λ$x1.G₁
--- x  ← &L{$x0,$x1}
--- ! G &L = f
-
-dup_lam :: Env -> Name -> Lab -> Name -> Term -> Term -> IO Term
-dup_lam e k l vk vf t = do
-  inc_inters e
-  x0 <- fresh e
-  x1 <- fresh e
-  g  <- fresh e
-  subst_dp0 e k (Lam x0 (Dp0 g))
-  subst_dp1 e k (Lam x1 (Dp1 g))
-  subst_var e vk (Sup l (Var x0) (Var x1))
-  delay_dup e g l vf
-  wnf e t
+dup_lam :: Env -> Stack -> Name -> Lab -> Name -> Term -> Term -> IO Term
+dup_lam e s k l vk vf t = do
+  inc_inters e
+  x0 <- fresh e
+  x1 <- fresh e
+  g  <- fresh e
+  -- Populate substitution maps.
+  subst_dp0 e k (Lam x0 (Dp0 g))
+  subst_dp1 e k (Lam x1 (Dp1 g))
+  subst_var e vk (Sup l (Var x0) (Var x1))
+  delay_dup e g l vf
+  -- Continue evaluation of the current side 't' (Dp0 k or Dp1 k).
+  -- This will recursively call wnf, which will now find the substitution via dp0/dp1.
+  wnf e s t
 
 -- ! X &L = &R{a,b}
--- ---------------- dup-sup
--- if L == R:
---   X₀ ← a
---   X₁ ← b
--- else:
---   ! A &L = a
---   ! B &L = b
---   X₀ ← &R{A₀,B₀}
---   X₁ ← &R{A₁,B₁}
-
-dup_sup :: Env -> Name -> Lab -> Lab -> Term -> Term -> Term -> IO Term
-dup_sup e k l vl va vb t
-  | l == vl = do
-      inc_inters e
-      subst_dp0 e k va
-      subst_dp1 e k vb
-      wnf e t
-  | otherwise = do
-      inc_inters e
-      a <- fresh e
-      b <- fresh e
-      subst_dp0 e k (Sup vl (Dp0 a) (Dp0 b))
-      subst_dp1 e k (Sup vl (Dp1 a) (Dp1 b))
-      delay_dup e a l va
-      delay_dup e b l vb
-      wnf e t
-
-var :: Env -> Name -> IO Term
-var e k = do
-  mt <- take_var e k
-  case mt of
-    Just t  -> wnf e t
-    Nothing -> return $ Var k
-
-dpx :: (Env -> Name -> IO (Maybe Term)) -> (Name -> Term) -> Env -> Name -> IO Term
-dpx take_dp taker e k = do
-  mt <- take_dp e k
-  case mt of
-    Just t  -> wnf e t
-    Nothing -> do
-      mlv <- take_dup e k
-      case mlv of
-        Just (l, v) -> do
-          !v0 <- wnf e v
-          dup e k l v0 (taker k)
-        Nothing -> return $ taker k
-
-dp0 :: Env -> Name -> IO Term
-dp0 = dpx take_dp0 Dp0
-
-dp1 :: Env -> Name -> IO Term
-dp1 = dpx take_dp1 Dp1
+dup_sup :: Env -> Stack -> Name -> Lab -> Lab -> Term -> Term -> Term -> IO Term
+dup_sup e s k l vl va vb t
+  | l == vl = do
+      inc_inters e
+      -- Populate substitution maps.
+      subst_dp0 e k va
+      subst_dp1 e k vb
+      wnf e s t
+  | otherwise = do
+      inc_inters e
+      a <- fresh e
+      b <- fresh e
+      -- Populate substitution maps.
+      subst_dp0 e k (Sup vl (Dp0 a) (Dp0 b))
+      subst_dp1 e k (Sup vl (Dp1 a) (Dp1 b))
+      delay_dup e a l va
+      delay_dup e b l vb
+      wnf e s t
 
 -- Normalization
 -- =============
 
 nf :: Env -> Int -> Term -> IO Term
-nf e d x = do { !x0 <- wnf e x ; go e d x0 } where
-  go :: Env -> Int -> Term -> IO Term
-  go e d (Var k) = do
-    return $ Var k
-  go e d (Dp0 k) = do
-    return $ Dp0 k
-  go e d (Dp1 k) = do
-    return $ Dp1 k
-  go e d Era = do
-    return Era
-  go e d (App f x) = do
-    !f0 <- nf e d f
-    !x0 <- nf e d x
-    return $ App f0 x0
-  go e d (Sup l a b) = do
-    !a0 <- nf e d a
-    !b0 <- nf e d b
-    return $ Sup l a0 b0
-  go e d (Lam k f) = do
-    subst_var e k (Var d)
-    !f0 <- nf e (d + 1) f
-    return $ Lam d f0
-  go e d (Dup k l v t) = do
-    !v0 <- nf e d v
-    subst_dp0 e k (Dp0 d)
-    subst_dp1 e k (Dp1 d)
-    !t0 <- nf e (d + 1) t
-    return $ Dup d l v0 t0
+-- Initialize normalization by calling wnf with an empty stack [].
+nf e d x = do { !x0 <- wnf e [] x ; go e d x0 } where
+  go :: Env -> Int -> Term -> IO Term
+  go e d (Var k) = do
+    return $ Var k
+  go e d (Dp0 k) = do
+    return $ Dp0 k
+  go e d (Dp1 k) = do
+    return $ Dp1 k
+  go e d Era = do
+    return Era
+  go e d (App f x) = do
+    !f0 <- nf e d f
+    !x0 <- nf e d x
+    return $ App f0 x0
+  go e d (Sup l a b) = do
+    !a0 <- nf e d a
+    !b0 <- nf e d b
+    return $ Sup l a0 b0
+  go e d (Lam k f) = do
+    subst_var e k (Var d)
+    !f0 <- nf e (d + 1) f
+    return $ Lam d f0
+  go e d (Dup k l v t) = do
+    !v0 <- nf e d v
+    subst_dp0 e k (Dp0 d)
+    subst_dp1 e k (Dp1 d)
+    !t0 <- nf e (d + 1) t
+    return $ Dup d l v0 t0
 
 -- Showing
 -- =======
 
 instance Show Term where
-  show (Var k)       = int_to_name (k+1)
-  show (Dp0 k)       = int_to_name (k+1) ++ "₀"
-  show (Dp1 k)       = int_to_name (k+1) ++ "₁"
-  show Era           = "&{}"
-  show (Sup l a b)   = "&" ++ int_to_name l ++ "{" ++ show a ++ "," ++ show b ++ "}"
-  show (Dup k l v t) = "!" ++ int_to_name (k+1) ++ "&" ++ int_to_name l ++ "=" ++ show v ++ ";" ++ show t
-  show (Lam k f)     = "λ" ++ int_to_name (k+1) ++ "." ++ show f
-  show (App f x)     = "(" ++ show f ++ " " ++ show x ++ ")"
+  show (Var k)       = int_to_name (k+1)
+  show (Dp0 k)       = int_to_name (k+1) ++ "₀"
+  show (Dp1 k)       = int_to_name (k+1) ++ "₁"
+  show Era           = "&{}"
+  show (Sup l a b)   = "&" ++ int_to_name l ++ "{" ++ show a ++ "," ++ show b ++ "}"
+  show (Dup k l v t) = "!" ++ int_to_name (k+1) ++ "&" ++ int_to_name l ++ "=" ++ show v ++ ";" ++ show t
+  show (Lam k f)     = "λ" ++ int_to_name (k+1) ++ "." ++ show f
+  show (App f x)     = "(" ++ show f ++ " " ++ show x ++ ")"
 
 -- Benchmark term generator
 -- =========================
@@ -357,40 +444,40 @@ instance Show Term where
 -- Generates the church-encoded exponentiation benchmark term.
 f :: Int -> String
 f n = "λf. " ++ dups ++ final where
-  dups  = concat [dup i | i <- [0..n-1]]
-  dup 0 = "!F00 &A = f;\n    "
-  dup i = "!F" ++ pad i ++ " &A = λx" ++ pad (i-1) ++ ".(F" ++ pad (i-1) ++ "₀ (F" ++ pad (i-1) ++ "₁ x" ++ pad (i-1) ++ "));\n    "
-  final = "λx" ++ pad (n-1) ++ ".(F" ++ pad (n-1) ++ "₀ (F" ++ pad (n-1) ++ "₁ x" ++ pad (n-1) ++ "))"
-  pad x = if x < 10 then "0" ++ show x else show x
+  dups  = concat [dup i | i <- [0..n-1]]
+  dup 0 = "!F00 &A = f;\n    "
+  dup i = "!F" ++ pad i ++ " &A = λx" ++ pad (i-1) ++ ".(F" ++ pad (i-1) ++ "₀ (F" ++ pad (i-1) ++ "₁ x" ++ pad (i-1) ++ "));\n    "
+  final = "λx" ++ pad (n-1) ++ ".(F" ++ pad (n-1) ++ "₀ (F" ++ pad (n-1) ++ "₁ x" ++ pad (n-1) ++ "))"
+  pad x = if x < 10 then "0" ++ show x else show x
 
 -- Main
 -- ====
 
 main :: IO ()
 main = do
-  -- Benchmark configuration: 2^22
-  let n = 20
-  -- The term applies (2^22) to the 'False' church numeral (λT.λF.F), resulting in 'True' (λT.λF.T).
-  let term_str = "((" ++ f n ++ " λX.((X λT0.λF0.F0) λT1.λF1.T1)) λT2.λF2.T2)"
+  -- Benchmark configuration: 2^N
+  let n = 20
+  -- The term applies (2^N) to the 'False' church numeral (λT.λF.F), resulting in 'True' (λT.λF.T).
+  let term_str = "((" ++ f n ++ " λX.((X λT0.λF0.F0) λT1.λF1.T1)) λT2.λF2.T2)"
 
-  -- Parse directly to Term.
-  let term = read_term term_str
+  -- Parse directly to Term.
+  let term = read_term term_str
 
-  -- Setup environment (fresh IDs start automatically at 0 and get '$' prepended).
-  env <- new_env
+  -- Setup environment (fresh IDs start automatically at 0 and get '$' prepended).
+  env <- new_env
 
-  -- Execution
-  start <- getCPUTime
-  !res <- nf env 0 term -- Start normalization with depth 0
-  end <- getCPUTime
+  -- Execution
+  start <- getCPUTime
+  !res <- nf env 0 term -- Start normalization with depth 0
+  end <- getCPUTime
 
-  -- Output
-  interactions <- readIORef (inters env)
-  let diff = fromIntegral (end - start) / (10^12)
-  let rate = fromIntegral interactions / diff
+  -- Output
+  interactions <- readIORef (inters env)
+  let diff = fromIntegral (end - start) / (10^12)
+  let rate = fromIntegral interactions / diff
 
-  -- Expected output: λa.λb.a (Canonical representation of Church True)
-  putStrLn (show res)
-  print interactions
-  printf "Time: %.3f seconds\n" (diff :: Double)
-  printf "Rate: %.2f M interactions/s\n" (rate / 1000000 :: Double)
+  -- Expected output: λa.λb.a (Canonical representation of Church True)
+  putStrLn (show res)
+  print interactions
+  printf "Time: %.3f seconds\n" (diff :: Double)
+  printf "Rate: %.2f M interactions/s\n" (rate / 1000000 :: Double)
